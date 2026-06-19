@@ -11,7 +11,7 @@ from apps.api.core.idempotency import (
     save_idempotent_response,
 )
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
-from apps.api.domain.models import AgentRun, AgentRunTimelineItem, AuditEvent
+from apps.api.domain.models import AgentRun, AgentRunDiagnostics, AgentRunTimelineItem, AuditEvent
 from apps.api.schemas.agents import (
     AgentRunDiagnosticSignalResponse,
     AgentRunDiagnosticsResponse,
@@ -19,6 +19,9 @@ from apps.api.schemas.agents import (
     AgentRunFeedbackRequest,
     AgentRunFeedbackResponse,
     AgentRunPreviewResponse,
+    AgentRunReplayDiffResponse,
+    AgentRunReplayRequest,
+    AgentRunReplayResponse,
     AgentRunSummaryResponse,
     AgentRunTimelineItemResponse,
     RunAgentRequest,
@@ -259,24 +262,49 @@ def get_agent_run_diagnostics(
     )
     if diagnostics is None:
         raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
-    return AgentRunDiagnosticsResponse(
-        tenant_id=diagnostics.tenant_id,
-        run_id=diagnostics.run_id,
-        status=diagnostics.status,
-        severity=diagnostics.severity,
-        quality_score=diagnostics.quality_score,
-        signals=[
-            AgentRunDiagnosticSignalResponse(
-                code=signal.code,
-                severity=signal.severity,
-                message=signal.message,
-                detail=signal.detail,
-            )
-            for signal in diagnostics.signals
-        ],
-        metrics=diagnostics.metrics,
-        recommended_actions=diagnostics.recommended_actions,
-        generated_at=diagnostics.generated_at,
+    return _to_diagnostics_response(diagnostics)
+
+
+@router.post("/agents/runs/{run_id}/replay", response_model=AgentRunReplayResponse)
+def replay_agent_run(
+    run_id: UUID,
+    request: AgentRunReplayRequest,
+    container: ContainerDep,
+    auth: AgentRunAuth,
+    audit_event_limit: int = Query(default=500, ge=1, le=2000),
+) -> AgentRunReplayResponse:
+    require_tenant_access(auth, request.tenant_id)
+    result = container.run_agent.replay_run(
+        tenant_id=request.tenant_id,
+        run_id=run_id,
+        user_id=request.user_id,
+        actor_scopes=request.actor_scopes,
+        audit_event_limit=audit_event_limit,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
+    return AgentRunReplayResponse(
+        tenant_id=result.tenant_id,
+        source_run=_to_response(result.source_run),
+        replayed_run=_to_response(result.replayed_run),
+        source_diagnostics=_to_diagnostics_response(result.source_diagnostics),
+        replayed_diagnostics=_to_diagnostics_response(result.replayed_diagnostics),
+        diff=AgentRunReplayDiffResponse(
+            source_run_id=result.diff.source_run_id,
+            replayed_run_id=result.diff.replayed_run_id,
+            status_changed=result.diff.status_changed,
+            query_type_changed=result.diff.query_type_changed,
+            confidence_delta=result.diff.confidence_delta,
+            citation_overlap_ratio=result.diff.citation_overlap_ratio,
+            source_quality_score=result.diff.source_quality_score,
+            replayed_quality_score=result.diff.replayed_quality_score,
+            quality_score_delta=result.diff.quality_score_delta,
+            source_severity=result.diff.source_severity,
+            replayed_severity=result.diff.replayed_severity,
+            signals_added=result.diff.signals_added,
+            signals_resolved=result.diff.signals_resolved,
+        ),
+        generated_at=result.generated_at,
     )
 
 
@@ -338,6 +366,28 @@ def _to_audit_event_response(event: AuditEvent) -> AuditEventResponse:
         resource_id=event.resource_id,
         payload=event.payload,
         created_at=event.created_at,
+    )
+
+
+def _to_diagnostics_response(diagnostics: AgentRunDiagnostics) -> AgentRunDiagnosticsResponse:
+    return AgentRunDiagnosticsResponse(
+        tenant_id=diagnostics.tenant_id,
+        run_id=diagnostics.run_id,
+        status=diagnostics.status,
+        severity=diagnostics.severity,
+        quality_score=diagnostics.quality_score,
+        signals=[
+            AgentRunDiagnosticSignalResponse(
+                code=signal.code,
+                severity=signal.severity,
+                message=signal.message,
+                detail=signal.detail,
+            )
+            for signal in diagnostics.signals
+        ],
+        metrics=diagnostics.metrics,
+        recommended_actions=diagnostics.recommended_actions,
+        generated_at=diagnostics.generated_at,
     )
 
 

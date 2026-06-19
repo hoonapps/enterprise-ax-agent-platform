@@ -131,6 +131,38 @@ class AgentRunDiagnosticsResponse(BaseModel):
     generated_at: datetime
 
 
+class AgentRunReplayRequest(BaseModel):
+    tenant_id: str = "default"
+    user_id: str | None = "operator-01"
+    actor_scopes: list[str] = Field(default_factory=lambda: ["records:read", "workflow:request"])
+
+
+class AgentRunReplayDiffResponse(BaseModel):
+    source_run_id: UUID
+    replayed_run_id: UUID
+    status_changed: bool
+    query_type_changed: bool
+    confidence_delta: float
+    citation_overlap_ratio: float
+    source_quality_score: float
+    replayed_quality_score: float
+    quality_score_delta: float
+    source_severity: str
+    replayed_severity: str
+    signals_added: list[str]
+    signals_resolved: list[str]
+
+
+class AgentRunReplayResponse(BaseModel):
+    tenant_id: str
+    source_run: RunAgentResponse
+    replayed_run: RunAgentResponse
+    source_diagnostics: AgentRunDiagnosticsResponse
+    replayed_diagnostics: AgentRunDiagnosticsResponse
+    diff: AgentRunReplayDiffResponse
+    generated_at: datetime
+
+
 class SearchKnowledgeRequest(BaseModel):
     tenant_id: str = "default"
     query: str = Field(..., min_length=2)

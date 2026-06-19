@@ -1315,13 +1315,24 @@ _DASHBOARD_HTML = """<!doctype html>
           <td>${escapeHtml(run.redacted_query_preview)}</td>
           <td>${formatRatio(run.confidence)}</td>
           <td>
-            <button
-              class="action-button compact"
-              type="button"
-              data-run-id="${escapeHtml(run.run_id)}"
-            >
-              보기
-            </button>
+            <div class="action-group">
+              <button
+                class="action-button compact"
+                type="button"
+                data-run-action="view"
+                data-run-id="${escapeHtml(run.run_id)}"
+              >
+                보기
+              </button>
+              <button
+                class="action-button compact"
+                type="button"
+                data-run-action="replay"
+                data-run-id="${escapeHtml(run.run_id)}"
+              >
+                Replay
+              </button>
+            </div>
           </td>
         </tr>
       `).join("");
@@ -1568,6 +1579,35 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function replayAgentRun(runId) {
+      if (!runId) {
+        return;
+      }
+      const tenantId = els.tenant.value || "default";
+      els.loadState.className = "";
+      els.loadState.textContent = "Agent run을 재실행하는 중입니다.";
+      try {
+        const replay = await postJson(
+          `/v1/agents/runs/${encodeURIComponent(runId)}/replay`,
+          {
+            tenant_id: tenantId,
+            user_id: els.feedbackSubmittedBy.value.trim() || "operator-01",
+            actor_scopes: ["records:read", "workflow:request"]
+          }
+        );
+        selectedRunId = replay.replayed_run.run_id;
+        els.loadState.textContent = [
+          "Replay 완료",
+          `quality delta ${formatRatio(replay.diff.quality_score_delta)}`,
+          `confidence delta ${formatRatio(replay.diff.confidence_delta)}`
+        ].join(" · ");
+        await refreshDashboard();
+      } catch (error) {
+        els.loadState.className = "error";
+        els.loadState.textContent = `Replay 실패: ${error.message}`;
+      }
+    }
+
     async function loadAgentTimeline(runId) {
       if (!runId) {
         renderAgentTimeline([]);
@@ -1713,6 +1753,10 @@ _DASHBOARD_HTML = """<!doctype html>
         return;
       }
       selectedRunId = button.dataset.runId;
+      if (button.dataset.runAction === "replay") {
+        replayAgentRun(selectedRunId);
+        return;
+      }
       renderAgentRuns(latestAgentRuns);
       loadAgentTimeline(selectedRunId);
     });

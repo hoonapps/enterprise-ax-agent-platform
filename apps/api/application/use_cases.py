@@ -33,6 +33,8 @@ from apps.api.domain.models import (
     AgentRunEvidenceBundle,
     AgentRunFeedback,
     AgentRunPreview,
+    AgentRunReplayDiff,
+    AgentRunReplayResult,
     AgentRunTimelineItem,
     ApprovalRequest,
     ApprovalStatus,
@@ -475,6 +477,73 @@ class RunAgentUseCase:
             recommended_actions=self._diagnostic_actions(signals),
         )
 
+    def replay_run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        user_id: str | None,
+        actor_scopes: list[str],
+        audit_event_limit: int = 500,
+    ) -> AgentRunReplayResult | None:
+        source_run = self.get_run(tenant_id=tenant_id, run_id=run_id)
+        if source_run is None:
+            return None
+
+        replayed_run = self.execute(
+            tenant_id=tenant_id,
+            scenario=source_run.scenario,
+            message=source_run.query,
+            user_id=user_id or source_run.user_id,
+            actor_scopes=actor_scopes,
+        )
+        source_diagnostics = self.get_diagnostics(
+            tenant_id=tenant_id,
+            run_id=source_run.id,
+            audit_event_limit=audit_event_limit,
+        )
+        replayed_diagnostics = self.get_diagnostics(
+            tenant_id=tenant_id,
+            run_id=replayed_run.id,
+            audit_event_limit=audit_event_limit,
+        )
+        if source_diagnostics is None or replayed_diagnostics is None:
+            return None
+
+        diff = self._replay_diff(
+            source_run=source_run,
+            replayed_run=replayed_run,
+            source_diagnostics=source_diagnostics,
+            replayed_diagnostics=replayed_diagnostics,
+        )
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="agent",
+                actor_id=user_id or source_run.user_id or "system",
+                event_type="agent.run.replayed",
+                resource_type="agent_run",
+                resource_id=replayed_run.id,
+                payload={
+                    "source_run_id": str(source_run.id),
+                    "replayed_run_id": str(replayed_run.id),
+                    "status_changed": diff.status_changed,
+                    "confidence_delta": diff.confidence_delta,
+                    "quality_score_delta": diff.quality_score_delta,
+                    "source_severity": diff.source_severity,
+                    "replayed_severity": diff.replayed_severity,
+                },
+            )
+        )
+        return AgentRunReplayResult(
+            tenant_id=tenant_id,
+            source_run=source_run,
+            replayed_run=replayed_run,
+            source_diagnostics=source_diagnostics,
+            replayed_diagnostics=replayed_diagnostics,
+            diff=diff,
+        )
+
     def _build_timeline(
         self,
         *,
@@ -819,6 +888,50 @@ class RunAgentUseCase:
         if "audit_event_missing" in codes:
             actions.append("audit log 저장소와 request id 전파 상태를 점검합니다.")
         return actions
+
+    def _replay_diff(
+        self,
+        *,
+        source_run: AgentRun,
+        replayed_run: AgentRun,
+        source_diagnostics: AgentRunDiagnostics,
+        replayed_diagnostics: AgentRunDiagnostics,
+    ) -> AgentRunReplayDiff:
+        source_signals = {signal.code for signal in source_diagnostics.signals}
+        replayed_signals = {signal.code for signal in replayed_diagnostics.signals}
+        return AgentRunReplayDiff(
+            source_run_id=source_run.id,
+            replayed_run_id=replayed_run.id,
+            status_changed=source_run.status != replayed_run.status,
+            query_type_changed=source_run.query_type != replayed_run.query_type,
+            confidence_delta=round(replayed_run.confidence - source_run.confidence, 4),
+            citation_overlap_ratio=self._citation_overlap_ratio(source_run, replayed_run),
+            source_quality_score=source_diagnostics.quality_score,
+            replayed_quality_score=replayed_diagnostics.quality_score,
+            quality_score_delta=round(
+                replayed_diagnostics.quality_score - source_diagnostics.quality_score,
+                4,
+            ),
+            source_severity=source_diagnostics.severity,
+            replayed_severity=replayed_diagnostics.severity,
+            signals_added=sorted(replayed_signals - source_signals),
+            signals_resolved=sorted(source_signals - replayed_signals),
+        )
+
+    def _citation_overlap_ratio(self, source_run: AgentRun, replayed_run: AgentRun) -> float:
+        source_citations = {
+            (str(citation.chunk_id), citation.source_uri) for citation in source_run.citations
+        }
+        replayed_citations = {
+            (str(citation.chunk_id), citation.source_uri) for citation in replayed_run.citations
+        }
+        if not source_citations and not replayed_citations:
+            return 1.0
+        if not source_citations or not replayed_citations:
+            return 0.0
+        overlap = source_citations & replayed_citations
+        denominator = max(len(source_citations), len(replayed_citations), 1)
+        return round(len(overlap) / denominator, 4)
 
     def _confidence(self, results: list[RetrievalResult]) -> float:
         if not results:

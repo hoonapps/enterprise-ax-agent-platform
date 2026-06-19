@@ -237,6 +237,7 @@ GET /dashboard
   -> browser fetch
   -> /v1/operations/summary, /v1/approvals/pending, /v1/audit/events, /v1/tools
   -> /v1/agents/runs/{run_id}/diagnostics
+  -> /v1/agents/runs/{run_id}/replay
   -> /v1/tools/gateway/status
   -> 승인/반려 action은 approval API 호출
 ```

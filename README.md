@@ -126,6 +126,7 @@ GET  /v1/agents/runs/{run_id}/timeline
 GET  /v1/agents/runs/{run_id}/diagnostics
 GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
+POST /v1/agents/runs/{run_id}/replay
 
 GET  /v1/ontology/graph
 
@@ -464,6 +465,22 @@ Diagnostics는 단일 실행의 confidence, citation coverage, trace 실패, too
 승인 필요 여부, feedback 신호를 계산해 `quality_score`, `severity`, `signals`,
 `recommended_actions`로 반환합니다. 운영자는 timeline을 자세히 열기 전에 어떤 run을 먼저 봐야 하는지
 판단할 수 있습니다.
+
+Agent 실행 replay:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/v1/agents/runs/{run_id}/replay" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "default",
+    "user_id": "operator-01",
+    "actor_scopes": ["records:read", "workflow:request"]
+  }'
+```
+
+Replay는 저장된 원본 query와 scenario를 다시 실행해 새 Agent run을 만들고, 원본과 재실행 결과의
+status, query type, confidence, citation overlap, diagnostics quality score, signal 변화를 diff로
+반환합니다. 품질 이슈를 고친 뒤 같은 입력이 실제로 개선됐는지 확인하는 운영 경계입니다.
 
 Agent 실행 증거 번들:
 
@@ -992,13 +1009,14 @@ GET /dashboard
 - `/v1/agents/runs`
 - `/v1/agents/runs/{run_id}/timeline`
 - `/v1/agents/runs/{run_id}/diagnostics`
+- `/v1/agents/runs/{run_id}/replay`
 - `/v1/approvals/pending`
 - `/v1/audit/events`
 - `/v1/tools`
 - `/v1/tools/gateway/status`
 
 화면은 Agent 실행 수, run preview, feedback summary, dependency readiness, schema migration status,
-최근 실행 이력, 실행 diagnostics, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
+최근 실행 이력, 실행 diagnostics, 실행 replay, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
 operations alert, tool decision, gateway circuit 상태, 감사 이벤트, 최신 evaluation metrics를 표시합니다.
 UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact
 read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.

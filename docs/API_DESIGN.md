@@ -28,7 +28,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
 | `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence` |
-| `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback` |
+| `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback`, `POST /v1/agents/runs/{run_id}/replay` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
@@ -64,6 +64,7 @@ GET  /v1/agents/runs/{run_id}/timeline
 GET  /v1/agents/runs/{run_id}/diagnostics
 GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
+POST /v1/agents/runs/{run_id}/replay
 
 GET  /v1/ontology/graph
 
@@ -330,6 +331,68 @@ Diagnostics는 저장된 run, trace, tool execution, audit event, feedback event
 운영 read model이다. `quality_score`는 성공 상태, confidence, citation, trace 상태, gateway fallback,
 circuit open, approval, feedback 신호를 기준으로 계산한다. Evidence bundle이 증거 원본 묶음이라면,
 diagnostics는 운영자가 먼저 확인해야 할 위험 신호와 다음 조치를 정리한 판단 모델이다.
+
+## Agent 실행 Replay
+
+```text
+POST /v1/agents/runs/{run_id}/replay
+```
+
+요청:
+
+```json
+{
+  "tenant_id": "default",
+  "user_id": "operator-01",
+  "actor_scopes": ["records:read", "workflow:request"]
+}
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "source_run": {
+    "run_id": "018f-source...",
+    "status": "succeeded",
+    "confidence": 0.82
+  },
+  "replayed_run": {
+    "run_id": "018f-replay...",
+    "status": "succeeded",
+    "confidence": 0.91
+  },
+  "source_diagnostics": {
+    "quality_score": 85.0,
+    "severity": "warning"
+  },
+  "replayed_diagnostics": {
+    "quality_score": 100.0,
+    "severity": "healthy"
+  },
+  "diff": {
+    "source_run_id": "018f-source...",
+    "replayed_run_id": "018f-replay...",
+    "status_changed": false,
+    "query_type_changed": false,
+    "confidence_delta": 0.09,
+    "citation_overlap_ratio": 0.67,
+    "source_quality_score": 85.0,
+    "replayed_quality_score": 100.0,
+    "quality_score_delta": 15.0,
+    "source_severity": "warning",
+    "replayed_severity": "healthy",
+    "signals_added": [],
+    "signals_resolved": ["confidence_low"]
+  },
+  "generated_at": "2026-06-19T00:00:00Z"
+}
+```
+
+Replay는 원본 run의 저장된 query와 scenario를 다시 실행해 새 run을 만든다. 결과는 원본/재실행 run,
+양쪽 diagnostics, diff를 함께 반환한다. 이 endpoint는 새 run과 `agent.run.replayed` audit event를
+생성하므로 `agents:run` scope를 요구한다.
 
 ## Agent 실행 Evidence Bundle
 
@@ -752,6 +815,7 @@ GET /dashboard
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
 | `GET /v1/agents/runs/{run_id}/diagnostics` | 선택한 Agent 실행 품질 진단 |
+| `POST /v1/agents/runs/{run_id}/replay` | 선택한 Agent 실행 재현 및 diff |
 | `POST /v1/agents/runs/{run_id}/feedback` | Agent run 품질 feedback 제출 |
 | `GET /v1/approvals/pending` | 승인 대기 queue |
 | `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |

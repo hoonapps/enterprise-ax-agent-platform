@@ -534,6 +534,66 @@ def test_agent_run_diagnostics_reports_quality_signals():
     assert body["recommended_actions"]
 
 
+def test_agent_run_replay_creates_new_run_and_diff():
+    client = TestClient(create_app())
+    tenant_id = "run-replay"
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": tenant_id,
+            "title": "Replay 운영 정책",
+            "content": (
+                "Agent run replay는 같은 입력을 다시 실행하고 원본과 재실행 결과의 "
+                "confidence, citation, diagnostics 차이를 비교해야 한다."
+            ),
+            "source_uri": "test://run-replay",
+        },
+    )
+    source = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "Replay 운영 정책을 정리해줘",
+        },
+    )
+    assert source.status_code == 200
+    source_run_id = source.json()["run_id"]
+
+    replay = client.post(
+        f"/v1/agents/runs/{source_run_id}/replay",
+        json={
+            "tenant_id": tenant_id,
+            "user_id": "replay-operator",
+            "actor_scopes": ["records:read", "workflow:request"],
+        },
+    )
+
+    assert replay.status_code == 200
+    body = replay.json()
+    assert body["tenant_id"] == tenant_id
+    assert body["source_run"]["run_id"] == source_run_id
+    assert body["replayed_run"]["run_id"] != source_run_id
+    assert body["diff"]["source_run_id"] == source_run_id
+    assert body["diff"]["replayed_run_id"] == body["replayed_run"]["run_id"]
+    assert body["diff"]["status_changed"] is False
+    assert body["diff"]["query_type_changed"] is False
+    assert body["diff"]["citation_overlap_ratio"] == 1.0
+    assert body["source_diagnostics"]["run_id"] == source_run_id
+    assert body["replayed_diagnostics"]["run_id"] == body["replayed_run"]["run_id"]
+
+    listed = client.get(f"/v1/agents/runs?tenant_id={tenant_id}&limit=10")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 2
+
+    audit_events = client.get(
+        f"/v1/audit/events?tenant_id={tenant_id}&event_type=agent.run.replayed"
+    )
+    assert audit_events.status_code == 200
+    assert audit_events.json()[0]["payload"]["source_run_id"] == source_run_id
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"
@@ -1307,6 +1367,8 @@ def test_operator_dashboard_serves_backend_console():
     assert "feedback-summary" in response.text
     assert "/v1/agents/runs/${encodedRunId}/diagnostics" in response.text
     assert "agent-run-diagnostics" in response.text
+    assert "/v1/agents/runs/${encodeURIComponent(runId)}/replay" in response.text
+    assert "data-run-action=\"replay\"" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text

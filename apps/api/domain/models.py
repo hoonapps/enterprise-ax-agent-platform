@@ -486,6 +486,34 @@ class AgentRunDiagnostics:
 
 
 @dataclass(frozen=True)
+class AgentRunReplayDiff:
+    source_run_id: UUID
+    replayed_run_id: UUID
+    status_changed: bool
+    query_type_changed: bool
+    confidence_delta: float
+    citation_overlap_ratio: float
+    source_quality_score: float
+    replayed_quality_score: float
+    quality_score_delta: float
+    source_severity: str
+    replayed_severity: str
+    signals_added: list[str] = field(default_factory=list)
+    signals_resolved: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AgentRunReplayResult:
+    tenant_id: str
+    source_run: AgentRun
+    replayed_run: AgentRun
+    source_diagnostics: AgentRunDiagnostics
+    replayed_diagnostics: AgentRunDiagnostics
+    diff: AgentRunReplayDiff
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentFeedbackSummary:
     tenant_id: str
     event_limit: int
