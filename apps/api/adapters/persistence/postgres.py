@@ -362,18 +362,34 @@ class PostgresAuditLog(PostgresBase):
                 ),
             )
 
-    def list_events(self, tenant_id: str, limit: int) -> list[AuditEvent]:
+    def list_events(
+        self,
+        tenant_id: str,
+        limit: int,
+        event_type: str | None = None,
+        resource_type: str | None = None,
+    ) -> list[AuditEvent]:
+        filters = ["t.slug = %s"]
+        params: list[Any] = [tenant_id]
+        if event_type is not None:
+            filters.append("e.event_type = %s")
+            params.append(event_type)
+        if resource_type is not None:
+            filters.append("e.resource_type = %s")
+            params.append(resource_type)
+        params.append(limit)
+
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
             rows = conn.execute(
-                """
+                f"""
                 select e.*, t.slug as tenant_slug
                 from audit_events e
                 join tenants t on t.id = e.tenant_id
-                where t.slug = %s
+                where {" and ".join(filters)}
                 order by e.created_at desc
                 limit %s
                 """,
-                (tenant_id, limit),
+                params,
             ).fetchall()
 
         return [

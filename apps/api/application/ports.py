@@ -33,7 +33,13 @@ class VectorSearchPort(Protocol):
 class AuditLogPort(Protocol):
     def append(self, event: AuditEvent) -> None: ...
 
-    def list_events(self, tenant_id: str, limit: int) -> list[AuditEvent]: ...
+    def list_events(
+        self,
+        tenant_id: str,
+        limit: int,
+        event_type: str | None = None,
+        resource_type: str | None = None,
+    ) -> list[AuditEvent]: ...
 
 
 class AgentRunRepositoryPort(Protocol):

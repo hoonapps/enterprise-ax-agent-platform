@@ -104,6 +104,9 @@ Agent 시스템은 나중에 왜 그런 답을 했는지 설명할 수 있어야
 
 이벤트는 나중에 Langfuse, OpenTelemetry, SIEM, 관리자 대시보드로 보낼 수 있다.
 
+Audit export는 같은 이벤트 모델을 JSONL/CSV로 직렬화한다.
+조회 API와 export API가 같은 `AuditLogPort` 필터를 사용하므로 저장소가 바뀌어도 동작 의미가 유지된다.
+
 ## 7. Anti-Corruption Layer
 
 ERP, HR, CRM, Slack, n8n, MCP 도구 응답은 시스템마다 형식이 다르다.  

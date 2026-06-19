@@ -19,6 +19,7 @@ POST /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 
 GET  /v1/audit/events
+GET  /v1/audit/export
 
 POST /v1/evaluations/runs
 GET  /v1/evaluations/runs/{evaluation_run_id}
@@ -226,6 +227,30 @@ Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
   ]
 }
 ```
+
+## Audit Export
+
+JSONL export:
+
+```text
+GET /v1/audit/export?tenant_id=default&event_type=document.ingested&format=jsonl
+```
+
+CSV export:
+
+```text
+GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
+```
+
+지원 query parameter:
+
+| 파라미터 | 의미 |
+| --- | --- |
+| `tenant_id` | export 대상 tenant |
+| `event_type` | 특정 이벤트 타입 필터 |
+| `resource_type` | 특정 리소스 타입 필터 |
+| `limit` | 최대 export 개수 |
+| `format` | `jsonl` 또는 `csv` |
 
 ## Regression Dataset
 

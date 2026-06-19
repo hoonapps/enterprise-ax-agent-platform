@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
@@ -299,3 +301,42 @@ def test_evaluation_run_scores_grounded_answers():
     fetched = client.get(f"/v1/evaluations/runs/{body['id']}?tenant_id=default")
     assert fetched.status_code == 200
     assert fetched.json()["metrics"] == body["metrics"]
+
+
+def test_audit_events_can_be_filtered_and_exported():
+    client = TestClient(create_app())
+
+    ingested = client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "감사 이벤트 export 정책",
+            "content": "감사 이벤트는 JSONL 또는 CSV로 export할 수 있어야 한다.",
+            "source_uri": "test://audit-export",
+        },
+    )
+    assert ingested.status_code == 200
+
+    listed = client.get("/v1/audit/events?tenant_id=default&event_type=document.ingested")
+    assert listed.status_code == 200
+    assert listed.json()
+    assert {event["event_type"] for event in listed.json()} == {"document.ingested"}
+
+    exported_jsonl = client.get(
+        "/v1/audit/export?tenant_id=default&event_type=document.ingested&format=jsonl"
+    )
+    assert exported_jsonl.status_code == 200
+    assert exported_jsonl.headers["content-type"].startswith("application/x-ndjson")
+    lines = [line for line in exported_jsonl.text.splitlines() if line]
+    assert lines
+    decoded = [json.loads(line) for line in lines]
+    assert {event["event_type"] for event in decoded} == {"document.ingested"}
+    assert decoded[0]["payload"]["title"] == "감사 이벤트 export 정책"
+
+    exported_csv = client.get(
+        "/v1/audit/export?tenant_id=default&event_type=document.ingested&format=csv"
+    )
+    assert exported_csv.status_code == 200
+    assert exported_csv.headers["content-type"].startswith("text/csv")
+    assert "event_type" in exported_csv.text
+    assert "document.ingested" in exported_csv.text

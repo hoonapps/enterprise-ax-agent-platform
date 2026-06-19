@@ -64,9 +64,19 @@ class InMemoryAuditLog:
         with self._lock:
             self._events[event.tenant_id].append(event)
 
-    def list_events(self, tenant_id: str, limit: int) -> list[AuditEvent]:
+    def list_events(
+        self,
+        tenant_id: str,
+        limit: int,
+        event_type: str | None = None,
+        resource_type: str | None = None,
+    ) -> list[AuditEvent]:
         with self._lock:
             events = list(reversed(self._events[tenant_id]))
+        if event_type is not None:
+            events = [event for event in events if event.event_type == event_type]
+        if resource_type is not None:
+            events = [event for event in events if event.resource_type == resource_type]
         return events[:limit]
 
 

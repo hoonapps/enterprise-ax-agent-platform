@@ -74,6 +74,7 @@ FastAPI
     |       +--> Agent 실행 재사용
     |       +--> expected facts 기반 scoring
     |       +--> evaluation.completed 감사 이벤트 기록
+    |       +--> AuditEvent JSONL/CSV export
     +--> 승인 요청 조회/승인/반려 API
     +--> MCP-compatible tool boundary
             |
@@ -168,6 +169,19 @@ make regression
 GitHub Actions는 lint, typecheck, pytest 이후 regression gate를 실행한다.
 이 흐름은 retrieval, answer synthesis, scoring 변경이 제품 품질을 낮추는지 확인한다.
 
+## Audit Export 흐름
+
+```text
+GET /v1/audit/export
+  -> tenant/event/resource filter 적용
+  -> AuditLogPort에서 이벤트 조회
+  -> JSONL 또는 CSV로 직렬화
+  -> 운영 분석/감사 시스템으로 전달
+```
+
+export는 조회 API와 같은 AuditLogPort를 사용한다.
+따라서 메모리 모드와 Postgres 모드가 같은 필터 규칙을 따른다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시
@@ -194,6 +208,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 어떤 승인 요청이 실행 또는 반려되었는가
 - 외부 tool 호출이 몇 번 시도되었고 fallback을 사용했는가
 - 평가 케이스별 점수와 누락된 기대 사실은 무엇인가
+- 감사 이벤트를 어떤 형식으로 외부 분석 시스템에 전달했는가
 - 실행 결과와 신뢰도는 무엇인가
 
 ### 보수적 기본값
