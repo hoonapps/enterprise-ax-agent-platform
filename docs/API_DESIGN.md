@@ -21,6 +21,7 @@ GET  /v1/agents/runs/{run_id}
 GET  /v1/audit/events
 
 GET  /v1/tools
+POST /mcp
 GET  /v1/approvals/pending
 POST /v1/approvals/{approval_id}/approve
 ```
@@ -130,6 +131,52 @@ POST /v1/approvals/{approval_id}/approve
 ]
 ```
 
+## MCP-Compatible JSON-RPC
+
+`/mcp`는 tool discovery와 tool call을 위한 JSON-RPC boundary다.
+
+초기화:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "init-1",
+  "method": "initialize"
+}
+```
+
+Tool 목록:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "tools-1",
+  "method": "tools/list"
+}
+```
+
+Tool 호출:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "call-1",
+  "method": "tools/call",
+  "params": {
+    "tenant_id": "default",
+    "actor_id": "operator-01",
+    "actor_scopes": ["records:read"],
+    "name": "internal-records.lookup",
+    "arguments": {
+      "query": "최근 승인 대기 업무 조회"
+    }
+  }
+}
+```
+
+Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
+`structuredContent`에는 내부 `tool_execution_id`, `decision`, `status`, `output_payload`가 들어간다.
+
 승인 후에는 같은 리소스가 `executed` 상태로 바뀌고 replay 결과가 저장된다.
 
 ```json
@@ -159,5 +206,6 @@ POST /v1/approvals/{approval_id}/approve
 - policy decision을 응답에 포함해 차단/승인 상태를 제품 상태로 다룬다.
 - tool execution을 응답에 포함해 외부 시스템 실행 경계를 확인할 수 있게 한다.
 - tool catalog를 API로 노출해 required scope와 risk level을 확인할 수 있게 한다.
+- MCP 경유 tool call도 동일한 audit/approval 흐름으로 처리한다.
 - 승인 요청은 별도 리소스로 다뤄 pending, executed 상태 전이를 추적한다.
 - 평가 API를 별도 축으로 두어 Agent 품질을 회귀 테스트할 수 있게 한다.

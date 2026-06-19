@@ -1,3 +1,4 @@
+from apps.api.adapters.agent.local_tool_gateway import LocalToolGateway
 from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
@@ -38,7 +39,11 @@ def build_use_cases():
         planner=RetrievalPlanner(),
         redaction_policy=RedactionPolicy(),
         agent_policy=AgentPolicy(),
-        tool_runtime=LocalToolRuntime(policy=ToolPolicy(), registry=registry),
+        tool_runtime=LocalToolRuntime(
+            policy=ToolPolicy(),
+            registry=registry,
+            gateway=LocalToolGateway(),
+        ),
         synthesizer=GroundedAnswerSynthesizer(),
         default_top_k=4,
     )

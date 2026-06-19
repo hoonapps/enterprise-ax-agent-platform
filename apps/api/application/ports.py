@@ -11,6 +11,7 @@ from apps.api.domain.models import (
     RetrievalResult,
     ToolDefinition,
     ToolExecution,
+    ToolGatewayResult,
     ToolRequest,
 )
 
@@ -43,6 +44,12 @@ class ToolRuntimePort(Protocol):
     def execute(self, request: ToolRequest) -> ToolExecution: ...
 
     def replay_approved(self, approval: ApprovalRequest) -> ToolExecution: ...
+
+
+class ToolGatewayPort(Protocol):
+    def invoke(self, request: ToolRequest, definition: ToolDefinition) -> ToolGatewayResult: ...
+
+    def replay(self, approval: ApprovalRequest) -> ToolGatewayResult: ...
 
 
 class ToolRegistryPort(Protocol):

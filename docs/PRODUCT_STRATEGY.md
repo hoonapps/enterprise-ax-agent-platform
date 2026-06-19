@@ -9,6 +9,7 @@
 - 외부 시스템 실행 전 정책을 검사한다.
 - 조회성 tool과 쓰기성 tool의 실행 경계를 분리한다.
 - tool별 required scope와 risk level을 registry에서 관리한다.
+- 외부 tool 호출은 MCP-compatible boundary와 Tool Gateway를 통해 분리한다.
 - 승인 대기 요청을 운영자가 재검토하고 replay할 수 있게 한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
@@ -51,7 +52,7 @@
 | --- | --- |
 | Knowledge | Qdrant/pgvector, reranking, freshness check |
 | Workflow | n8n, Slack, approval queue |
-| Tool Runtime | tool schema registry, scope check, MCP Streamable HTTP |
+| Tool Runtime | tool schema registry, scope check, MCP-compatible JSON-RPC, Tool Gateway |
 | Governance | RBAC, PII redaction, audit export |
 | LLMOps | fallback, timeout, retry, evaluation dataset |
 | Domain Intelligence | ontology, knowledge graph, multimodal document ingestion |

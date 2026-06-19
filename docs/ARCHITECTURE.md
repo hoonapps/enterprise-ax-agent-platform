@@ -5,7 +5,7 @@
 `Enterprise AX Agent Platform`은 LLM Agent를 기업 업무 시스템에 붙일 때 필요한
 백엔드 실행 계층을 검증하는 제품이다.
 
-단순 챗봇이 아니라 다음 역량을 보여주는 것을 목표로 한다.
+단순 챗봇이 아니라 다음 운영 요건을 만족하는 것을 목표로 한다.
 
 - 업무 유스케이스 중심의 서비스 경계 설계
 - RAG, Tool Calling, 정책 검사, 감사로그의 실행 흐름 분리
@@ -70,6 +70,12 @@ FastAPI
     |
     +--> 검색/평가/감사 조회 API
     +--> 승인 요청 조회/실행 API
+    +--> MCP-compatible tool boundary
+            |
+            +--> tools/list
+            +--> tools/call
+            +--> ToolCallUseCase
+            +--> AgentRun / AuditEvent / ApprovalRequest 기록
 ```
 
 ## 모듈 책임
@@ -98,6 +104,7 @@ POST /v1/agents/runs
   -> 근거 기반 답변 생성
   -> tool 실행 필요 시 Tool Runtime 호출
   -> registry에서 tool schema와 required scope 확인
+  -> 허용된 조회성 tool은 Tool Gateway 호출
   -> approval_required tool은 승인 요청으로 승격
   -> 실행 이력 저장
   -> 감사 이벤트 기록
@@ -163,7 +170,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 
 | 확장 영역 | 추가 구현 | 현재 아키텍처 연결점 |
 | --- | --- | --- |
-| Tool Runtime | MCP 서버, Agent 간 협업, tool schema | Tool Runtime, Agent Orchestrator |
+| Tool Runtime | MCP boundary, Agent 간 협업, tool schema | Tool Runtime, Tool Gateway, Agent Orchestrator |
 | Agentic RAG | 검색 전략 평가, reranking, freshness check | Query Classifier, Retrieval Planner, Evaluation |
 | Governance | RAG 라우팅, 승인, 감사 정책 | Policy Guard, Audit Log, Workflow API |
 | Workflow | n8n/iPaaS 업무 자동화 | REST API, Tool Executor, Scenario Module |

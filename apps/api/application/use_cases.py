@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 from time import perf_counter
+from typing import Any
 from uuid import UUID
 
 from apps.api.application.answering import GroundedAnswerSynthesizer
@@ -12,6 +13,7 @@ from apps.api.application.ports import (
     ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
+    ToolRegistryPort,
     ToolRuntimePort,
     VectorSearchPort,
 )
@@ -23,6 +25,7 @@ from apps.api.domain.models import (
     ApprovalStatus,
     AuditEvent,
     Document,
+    PolicyDecision,
     QueryType,
     RetrievalResult,
     RunStatus,
@@ -389,6 +392,202 @@ class RunAgentUseCase:
                 },
             )
         )
+
+
+class ToolCallUseCase:
+    def __init__(
+        self,
+        *,
+        registry: ToolRegistryPort,
+        tool_runtime: ToolRuntimePort,
+        runs: AgentRunRepositoryPort,
+        approvals: ApprovalRepositoryPort,
+        audit_log: AuditLogPort,
+    ) -> None:
+        self.registry = registry
+        self.tool_runtime = tool_runtime
+        self.runs = runs
+        self.approvals = approvals
+        self.audit_log = audit_log
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        actor_id: str,
+        actor_scopes: list[str],
+    ) -> ToolExecution:
+        definition = self.registry.get(tool_name)
+        if definition is None:
+            execution = ToolExecution(
+                tool_name=tool_name,
+                action_type=ToolActionType.READ,
+                decision=ToolDecision.DENIED,
+                status="skipped",
+                reason="등록되지 않은 tool 요청입니다.",
+                input_payload=arguments,
+            )
+            run = self._record_run(tenant_id=tenant_id, actor_id=actor_id, execution=execution)
+            self._audit_execution(
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                run=run,
+                execution=execution,
+            )
+            return execution
+
+        missing = self._missing_required_arguments(definition.input_schema, arguments)
+        if missing:
+            execution = ToolExecution(
+                tool_name=tool_name,
+                action_type=definition.action_type,
+                decision=ToolDecision.DENIED,
+                status="skipped",
+                reason=f"필수 입력이 없습니다: {', '.join(missing)}",
+                input_payload=arguments,
+            )
+        else:
+            execution = self.tool_runtime.execute(
+                ToolRequest(
+                    name=definition.name,
+                    action_type=definition.action_type,
+                    input_payload=arguments,
+                    actor_scopes=actor_scopes,
+                    risk_level=definition.risk_level,
+                    description=definition.description,
+                )
+            )
+
+        run = self._record_run(tenant_id=tenant_id, actor_id=actor_id, execution=execution)
+        self._audit_execution(tenant_id=tenant_id, actor_id=actor_id, run=run, execution=execution)
+        if execution.decision == ToolDecision.APPROVAL_REQUIRED:
+            self._create_approval_request(
+                tenant_id=tenant_id,
+                actor_id=actor_id,
+                run=run,
+                execution=execution,
+            )
+        return execution
+
+    def _record_run(
+        self,
+        *,
+        tenant_id: str,
+        actor_id: str,
+        execution: ToolExecution,
+    ) -> AgentRun:
+        now = datetime.now(UTC)
+        run = AgentRun(
+            tenant_id=tenant_id,
+            user_id=actor_id,
+            scenario="mcp-tool-call",
+            query=f"tool:{execution.tool_name}",
+            redacted_query=f"tool:{execution.tool_name}",
+            query_type=QueryType.ACTION,
+            answer=execution.reason,
+            status=RunStatus.BLOCKED
+            if execution.decision == ToolDecision.DENIED
+            else RunStatus.SUCCEEDED,
+            citations=[],
+            trace=[
+                TraceStep(
+                    step="mcp_tool_call",
+                    status=execution.status,
+                    detail={
+                        "tool_name": execution.tool_name,
+                        "action_type": execution.action_type.value,
+                        "decision": execution.decision.value,
+                    },
+                )
+            ],
+            confidence=1.0 if execution.decision == ToolDecision.ALLOWED else 0.0,
+            policy_decision=PolicyDecision(
+                allowed=execution.decision != ToolDecision.DENIED,
+                decision=execution.decision.value,
+                reason=execution.reason,
+            ),
+            tool_executions=[execution],
+            completed_at=now,
+        )
+        return self.runs.save(run)
+
+    def _audit_execution(
+        self,
+        *,
+        tenant_id: str,
+        actor_id: str,
+        run: AgentRun,
+        execution: ToolExecution,
+    ) -> None:
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="mcp_client",
+                actor_id=actor_id,
+                event_type=f"tool.{execution.decision.value}",
+                resource_type="tool_call",
+                resource_id=execution.id,
+                payload={
+                    "agent_run_id": str(run.id),
+                    "tool_name": execution.tool_name,
+                    "action_type": execution.action_type.value,
+                    "status": execution.status,
+                    "reason": execution.reason,
+                    "input_payload": execution.input_payload,
+                    "output_payload": execution.output_payload,
+                },
+            )
+        )
+
+    def _create_approval_request(
+        self,
+        *,
+        tenant_id: str,
+        actor_id: str,
+        run: AgentRun,
+        execution: ToolExecution,
+    ) -> None:
+        approval = ApprovalRequest(
+            id=execution.id,
+            tenant_id=tenant_id,
+            agent_run_id=run.id,
+            tool_execution_id=execution.id,
+            tool_name=execution.tool_name,
+            action_type=execution.action_type,
+            input_payload=execution.input_payload,
+            reason=execution.reason,
+            requested_by=actor_id,
+        )
+        self.approvals.save(approval)
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="mcp_client",
+                actor_id=actor_id,
+                event_type="approval.requested",
+                resource_type="approval_request",
+                resource_id=approval.id,
+                payload={
+                    "agent_run_id": str(run.id),
+                    "tool_execution_id": str(execution.id),
+                    "tool_name": execution.tool_name,
+                    "action_type": execution.action_type.value,
+                    "reason": execution.reason,
+                },
+            )
+        )
+
+    def _missing_required_arguments(
+        self,
+        input_schema: dict[str, Any],
+        arguments: dict[str, Any],
+    ) -> list[str]:
+        required = input_schema.get("required", [])
+        if not isinstance(required, list):
+            return []
+        return [field for field in required if isinstance(field, str) and field not in arguments]
 
 
 class ApprovalUseCase:

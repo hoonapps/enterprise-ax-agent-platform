@@ -4,7 +4,7 @@ from apps.api.domain.models import QueryType, RetrievalResult, ToolExecution
 
 
 class GroundedAnswerSynthesizer:
-    """Deterministic local answer generator for testable portfolio runs."""
+    """Deterministic local answer generator for repeatable product runs."""
 
     def synthesize(
         self,

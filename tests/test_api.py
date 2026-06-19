@@ -36,7 +36,7 @@ def test_health_and_agent_flow():
         "/v1/agents/runs",
         json={
             "tenant_id": "default",
-            "scenario": "lg-cns",
+            "scenario": "operations",
             "message": "Agentic RAG 리스크를 정리해줘",
         },
     )
@@ -100,3 +100,100 @@ def test_api_returns_tool_execution_for_action_request():
     )
     assert replay_again.status_code == 200
     assert replay_again.json()["replay_result"] == approved_body["replay_result"]
+
+
+def test_mcp_tool_boundary_lists_and_calls_tools():
+    client = TestClient(create_app())
+
+    initialized = client.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": "init-1", "method": "initialize"},
+    )
+    assert initialized.status_code == 200
+    assert initialized.json()["result"]["capabilities"]["tools"]
+
+    listed = client.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": "list-1", "method": "tools/list"},
+    )
+    assert listed.status_code == 200
+    tools = listed.json()["result"]["tools"]
+    assert {tool["name"] for tool in tools} >= {
+        "internal-records.lookup",
+        "workflow.request-change",
+    }
+    assert tools[0]["inputSchema"]
+
+    called = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": "call-1",
+            "method": "tools/call",
+            "params": {
+                "tenant_id": "default",
+                "actor_id": "operator-01",
+                "actor_scopes": ["records:read"],
+                "name": "internal-records.lookup",
+                "arguments": {"query": "최근 승인 대기 업무 조회"},
+            },
+        },
+    )
+    assert called.status_code == 200
+    result = called.json()["result"]
+    assert result["isError"] is False
+    assert result["structuredContent"]["decision"] == "allowed"
+    assert result["structuredContent"]["status"] == "succeeded"
+
+
+def test_mcp_write_tool_requires_scope_and_creates_approval():
+    client = TestClient(create_app())
+
+    denied = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": "call-denied",
+            "method": "tools/call",
+            "params": {
+                "tenant_id": "default",
+                "actor_id": "operator-01",
+                "actor_scopes": [],
+                "name": "workflow.request-change",
+                "arguments": {"request": "보고서 생성 workflow 실행"},
+            },
+        },
+    )
+    assert denied.status_code == 200
+    assert denied.json()["result"]["isError"] is True
+    assert denied.json()["result"]["structuredContent"]["decision"] == "denied"
+
+    pending_before = client.get("/v1/approvals/pending?tenant_id=default")
+    assert pending_before.status_code == 200
+    assert pending_before.json() == []
+
+    approval_required = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": "call-approval",
+            "method": "tools/call",
+            "params": {
+                "tenant_id": "default",
+                "actor_id": "operator-01",
+                "actor_scopes": ["workflow:request"],
+                "name": "workflow.request-change",
+                "arguments": {"request": "보고서 생성 workflow 실행"},
+            },
+        },
+    )
+    assert approval_required.status_code == 200
+    body = approval_required.json()["result"]["structuredContent"]
+    assert body["decision"] == "approval_required"
+    assert body["status"] == "pending_approval"
+
+    pending_after = client.get("/v1/approvals/pending?tenant_id=default")
+    assert pending_after.status_code == 200
+    approvals = pending_after.json()
+    assert len(approvals) == 1
+    assert approvals[0]["tool_name"] == "workflow.request-change"

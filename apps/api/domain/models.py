@@ -152,6 +152,13 @@ class ToolExecution:
 
 
 @dataclass(frozen=True)
+class ToolGatewayResult:
+    status: str
+    output_payload: dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class ApprovalRequest:
     tenant_id: str
     agent_run_id: UUID

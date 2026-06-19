@@ -13,9 +13,11 @@ LLM, Vector DB, MCP, n8n, SaaS API는 빠르게 바뀐다.
 - `VectorSearchPort`
 - `AuditLogPort`
 - `AgentRunRepositoryPort`
-- 이후 확장: `ToolRegistryPort`, `McpClientPort`, `WorkflowPort`
+- `ToolRegistryPort`
+- `ToolGatewayPort`
+- 이후 확장: `McpClientPort`, `WorkflowPort`
 
-현재는 로컬 메모리 어댑터로 실행하고, 이후 Postgres/Qdrant/MCP로 교체한다.
+현재는 로컬 메모리/로컬 gateway 어댑터로 실행하고, 이후 Postgres/Qdrant/외부 tool gateway로 교체한다.
 
 ## 2. Use Case Pattern
 
@@ -26,6 +28,7 @@ LLM, Vector DB, MCP, n8n, SaaS API는 빠르게 바뀐다.
 | `IngestDocumentUseCase` | 문서 적재, 청크 분리, 벡터 저장, 감사 이벤트 기록 |
 | `RunAgentUseCase` | Agent 실행 전체 흐름 orchestration |
 | `SearchKnowledgeUseCase` | 검색 API와 검색 감사 이벤트 처리 |
+| `ToolCallUseCase` | MCP 경유 tool call의 정책, 감사, 승인 흐름 처리 |
 | `EvaluateAnswerUseCase` | 이후 RAG 품질 평가 확장 |
 
 FastAPI 라우터는 얇게 유지한다.  
@@ -136,3 +139,17 @@ Registry는 다음 정보를 가진다.
 - 쓰기 작업은 정책 검사 통과 전 실행하지 않음
 - 민감정보는 LLM context에 넣기 전에 제거
 - 모든 실행 결과에 trace와 citation을 포함
+
+## 10. Tool Gateway
+
+Tool Runtime은 정책과 승인 결정을 담당하고, 실제 외부 시스템 호출은 Gateway가 담당한다.
+
+```text
+ToolCallUseCase -> ToolRuntime -> ToolGatewayPort -> LocalToolGateway
+```
+
+이 분리는 중요하다.
+
+- Runtime은 등록/권한/위험도/승인 판단에 집중한다.
+- Gateway는 외부 시스템 호출, timeout, retry, fallback을 담당할 수 있다.
+- MCP, 사내 API, workflow engine은 Gateway 어댑터만 교체해서 붙일 수 있다.

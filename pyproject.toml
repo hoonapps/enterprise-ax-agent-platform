@@ -16,7 +16,7 @@ keywords = [
   "rag",
   "mcp",
   "llmops",
-  "portfolio"
+  "governance"
 ]
 dependencies = [
   "fastapi>=0.115.0",
