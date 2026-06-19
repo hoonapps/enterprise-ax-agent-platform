@@ -10,6 +10,7 @@
 - 조회성 tool과 쓰기성 tool의 실행 경계를 분리한다.
 - tool별 required scope와 risk level을 registry에서 관리한다.
 - 외부 tool 호출은 MCP-compatible boundary와 Tool Gateway를 통해 분리한다.
+- 외부 tool 장애는 timeout/retry/fallback 정책으로 격리한다.
 - 승인 대기 요청을 운영자가 재검토하고 실행 또는 반려할 수 있게 한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
@@ -45,7 +46,8 @@
 6. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
 7. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
 8. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
-9. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+9. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
+10. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
 
 ## 확장 축
 
@@ -55,7 +57,7 @@
 | Workflow | n8n, Slack, approval queue |
 | Tool Runtime | tool schema registry, scope check, MCP-compatible JSON-RPC, Tool Gateway |
 | Governance | RBAC, PII redaction, audit export |
-| LLMOps | fallback, timeout, retry, evaluation dataset |
+| LLMOps | evaluation dataset, regression test, cost/latency metrics |
 | Domain Intelligence | ontology, knowledge graph, multimodal document ingestion |
 
 ## 제품 성공 기준
@@ -65,5 +67,6 @@
 - 위험 action은 자동 실행되지 않고 승인 상태로 전환된다.
 - 승인된 action은 replay 결과와 함께 executed 상태로 남는다.
 - 반려된 action은 reason과 함께 rejected 상태로 남는다.
+- 외부 tool 실패는 attempts, elapsed time, fallback 여부와 함께 남는다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
 - 외부 LLM이나 Vector DB 장애 시에도 실패 경계가 명확하다.

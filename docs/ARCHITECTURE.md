@@ -104,7 +104,8 @@ POST /v1/agents/runs
   -> 근거 기반 답변 생성
   -> tool 실행 필요 시 Tool Runtime 호출
   -> registry에서 tool schema와 required scope 확인
-  -> 허용된 조회성 tool은 Tool Gateway 호출
+  -> 허용된 조회성 tool은 Resilient Tool Gateway 호출
+  -> timeout/retry/fallback 결과를 tool execution에 기록
   -> approval_required tool은 승인 요청으로 승격
   -> 실행 이력 저장
   -> 감사 이벤트 기록
@@ -156,6 +157,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 어떤 tool call이 허용/거부되었는가
 - 어떤 tool call이 승인 대기 상태로 전환되었는가
 - 어떤 승인 요청이 실행 또는 반려되었는가
+- 외부 tool 호출이 몇 번 시도되었고 fallback을 사용했는가
 - 실행 결과와 신뢰도는 무엇인가
 
 ### 보수적 기본값
@@ -172,7 +174,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 
 | 확장 영역 | 추가 구현 | 현재 아키텍처 연결점 |
 | --- | --- | --- |
-| Tool Runtime | MCP boundary, Agent 간 협업, tool schema | Tool Runtime, Tool Gateway, Agent Orchestrator |
+| Tool Runtime | MCP boundary, Agent 간 협업, tool schema | Tool Runtime, Resilient Tool Gateway, Agent Orchestrator |
 | Agentic RAG | 검색 전략 평가, reranking, freshness check | Query Classifier, Retrieval Planner, Evaluation |
 | Governance | RAG 라우팅, 승인, 감사 정책 | Policy Guard, Audit Log, Workflow API |
 | Workflow | n8n/iPaaS 업무 자동화 | REST API, Tool Executor, Scenario Module |

@@ -18,6 +18,7 @@ LLM, Vector DB, MCP, n8n, SaaS API는 빠르게 바뀐다.
 - 이후 확장: `McpClientPort`, `WorkflowPort`
 
 현재는 로컬 메모리/로컬 gateway 어댑터로 실행하고, 이후 Postgres/Qdrant/외부 tool gateway로 교체한다.
+Gateway는 `ResilientToolGateway`로 감싸 timeout, retry, fallback 정책을 공통 적용한다.
 
 ## 2. Use Case Pattern
 
@@ -146,11 +147,19 @@ Registry는 다음 정보를 가진다.
 Tool Runtime은 정책과 승인 결정을 담당하고, 실제 외부 시스템 호출은 Gateway가 담당한다.
 
 ```text
-ToolCallUseCase -> ToolRuntime -> ToolGatewayPort -> LocalToolGateway
+ToolCallUseCase
+  -> ToolRuntime
+  -> ResilientToolGateway
+  -> ToolGatewayPort
+  -> LocalToolGateway
 ```
 
 이 분리는 중요하다.
 
 - Runtime은 등록/권한/위험도/승인 판단에 집중한다.
-- Gateway는 외부 시스템 호출, timeout, retry, fallback을 담당할 수 있다.
+- Resilient Gateway는 timeout, retry, fallback을 공통으로 처리한다.
+- Gateway Adapter는 외부 시스템 호출과 응답 정규화에 집중한다.
 - MCP, 사내 API, workflow engine은 Gateway 어댑터만 교체해서 붙일 수 있다.
+
+`ToolGatewayResult`에는 `attempts`, `elapsed_ms`, `fallback_used`, `error_message`가 포함된다.
+Runtime은 이 정보를 tool execution의 `_gateway` metadata로 남긴다.

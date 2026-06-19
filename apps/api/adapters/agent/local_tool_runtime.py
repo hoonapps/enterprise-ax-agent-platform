@@ -7,6 +7,7 @@ from apps.api.domain.models import (
     ApprovalRequest,
     ToolDecision,
     ToolExecution,
+    ToolGatewayResult,
     ToolRequest,
 )
 from apps.api.domain.policies import ToolPolicy
@@ -68,7 +69,7 @@ class LocalToolRuntime:
             status=gateway_result.status,
             reason=gateway_result.reason or reason,
             input_payload=request.input_payload,
-            output_payload=gateway_result.output_payload,
+            output_payload=self._with_gateway_metadata(gateway_result),
         )
 
     def replay_approved(self, approval: ApprovalRequest) -> ToolExecution:
@@ -80,5 +81,16 @@ class LocalToolRuntime:
             status=gateway_result.status,
             reason=gateway_result.reason,
             input_payload=approval.input_payload,
-            output_payload=gateway_result.output_payload,
+            output_payload=self._with_gateway_metadata(gateway_result),
         )
+
+    def _with_gateway_metadata(self, result: ToolGatewayResult) -> dict[str, object]:
+        return {
+            **result.output_payload,
+            "_gateway": {
+                "attempts": result.attempts,
+                "elapsed_ms": result.elapsed_ms,
+                "fallback_used": result.fallback_used,
+                "error_message": result.error_message,
+            },
+        }

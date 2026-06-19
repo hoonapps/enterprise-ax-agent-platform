@@ -1,6 +1,7 @@
 from apps.api.adapters.agent.local_tool_gateway import LocalToolGateway
 from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
+from apps.api.adapters.agent.resilient_tool_gateway import ResilientToolGateway
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
     InMemoryApprovalRepository,
@@ -13,7 +14,15 @@ from apps.api.application.chunking import TextChunker
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import IngestDocumentUseCase, RunAgentUseCase
-from apps.api.domain.models import Document, RunStatus, ToolDecision
+from apps.api.domain.models import (
+    ApprovalRequest,
+    Document,
+    RunStatus,
+    ToolDecision,
+    ToolDefinition,
+    ToolGatewayResult,
+    ToolRequest,
+)
 from apps.api.domain.policies import AgentPolicy, RedactionPolicy, ToolPolicy
 
 
@@ -142,3 +151,81 @@ def test_action_query_without_required_scope_is_denied():
     assert not approvals.list_pending("default")
     events = audit.list_events("default", limit=20)
     assert any(event.event_type == "tool.denied" for event in events)
+
+
+class FailsOnceGateway:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, request: ToolRequest, definition: ToolDefinition) -> ToolGatewayResult:
+        self.calls += 1
+        if self.calls == 1:
+            raise TimeoutError("temporary gateway failure")
+        return ToolGatewayResult(
+            status="succeeded",
+            reason="재시도 후 tool gateway 실행이 완료됐습니다.",
+            output_payload={"result": "retried", "source": request.name},
+        )
+
+    def replay(self, approval: ApprovalRequest) -> ToolGatewayResult:
+        return ToolGatewayResult(status="succeeded")
+
+
+class AlwaysFailsGateway:
+    def invoke(self, request: ToolRequest, definition: ToolDefinition) -> ToolGatewayResult:
+        raise ConnectionError("gateway unavailable")
+
+    def replay(self, approval: ApprovalRequest) -> ToolGatewayResult:
+        raise ConnectionError("gateway unavailable")
+
+
+def test_tool_gateway_retries_before_success():
+    registry = LocalToolRegistry()
+    definition = registry.get("internal-records.lookup")
+    assert definition is not None
+    gateway = FailsOnceGateway()
+    runtime = LocalToolRuntime(
+        policy=ToolPolicy(),
+        registry=registry,
+        gateway=ResilientToolGateway(inner=gateway, max_attempts=2),
+    )
+
+    execution = runtime.execute(
+        ToolRequest(
+            name=definition.name,
+            action_type=definition.action_type,
+            input_payload={"query": "승인 대기 조회"},
+            actor_scopes=["records:read"],
+        )
+    )
+
+    assert execution.status == "succeeded"
+    assert execution.output_payload["result"] == "retried"
+    assert execution.output_payload["_gateway"]["attempts"] == 2
+    assert execution.output_payload["_gateway"]["fallback_used"] is False
+
+
+def test_tool_gateway_returns_fallback_after_retries_exhausted():
+    registry = LocalToolRegistry()
+    definition = registry.get("internal-records.lookup")
+    assert definition is not None
+    runtime = LocalToolRuntime(
+        policy=ToolPolicy(),
+        registry=registry,
+        gateway=ResilientToolGateway(inner=AlwaysFailsGateway(), max_attempts=2),
+    )
+
+    execution = runtime.execute(
+        ToolRequest(
+            name=definition.name,
+            action_type=definition.action_type,
+            input_payload={"query": "승인 대기 조회"},
+            actor_scopes=["records:read"],
+        )
+    )
+
+    assert execution.status == "degraded"
+    assert execution.output_payload["result"] == "fallback_result"
+    assert execution.output_payload["_gateway"]["attempts"] == 2
+    assert execution.output_payload["_gateway"]["fallback_used"] is True
+    assert "ConnectionError" in execution.output_payload["_gateway"]["error_message"]

@@ -3,6 +3,7 @@ from functools import lru_cache
 from apps.api.adapters.agent.local_tool_gateway import LocalToolGateway
 from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
+from apps.api.adapters.agent.resilient_tool_gateway import ResilientToolGateway
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
     InMemoryApprovalRepository,
@@ -76,7 +77,7 @@ class AppContainer:
         self.agent_policy = AgentPolicy()
         self.tool_policy = ToolPolicy()
         self.tool_registry = LocalToolRegistry()
-        self.tool_gateway = LocalToolGateway()
+        self.tool_gateway = ResilientToolGateway(inner=LocalToolGateway())
         self.tool_runtime = LocalToolRuntime(
             policy=self.tool_policy,
             registry=self.tool_registry,

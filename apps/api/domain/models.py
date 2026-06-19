@@ -156,6 +156,10 @@ class ToolGatewayResult:
     status: str
     output_payload: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    attempts: int = 1
+    elapsed_ms: int = 0
+    fallback_used: bool = False
+    error_message: str | None = None
 
 
 @dataclass(frozen=True)
