@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     vector_backend: str = "local"
     auth_enabled: bool = False
     api_key_credentials: str = ""
+    webhook_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
+    webhook_max_attempts: int = Field(default=5, ge=1, le=20)
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""

@@ -117,6 +117,23 @@ def mark_delivery_failed(
     return _delivery_to_response(saved)
 
 
+@router.post("/deliveries/{delivery_id}/dispatch", response_model=WebhookDeliveryResponse)
+def dispatch_delivery(
+    delivery_id: UUID,
+    request: MarkWebhookDeliveryRequest,
+    container: ContainerDep,
+    auth: WebhookWriteAuth,
+) -> WebhookDeliveryResponse:
+    require_tenant_access(auth, request.tenant_id)
+    delivery = container.webhook_dispatcher.dispatch(
+        tenant_id=request.tenant_id,
+        delivery_id=str(delivery_id),
+    )
+    if delivery is None:
+        raise HTTPException(status_code=404, detail="Webhook delivery를 찾을 수 없습니다.")
+    return _delivery_to_response(delivery)
+
+
 def _get_delivery(container: AppContainer, tenant_id: str, delivery_id: UUID) -> WebhookDelivery:
     delivery = container.webhook_deliveries.get(tenant_id=tenant_id, delivery_id=str(delivery_id))
     if delivery is None:

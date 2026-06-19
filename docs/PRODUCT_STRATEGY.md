@@ -20,7 +20,7 @@
 - CI regression gate로 품질 기준 미달 변경을 차단한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 감사 이벤트를 JSONL/CSV로 export해 외부 분석과 컴플라이언스 흐름에 연결한다.
-- 감사 이벤트를 webhook outbox로 외부 workflow에 연결한다.
+- 감사 이벤트를 webhook outbox와 dispatcher로 외부 workflow에 연결한다.
 - 운영 요약 API로 dashboard-ready 지표를 제공한다.
 - 운영 콘솔에서 Agent 실행, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 추적한다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
@@ -64,7 +64,7 @@
 14. 답변 품질은 evaluation dataset으로 반복 측정한다.
 15. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
 16. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
-17. 외부 workflow 전송은 outbox로 분리해 재처리 가능해야 한다.
+17. 외부 workflow 전송은 outbox와 signed dispatcher로 분리해 재처리 가능해야 한다.
 18. 운영 요약은 audit event와 업무 원장에서 계산한다.
 19. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
 20. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
@@ -91,7 +91,7 @@
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
-- webhook delivery outbox로 외부 workflow 전송을 재처리할 수 있다.
+- webhook delivery outbox와 dispatcher로 외부 workflow 전송을 재처리할 수 있다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.

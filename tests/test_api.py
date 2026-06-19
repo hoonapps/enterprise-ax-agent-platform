@@ -2,10 +2,40 @@ import json
 
 from fastapi.testclient import TestClient
 
+from apps.api.adapters.persistence.in_memory import (
+    InMemoryWebhookDeliveryRepository,
+    InMemoryWebhookSubscriptionRepository,
+)
+from apps.api.application.webhooks import WebhookDispatcher
 from apps.api.core.config import get_settings
 from apps.api.core.container import get_container
 from apps.api.core.security import parse_api_key_credentials
+from apps.api.domain.models import WebhookDelivery, WebhookHttpResult, WebhookSubscription
 from apps.api.main import create_app
+
+
+class FakeWebhookHttpClient:
+    def __init__(self, result: WebhookHttpResult) -> None:
+        self.result = result
+        self.requests: list[dict[str, object]] = []
+
+    def post_json(
+        self,
+        *,
+        url: str,
+        payload: dict[str, object],
+        headers: dict[str, str],
+        timeout_seconds: float,
+    ) -> WebhookHttpResult:
+        self.requests.append(
+            {
+                "url": url,
+                "payload": payload,
+                "headers": headers,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return self.result
 
 
 def _clear_runtime_caches() -> None:
@@ -683,3 +713,88 @@ def test_webhook_subscription_creates_audit_delivery_outbox():
     assert delivered.status_code == 200
     assert delivered.json()["status"] == "delivered"
     assert delivered.json()["attempt_count"] == 1
+
+
+def test_webhook_dispatcher_signs_and_marks_delivered():
+    subscriptions = InMemoryWebhookSubscriptionRepository()
+    deliveries = InMemoryWebhookDeliveryRepository()
+    subscription = subscriptions.save(
+        WebhookSubscription(
+            tenant_id="default",
+            name="signed-dispatch",
+            target_url="https://workflow.internal/hooks/signed",
+            event_types=["document.ingested"],
+            secret="secret-01",
+        )
+    )
+    delivery = deliveries.save(
+        WebhookDelivery(
+            tenant_id="default",
+            subscription_id=subscription.id,
+            event_id=subscription.id,
+            event_type="document.ingested",
+            target_url=subscription.target_url,
+            payload={"event_type": "document.ingested", "value": "ok"},
+        )
+    )
+    http_client = FakeWebhookHttpClient(WebhookHttpResult(status_code=204))
+    dispatcher = WebhookDispatcher(
+        subscriptions=subscriptions,
+        deliveries=deliveries,
+        http_client=http_client,
+        timeout_seconds=2.5,
+        max_attempts=5,
+    )
+
+    dispatched = dispatcher.dispatch(tenant_id="default", delivery_id=str(delivery.id))
+
+    assert dispatched is not None
+    assert dispatched.status == "delivered"
+    assert dispatched.attempt_count == 1
+    assert dispatched.delivered_at is not None
+    assert http_client.requests
+    headers = http_client.requests[0]["headers"]
+    assert isinstance(headers, dict)
+    assert headers["X-AX-Delivery-Id"] == str(delivery.id)
+    assert headers["X-AX-Signature"].startswith("sha256=")
+    assert http_client.requests[0]["timeout_seconds"] == 2.5
+
+
+def test_webhook_dispatcher_marks_failed_with_retry_time():
+    subscriptions = InMemoryWebhookSubscriptionRepository()
+    deliveries = InMemoryWebhookDeliveryRepository()
+    subscription = subscriptions.save(
+        WebhookSubscription(
+            tenant_id="default",
+            name="failed-dispatch",
+            target_url="https://workflow.internal/hooks/fail",
+            event_types=["*"],
+        )
+    )
+    delivery = deliveries.save(
+        WebhookDelivery(
+            tenant_id="default",
+            subscription_id=subscription.id,
+            event_id=subscription.id,
+            event_type="approval.rejected",
+            target_url=subscription.target_url,
+            payload={"event_type": "approval.rejected"},
+        )
+    )
+    dispatcher = WebhookDispatcher(
+        subscriptions=subscriptions,
+        deliveries=deliveries,
+        http_client=FakeWebhookHttpClient(
+            WebhookHttpResult(status_code=503, response_body="unavailable")
+        ),
+        timeout_seconds=1,
+        max_attempts=5,
+    )
+
+    dispatched = dispatcher.dispatch(tenant_id="default", delivery_id=str(delivery.id))
+
+    assert dispatched is not None
+    assert dispatched.status == "failed"
+    assert dispatched.attempt_count == 1
+    assert dispatched.next_attempt_at is not None
+    assert "HTTP 503" in str(dispatched.last_error)

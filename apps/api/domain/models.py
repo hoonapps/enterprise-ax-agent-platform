@@ -337,3 +337,14 @@ class WebhookDelivery:
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     delivered_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class WebhookHttpResult:
+    status_code: int
+    response_body: str = ""
+    error_message: str | None = None
+
+    @property
+    def succeeded(self) -> bool:
+        return 200 <= self.status_code < 300 and self.error_message is None

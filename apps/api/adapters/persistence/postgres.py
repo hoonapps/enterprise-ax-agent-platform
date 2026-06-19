@@ -565,6 +565,19 @@ class PostgresWebhookSubscriptionRepository(PostgresBase):
             )
         return subscription
 
+    def get(self, tenant_id: str, subscription_id: str) -> WebhookSubscription | None:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            row = conn.execute(
+                """
+                select s.*, t.slug as tenant_slug
+                from webhook_subscriptions s
+                join tenants t on t.id = s.tenant_id
+                where t.slug = %s and s.id = %s
+                """,
+                (tenant_id, UUID(subscription_id)),
+            ).fetchone()
+        return self._row_to_subscription(row) if row else None
+
     def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]:
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
             rows = conn.execute(

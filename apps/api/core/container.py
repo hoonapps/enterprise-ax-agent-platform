@@ -29,6 +29,7 @@ from apps.api.adapters.persistence.postgres import (
 )
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
 from apps.api.adapters.vector.qdrant import QdrantVectorSearch
+from apps.api.adapters.webhook_http import UrllibWebhookHttpClient
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
 from apps.api.application.ontology import OntologyExtractor
@@ -55,6 +56,7 @@ from apps.api.application.use_cases import (
     SearchKnowledgeUseCase,
     ToolCallUseCase,
 )
+from apps.api.application.webhooks import WebhookDispatcher
 from apps.api.core.config import get_settings
 from apps.api.domain.policies import AgentPolicy, RedactionPolicy, ToolPolicy
 
@@ -73,6 +75,7 @@ class AppContainer:
         self.ontology: OntologyRepositoryPort
         self.webhook_subscriptions: WebhookSubscriptionRepositoryPort
         self.webhook_deliveries: WebhookDeliveryRepositoryPort
+        self.webhook_dispatcher: WebhookDispatcher
         self.vector_search: VectorSearchPort
 
         if settings.storage_backend == "postgres":
@@ -102,6 +105,14 @@ class AppContainer:
             inner=self.base_audit_log,
             subscriptions=self.webhook_subscriptions,
             deliveries=self.webhook_deliveries,
+        )
+        self.webhook_http_client = UrllibWebhookHttpClient()
+        self.webhook_dispatcher = WebhookDispatcher(
+            subscriptions=self.webhook_subscriptions,
+            deliveries=self.webhook_deliveries,
+            http_client=self.webhook_http_client,
+            timeout_seconds=settings.webhook_timeout_seconds,
+            max_attempts=settings.webhook_max_attempts,
         )
 
         if settings.vector_backend == "qdrant":

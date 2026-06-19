@@ -234,7 +234,11 @@ Use Case
      -> inner AuditLogPort.append(event)
      -> matching WebhookSubscription 조회
      -> WebhookDelivery pending 생성
-  -> external worker가 delivery 전송
+  -> WebhookDispatcher가 delivery 전송
+     -> X-AX-* 헤더와 HMAC signature 구성
+     -> timeout 적용
+     -> 2xx면 delivered
+     -> 실패면 failed + next_attempt_at 기록
   -> delivered / failed 상태 기록
 ```
 

@@ -36,7 +36,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
 | `webhooks:read` | `GET /v1/webhooks/subscriptions`, `GET /v1/webhooks/deliveries` |
-| `webhooks:write` | `POST /v1/webhooks/subscriptions`, delivery 상태 변경 |
+| `webhooks:write` | `POST /v1/webhooks/subscriptions`, delivery dispatch/status 변경 |
 | `evaluations:read` | `GET /v1/evaluations/runs/{evaluation_run_id}` |
 | `evaluations:write` | `POST /v1/evaluations/runs` |
 | `mcp:use` | `POST /mcp` |
@@ -67,6 +67,7 @@ GET  /v1/operations/summary
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
+POST /v1/webhooks/deliveries/{delivery_id}/dispatch
 POST /v1/webhooks/deliveries/{delivery_id}/mark-delivered
 POST /v1/webhooks/deliveries/{delivery_id}/mark-failed
 
@@ -449,7 +450,7 @@ CI regression gate는 API request와 유사한 JSON dataset을 사용한다.
 ## Webhook Outbox
 
 감사 이벤트를 외부 workflow로 전달하기 위한 subscription과 delivery outbox API다.
-외부 전송은 outbox delivery를 읽는 worker가 담당하고, Agent 실행 경로는 delivery 생성까지만 수행한다.
+외부 전송은 outbox delivery를 읽는 dispatcher가 담당하고, Agent 실행 경로는 delivery 생성까지만 수행한다.
 
 Subscription 생성:
 
@@ -485,6 +486,24 @@ Delivery 응답:
   "delivered_at": null
 }
 ```
+
+Dispatch 요청:
+
+```text
+POST /v1/webhooks/deliveries/{delivery_id}/dispatch
+```
+
+전송 헤더:
+
+| 헤더 | 의미 |
+| --- | --- |
+| `X-AX-Delivery-Id` | delivery id |
+| `X-AX-Event-Id` | audit event id |
+| `X-AX-Event-Type` | event type |
+| `X-AX-Signature` | subscription secret이 있을 때 `sha256=...` 형식 HMAC |
+
+2xx 응답이면 `delivered`로 전이하고, 실패하면 `failed`, `attempt_count`, `next_attempt_at`,
+`last_error`를 저장한다.
 
 ## 헤더
 

@@ -128,6 +128,7 @@ GET  /v1/operations/summary
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
+POST /v1/webhooks/deliveries/{delivery_id}/dispatch
 POST /v1/webhooks/deliveries/{delivery_id}/mark-delivered
 POST /v1/webhooks/deliveries/{delivery_id}/mark-failed
 
@@ -600,11 +601,29 @@ Delivery 조회:
 curl "http://127.0.0.1:8000/v1/webhooks/deliveries?tenant_id=default&status=pending"
 ```
 
+Delivery 전송:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/webhooks/deliveries/{delivery_id}/dispatch \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id": "default"}'
+```
+
+전송 시 `X-AX-Delivery-Id`, `X-AX-Event-Id`, `X-AX-Event-Type` 헤더를 포함합니다.
+subscription에 secret이 있으면 `X-AX-Signature: sha256=...` 헤더를 추가합니다.
+
 지원 상태:
 
 - `pending`
 - `delivered`
 - `failed`
+
+환경 설정:
+
+```env
+WEBHOOK_TIMEOUT_SECONDS=3
+WEBHOOK_MAX_ATTEMPTS=5
+```
 
 ## Operations Summary
 

@@ -298,7 +298,9 @@ AuditEvent
   -> AuditLogPort.append
   -> WebhookSubscription match
   -> WebhookDelivery(status=pending)
-  -> dispatcher worker
+  -> WebhookDispatcher
+     -> signed HTTP POST
+     -> delivered / failed
 ```
 
 이 패턴은 외부 시스템 장애가 Agent 실행 경로에 전파되는 것을 막는다.
@@ -306,4 +308,5 @@ AuditEvent
 - audit event는 source of truth로 먼저 저장한다.
 - subscription은 어떤 event type을 외부 workflow로 보낼지 정의한다.
 - delivery는 pending/delivered/failed 상태를 가진 재처리 가능한 작업 단위다.
-- 실제 HTTP 전송은 API 프로세스가 아니라 별도 worker로 분리할 수 있다.
+- dispatcher는 HMAC signature, timeout, retry backoff 상태를 처리한다.
+- 실제 HTTP 전송 호출은 API endpoint 또는 별도 worker에서 같은 dispatcher를 재사용할 수 있다.

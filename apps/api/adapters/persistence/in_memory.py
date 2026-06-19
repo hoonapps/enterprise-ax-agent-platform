@@ -240,6 +240,13 @@ class InMemoryWebhookSubscriptionRepository:
             self._subscriptions[subscription.tenant_id][subscription.id] = subscription
         return subscription
 
+    def get(self, tenant_id: str, subscription_id: str) -> WebhookSubscription | None:
+        with self._lock:
+            try:
+                return self._subscriptions[tenant_id].get(UUID(subscription_id))
+            except ValueError:
+                return None
+
     def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]:
         with self._lock:
             subscriptions = list(self._subscriptions[tenant_id].values())
