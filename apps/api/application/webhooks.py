@@ -41,10 +41,10 @@ class WebhookDispatcher:
         delivery = self.deliveries.get(tenant_id=tenant_id, delivery_id=delivery_id)
         if delivery is None:
             return None
-        if delivery.status == WebhookDeliveryStatus.DELIVERED:
+        if delivery.status in {WebhookDeliveryStatus.DELIVERED, WebhookDeliveryStatus.DEAD_LETTER}:
             return delivery
         if delivery.attempt_count >= self.max_attempts:
-            return self._mark_failed(
+            return self._mark_dead_letter(
                 delivery=delivery,
                 result=WebhookHttpResult(
                     status_code=0,
@@ -139,6 +139,22 @@ class WebhookDispatcher:
                 status=WebhookDeliveryStatus.FAILED,
                 attempt_count=delivery.attempt_count + 1,
                 next_attempt_at=next_attempt_at,
+                last_error=reason[:500],
+            )
+        )
+
+    def _mark_dead_letter(
+        self,
+        *,
+        delivery: WebhookDelivery,
+        result: WebhookHttpResult,
+    ) -> WebhookDelivery:
+        reason = result.error_message or f"HTTP {result.status_code}: {result.response_body}"
+        return self.deliveries.save(
+            replace(
+                delivery,
+                status=WebhookDeliveryStatus.DEAD_LETTER,
+                next_attempt_at=None,
                 last_error=reason[:500],
             )
         )

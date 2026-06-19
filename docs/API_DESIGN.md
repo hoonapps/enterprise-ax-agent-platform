@@ -69,6 +69,7 @@ POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
 POST /v1/webhooks/deliveries/{delivery_id}/dispatch
 POST /v1/webhooks/deliveries/dispatch-pending
+POST /v1/webhooks/deliveries/{delivery_id}/retry
 POST /v1/webhooks/deliveries/{delivery_id}/mark-delivered
 POST /v1/webhooks/deliveries/{delivery_id}/mark-failed
 
@@ -510,6 +511,9 @@ POST /v1/webhooks/deliveries/dispatch-pending
 배치 dispatcher는 pending delivery, 재시도 시각이 지난 failed delivery, lease가 만료된
 dispatching delivery를 먼저 `dispatching` 상태로 claim한다. HTTP 전송이 완료되면
 `delivered` 또는 `failed`로 다시 전이한다.
+최대 시도 횟수를 초과한 delivery는 `dead_letter`로 전이해 자동 재시도 대상에서 제외한다.
+운영자가 원인을 처리한 뒤 `POST /v1/webhooks/deliveries/{delivery_id}/retry`로 다시
+`pending` 상태에 넣을 수 있다.
 
 전송 헤더:
 

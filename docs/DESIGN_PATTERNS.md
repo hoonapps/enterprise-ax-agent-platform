@@ -313,3 +313,5 @@ AuditEvent
 - 배치 worker는 먼저 `dispatching` 상태로 delivery를 claim하고, lease 시간 동안 소유권을 갖는다.
 - Postgres adapter는 `FOR UPDATE SKIP LOCKED`로 여러 worker의 중복 claim을 막는다.
 - lease가 만료된 `dispatching` delivery는 다시 claim 대상이 되어 worker 중단 후에도 복구된다.
+- 최대 재시도 횟수를 넘은 delivery는 `dead_letter`로 분리해 자동 재시도 폭주를 막는다.
+- 수동 retry는 상태와 attempt count를 초기화해 운영자가 원인 조치 후 다시 큐에 넣는 동작이다.

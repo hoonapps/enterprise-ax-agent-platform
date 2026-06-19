@@ -808,6 +808,50 @@ def test_webhook_dispatcher_marks_failed_with_retry_time():
     assert "HTTP 503" in str(dispatched.last_error)
 
 
+def test_webhook_dispatcher_moves_exhausted_delivery_to_dead_letter():
+    subscriptions = InMemoryWebhookSubscriptionRepository()
+    deliveries = InMemoryWebhookDeliveryRepository()
+    subscription = subscriptions.save(
+        WebhookSubscription(
+            tenant_id="default",
+            name="dead-letter-dispatch",
+            target_url="https://workflow.internal/hooks/dead-letter",
+            event_types=["*"],
+        )
+    )
+    delivery = deliveries.save(
+        replace(
+            WebhookDelivery(
+                tenant_id="default",
+                subscription_id=subscription.id,
+                event_id=subscription.id,
+                event_type="document.ingested",
+                target_url=subscription.target_url,
+                payload={"event_type": "document.ingested"},
+            ),
+            status=WebhookDeliveryStatus.FAILED,
+            attempt_count=5,
+            next_attempt_at=datetime.now(UTC) - timedelta(minutes=1),
+        )
+    )
+    http_client = FakeWebhookHttpClient(WebhookHttpResult(status_code=204))
+    dispatcher = WebhookDispatcher(
+        subscriptions=subscriptions,
+        deliveries=deliveries,
+        http_client=http_client,
+        timeout_seconds=1,
+        max_attempts=5,
+    )
+
+    dispatched = dispatcher.dispatch(tenant_id="default", delivery_id=str(delivery.id))
+
+    assert dispatched is not None
+    assert dispatched.status == "dead_letter"
+    assert dispatched.next_attempt_at is None
+    assert "maximum delivery attempts exceeded" in str(dispatched.last_error)
+    assert http_client.requests == []
+
+
 def test_webhook_dispatcher_dispatches_due_deliveries_batch():
     subscriptions = InMemoryWebhookSubscriptionRepository()
     deliveries = InMemoryWebhookDeliveryRepository()
@@ -925,3 +969,49 @@ def test_webhook_dispatch_pending_api_returns_empty_batch():
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_webhook_retry_api_resets_failed_delivery_to_pending():
+    client = TestClient(create_app())
+
+    subscription = client.post(
+        "/v1/webhooks/subscriptions",
+        json={
+            "tenant_id": "default",
+            "name": "retry-workflow",
+            "target_url": "https://workflow.internal/hooks/retry",
+            "event_types": ["document.ingested"],
+        },
+    )
+    assert subscription.status_code == 200
+    ingest = client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "Webhook retry 문서",
+            "content": "실패한 webhook delivery는 수동 retry로 다시 pending 상태가 될 수 있다.",
+            "source_uri": "test://webhook-retry",
+        },
+    )
+    assert ingest.status_code == 200
+    deliveries = client.get("/v1/webhooks/deliveries?tenant_id=default&status=pending")
+    assert deliveries.status_code == 200
+    delivery_id = deliveries.json()[0]["id"]
+
+    failed = client.post(
+        f"/v1/webhooks/deliveries/{delivery_id}/mark-failed",
+        json={"tenant_id": "default", "error": "manual failure"},
+    )
+    assert failed.status_code == 200
+    assert failed.json()["status"] == "failed"
+
+    retried = client.post(
+        f"/v1/webhooks/deliveries/{delivery_id}/retry",
+        json={"tenant_id": "default"},
+    )
+
+    assert retried.status_code == 200
+    body = retried.json()
+    assert body["status"] == "pending"
+    assert body["attempt_count"] == 0
+    assert body["last_error"] is None

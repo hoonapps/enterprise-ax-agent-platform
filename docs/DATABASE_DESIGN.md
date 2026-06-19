@@ -257,7 +257,7 @@ Tool call을 별도 테이블로 둔 이유:
 | `event_type` | text | 이벤트 타입 |
 | `target_url` | text | 전송 대상 URL snapshot |
 | `payload` | jsonb | 전송 payload |
-| `status` | text | pending, dispatching, delivered, failed |
+| `status` | text | pending, dispatching, delivered, failed, dead_letter |
 | `attempt_count` | int | 전송 시도 횟수 |
 | `next_attempt_at` | timestamptz | 다음 재시도 시각 또는 dispatching lease 만료 시각 |
 | `last_error` | text | 마지막 실패 원인 |

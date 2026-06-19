@@ -309,6 +309,7 @@ class WebhookDeliveryStatus(StrEnum):
     DISPATCHING = "dispatching"
     DELIVERED = "delivered"
     FAILED = "failed"
+    DEAD_LETTER = "dead_letter"
 
 
 @dataclass(frozen=True)

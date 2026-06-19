@@ -118,6 +118,28 @@ def mark_delivery_failed(
     return _delivery_to_response(saved)
 
 
+@router.post("/deliveries/{delivery_id}/retry", response_model=WebhookDeliveryResponse)
+def retry_delivery(
+    delivery_id: UUID,
+    request: MarkWebhookDeliveryRequest,
+    container: ContainerDep,
+    auth: WebhookWriteAuth,
+) -> WebhookDeliveryResponse:
+    require_tenant_access(auth, request.tenant_id)
+    delivery = _get_delivery(container, request.tenant_id, delivery_id)
+    saved = container.webhook_deliveries.save(
+        replace(
+            delivery,
+            status=WebhookDeliveryStatus.PENDING,
+            attempt_count=0,
+            next_attempt_at=None,
+            last_error=None,
+            delivered_at=None,
+        )
+    )
+    return _delivery_to_response(saved)
+
+
 @router.post("/deliveries/{delivery_id}/dispatch", response_model=WebhookDeliveryResponse)
 def dispatch_delivery(
     delivery_id: UUID,
