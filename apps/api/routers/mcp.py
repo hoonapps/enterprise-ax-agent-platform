@@ -6,17 +6,23 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import ToolActionType, ToolDecision, ToolDefinition, ToolExecution
 from apps.api.schemas.mcp import McpJsonRpcRequest
 
 router = APIRouter(tags=["mcp"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+McpUseAuth = Annotated[AuthPrincipal, Depends(require_scopes("mcp:use"))]
 
 PROTOCOL_VERSION = "2025-03-26"
 
 
 @router.post("/mcp")
-def handle_mcp(request: McpJsonRpcRequest, container: ContainerDep) -> dict[str, Any]:
+def handle_mcp(
+    request: McpJsonRpcRequest,
+    container: ContainerDep,
+    auth: McpUseAuth,
+) -> dict[str, Any]:
     if request.jsonrpc != "2.0":
         return _error(request.id, -32600, "Invalid Request", "jsonrpc must be '2.0'")
 

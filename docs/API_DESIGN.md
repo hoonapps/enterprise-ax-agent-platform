@@ -2,6 +2,40 @@
 
 API는 LLM 구현 세부사항이 아니라 업무 기능을 노출한다.
 
+## 인증
+
+기본 로컬 실행에서는 인증을 비활성화한다. `AUTH_ENABLED=true`이면 보호 대상 API는
+`X-API-Key` 헤더를 요구한다.
+
+```http
+X-API-Key: local-dev-key
+```
+
+`API_KEY_CREDENTIALS`는 다음 형식이다.
+
+```text
+key:actor_id:scope|scope;another-key:actor_id:scope|scope
+```
+
+HTTP API scope는 endpoint 접근 권한이고, Agent request의 `actor_scopes`는 tool runtime 실행 권한이다.
+두 경계를 분리해 API 호출 권한과 Agent의 외부 시스템 실행 권한을 따로 통제한다.
+
+| Scope | Endpoint |
+| --- | --- |
+| `documents:read` | `GET /v1/documents` |
+| `documents:write` | `POST /v1/documents/ingest` |
+| `knowledge:read` | `POST /v1/knowledge/search` |
+| `agents:read` | `GET /v1/agents/runs/{run_id}` |
+| `agents:run` | `POST /v1/agents/runs` |
+| `approvals:read` | `GET /v1/approvals/pending` |
+| `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
+| `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
+| `operations:read` | `GET /v1/operations/summary` |
+| `tools:read` | `GET /v1/tools` |
+| `evaluations:read` | `GET /v1/evaluations/runs/{evaluation_run_id}` |
+| `evaluations:write` | `POST /v1/evaluations/runs` |
+| `mcp:use` | `POST /mcp` |
+
 ## 버전 정책
 
 모든 API는 `/v1` 하위에 둔다.

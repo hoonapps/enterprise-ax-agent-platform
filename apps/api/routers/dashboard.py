@@ -427,6 +427,10 @@ _DASHBOARD_HTML = """<!doctype html>
           <label for="event-limit">Event limit</label>
           <input id="event-limit" name="eventLimit" type="number" min="10" value="500">
         </div>
+        <div class="field">
+          <label for="api-key">API Key</label>
+          <input id="api-key" name="apiKey" type="password" autocomplete="off">
+        </div>
         <button class="refresh" id="refresh" type="submit">새로고침</button>
       </form>
     </section>
@@ -546,6 +550,7 @@ _DASHBOARD_HTML = """<!doctype html>
       refresh: document.querySelector("#refresh"),
       tenant: document.querySelector("#tenant-id"),
       eventLimit: document.querySelector("#event-limit"),
+      apiKey: document.querySelector("#api-key"),
       loadState: document.querySelector("#load-state"),
       generatedAt: document.querySelector("#generated-at"),
       documents: document.querySelector("#metric-documents"),
@@ -726,7 +731,7 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     async function fetchJson(url) {
-      const response = await fetch(url, { headers: { "Accept": "application/json" } });
+      const response = await fetch(url, { headers: requestHeaders() });
       if (!response.ok) {
         throw new Error(`${response.status} ${response.statusText}`);
       }
@@ -736,16 +741,25 @@ _DASHBOARD_HTML = """<!doctype html>
     async function postJson(url, payload) {
       const response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
+        headers: requestHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
         throw new Error(`${response.status} ${response.statusText}`);
       }
       return response.json();
+    }
+
+    function requestHeaders(extraHeaders = {}) {
+      const headers = {
+        "Accept": "application/json",
+        ...extraHeaders
+      };
+      const apiKey = els.apiKey.value.trim();
+      if (apiKey) {
+        headers["X-API-Key"] = apiKey;
+      }
+      return headers;
     }
 
     async function decideApproval(approvalId, action) {

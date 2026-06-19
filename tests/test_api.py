@@ -2,7 +2,16 @@ import json
 
 from fastapi.testclient import TestClient
 
+from apps.api.core.config import get_settings
+from apps.api.core.container import get_container
+from apps.api.core.security import parse_api_key_credentials
 from apps.api.main import create_app
+
+
+def _clear_runtime_caches() -> None:
+    get_settings.cache_clear()
+    get_container.cache_clear()
+    parse_api_key_credentials.cache_clear()
 
 
 def test_health_and_agent_flow():
@@ -423,3 +432,45 @@ def test_operator_dashboard_serves_backend_console():
     assert "/v1/tools" in response.text
     assert "data-approval-action=\"approve\"" in response.text
     assert "data-approval-action=\"reject\"" in response.text
+    assert "X-API-Key" in response.text
+
+
+def test_api_key_auth_can_protect_operational_apis(monkeypatch):
+    with monkeypatch.context() as scoped:
+        scoped.setenv("AUTH_ENABLED", "true")
+        scoped.setenv(
+            "API_KEY_CREDENTIALS",
+            "ops-key:operator-01:operations:read|tools:read",
+        )
+        _clear_runtime_caches()
+        client = TestClient(create_app())
+
+        missing_key = client.get("/v1/operations/summary?tenant_id=default")
+        assert missing_key.status_code == 401
+
+        invalid_key = client.get(
+            "/v1/operations/summary?tenant_id=default",
+            headers={"X-API-Key": "wrong-key"},
+        )
+        assert invalid_key.status_code == 401
+
+        allowed = client.get(
+            "/v1/operations/summary?tenant_id=default",
+            headers={"X-API-Key": "ops-key"},
+        )
+        assert allowed.status_code == 200
+
+        forbidden = client.post(
+            "/v1/documents/ingest",
+            headers={"X-API-Key": "ops-key"},
+            json={
+                "tenant_id": "default",
+                "title": "권한 테스트 문서",
+                "content": "문서 쓰기 scope가 없으면 적재할 수 없다.",
+                "source_uri": "test://auth-scope",
+            },
+        )
+        assert forbidden.status_code == 403
+        assert forbidden.json()["detail"]["missing_scopes"] == ["documents:write"]
+
+    _clear_runtime_caches()

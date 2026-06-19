@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import EvaluationCase, EvaluationRun
 from apps.api.schemas.evaluations import (
     EvaluationCaseResponse,
@@ -13,12 +14,15 @@ from apps.api.schemas.evaluations import (
 
 router = APIRouter(prefix="/v1/evaluations", tags=["evaluations"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+EvaluationReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("evaluations:read"))]
+EvaluationWriteAuth = Annotated[AuthPrincipal, Depends(require_scopes("evaluations:write"))]
 
 
 @router.post("/runs", response_model=EvaluationRunResponse)
 def run_evaluation(
     request: RunEvaluationRequest,
     container: ContainerDep,
+    auth: EvaluationWriteAuth,
 ) -> EvaluationRunResponse:
     cases = [
         EvaluationCase(
@@ -42,6 +46,7 @@ def run_evaluation(
 def get_evaluation_run(
     evaluation_run_id: UUID,
     container: ContainerDep,
+    auth: EvaluationReadAuth,
     tenant_id: str = "default",
 ) -> EvaluationRunResponse:
     run = container.evaluate_agent.get(

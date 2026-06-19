@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import Classification, Document
 from apps.api.schemas.documents import (
     DocumentResponse,
@@ -12,12 +13,15 @@ from apps.api.schemas.documents import (
 
 router = APIRouter(prefix="/v1/documents", tags=["documents"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+DocumentReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("documents:read"))]
+DocumentWriteAuth = Annotated[AuthPrincipal, Depends(require_scopes("documents:write"))]
 
 
 @router.post("/ingest", response_model=IngestDocumentResponse)
 def ingest_document(
     request: IngestDocumentRequest,
     container: ContainerDep,
+    auth: DocumentWriteAuth,
 ) -> IngestDocumentResponse:
     document = Document(
         tenant_id=request.tenant_id,
@@ -41,6 +45,7 @@ def ingest_document(
 @router.get("", response_model=list[DocumentResponse])
 def list_documents(
     container: ContainerDep,
+    auth: DocumentReadAuth,
     tenant_id: str = "default",
 ) -> list[DocumentResponse]:
     return [

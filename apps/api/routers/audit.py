@@ -7,16 +7,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import AuditEvent
 from apps.api.schemas.common import AuditEventResponse
 
 router = APIRouter(prefix="/v1/audit", tags=["audit"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+AuditReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("audit:read"))]
 
 
 @router.get("/events", response_model=list[AuditEventResponse])
 def list_audit_events(
     container: ContainerDep,
+    auth: AuditReadAuth,
     tenant_id: str = "default",
     limit: int = 50,
     event_type: str | None = None,
@@ -34,6 +37,7 @@ def list_audit_events(
 @router.get("/export")
 def export_audit_events(
     container: ContainerDep,
+    auth: AuditReadAuth,
     tenant_id: str = "default",
     limit: int = 500,
     event_type: str | None = None,

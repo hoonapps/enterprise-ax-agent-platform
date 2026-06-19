@@ -3,15 +3,17 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import ToolDefinition
 from apps.api.schemas.tools import ToolDefinitionResponse
 
 router = APIRouter(prefix="/v1/tools", tags=["tools"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+ToolReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("tools:read"))]
 
 
 @router.get("", response_model=list[ToolDefinitionResponse])
-def list_tools(container: ContainerDep) -> list[ToolDefinitionResponse]:
+def list_tools(container: ContainerDep, auth: ToolReadAuth) -> list[ToolDefinitionResponse]:
     return [_to_response(tool) for tool in container.tool_registry.list_tools()]
 
 

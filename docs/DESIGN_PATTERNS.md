@@ -219,3 +219,26 @@ GET /dashboard
 
 이 구조는 React 같은 별도 프론트엔드가 붙어도 유지된다. 기존 dashboard는 API 계약 검증용
 운영 콘솔로 남고, 더 복잡한 화면은 같은 read model 위에서 확장할 수 있다.
+
+## 14. API Key Scope Guard
+
+HTTP API 접근 권한은 Agent tool 실행 권한과 분리한다.
+
+```text
+X-API-Key
+  -> AuthPrincipal(actor_id, scopes)
+  -> require_scopes("operations:read")
+  -> Router
+  -> Use Case
+```
+
+이 패턴의 목적은 두 가지다.
+
+- endpoint를 호출할 수 있는 주체를 제한한다.
+- Agent가 tool을 실행할 수 있는지는 tool runtime에서 별도로 판단한다.
+
+예를 들어 `agents:run` scope가 있는 API key는 Agent 실행 endpoint를 호출할 수 있다.
+하지만 request의 `actor_scopes`에 `workflow:request`가 없으면 쓰기성 workflow tool은 실행되지 않는다.
+
+기본 로컬 모드는 `AUTH_ENABLED=false`로 둔다. 외부 DB 없이 빠르게 실행해도 되지만,
+운영형 로컬 환경에서는 `AUTH_ENABLED=true`와 `API_KEY_CREDENTIALS`로 같은 API를 보호할 수 있다.

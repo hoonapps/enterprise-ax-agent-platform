@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
     RunAgentRequest,
@@ -21,12 +22,16 @@ from apps.api.schemas.common import (
 
 router = APIRouter(prefix="/v1", tags=["agents"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+KnowledgeReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("knowledge:read"))]
+AgentReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("agents:read"))]
+AgentRunAuth = Annotated[AuthPrincipal, Depends(require_scopes("agents:run"))]
 
 
 @router.post("/knowledge/search", response_model=SearchKnowledgeResponse)
 def search_knowledge(
     request: SearchKnowledgeRequest,
     container: ContainerDep,
+    auth: KnowledgeReadAuth,
 ) -> SearchKnowledgeResponse:
     results = container.search_knowledge.execute(
         tenant_id=request.tenant_id,
@@ -52,6 +57,7 @@ def search_knowledge(
 def run_agent(
     request: RunAgentRequest,
     container: ContainerDep,
+    auth: AgentRunAuth,
 ) -> RunAgentResponse:
     run = container.run_agent.execute(
         tenant_id=request.tenant_id,
@@ -67,6 +73,7 @@ def run_agent(
 def get_agent_run(
     run_id: UUID,
     container: ContainerDep,
+    auth: AgentReadAuth,
     tenant_id: str = "default",
 ) -> RunAgentResponse:
     run = container.run_agent.get_run(tenant_id=tenant_id, run_id=run_id)

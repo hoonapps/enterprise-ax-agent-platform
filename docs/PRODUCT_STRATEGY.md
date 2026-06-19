@@ -7,6 +7,7 @@
 - 업무 문서를 안전하게 검색한다.
 - 질문 유형에 따라 RAG 전략을 바꾼다.
 - 외부 시스템 실행 전 정책을 검사한다.
+- API 호출 권한과 Agent tool 실행 권한을 분리한다.
 - 조회성 tool과 쓰기성 tool의 실행 경계를 분리한다.
 - tool별 required scope와 risk level을 registry에서 관리한다.
 - 외부 tool 호출은 MCP-compatible boundary와 Tool Gateway를 통해 분리한다.
@@ -48,16 +49,17 @@
 3. 모든 쓰기성 작업은 정책과 승인 경계를 지난다.
 4. 조회성 tool은 실행 가능하지만, 쓰기성 tool은 승인 대기 상태를 기본값으로 둔다.
 5. 등록되지 않은 tool이나 required scope가 없는 tool 요청은 실행하지 않는다.
-6. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
-7. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
-8. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
-9. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
-10. 답변 품질은 evaluation dataset으로 반복 측정한다.
-11. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
-12. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
-13. 운영 요약은 audit event와 업무 원장에서 계산한다.
-14. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
-15. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
+6. HTTP API 접근은 API key와 endpoint scope로 제어할 수 있어야 한다.
+7. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
+8. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
+9. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
+10. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
+11. 답변 품질은 evaluation dataset으로 반복 측정한다.
+12. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
+13. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
+14. 운영 요약은 audit event와 업무 원장에서 계산한다.
+15. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+16. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
 
 ## 확장 축
 
@@ -66,7 +68,7 @@
 | Knowledge | Qdrant/pgvector, reranking, freshness check |
 | Workflow | n8n, Slack, approval queue |
 | Tool Runtime | tool schema registry, scope check, MCP-compatible JSON-RPC, Tool Gateway |
-| Governance | RBAC, PII redaction, audit export |
+| Governance | API key auth, RBAC, PII redaction, audit export |
 | LLMOps | evaluation dataset, regression test, cost/latency metrics |
 | Domain Intelligence | ontology, knowledge graph, multimodal document ingestion |
 

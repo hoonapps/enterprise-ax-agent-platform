@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     top_k: int = Field(default=4, ge=1, le=20)
     storage_backend: str = "memory"
     vector_backend: str = "local"
+    auth_enabled: bool = False
+    api_key_credentials: str = ""
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""
@@ -33,6 +35,10 @@ class Settings(BaseSettings):
         if self.anthropic_api_key:
             return "anthropic-ready"
         return "deterministic-local"
+
+    @property
+    def auth_mode(self) -> str:
+        return "api-key" if self.auth_enabled else "disabled"
 
 
 @lru_cache(maxsize=1)

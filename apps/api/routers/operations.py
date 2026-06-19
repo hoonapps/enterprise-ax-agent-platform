@@ -3,16 +3,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import OperationsSummary
 from apps.api.schemas.operations import OperationsSummaryResponse
 
 router = APIRouter(prefix="/v1/operations", tags=["operations"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+OperationsReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("operations:read"))]
 
 
 @router.get("/summary", response_model=OperationsSummaryResponse)
 def get_operations_summary(
     container: ContainerDep,
+    auth: OperationsReadAuth,
     tenant_id: str = "default",
     event_limit: int = 500,
 ) -> OperationsSummaryResponse:

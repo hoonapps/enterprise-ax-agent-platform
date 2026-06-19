@@ -4,16 +4,20 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import ApprovalRequest
 from apps.api.schemas.approvals import ApprovalResponse, ApproveRequest, RejectApprovalRequest
 
 router = APIRouter(prefix="/v1/approvals", tags=["approvals"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
+ApprovalReadAuth = Annotated[AuthPrincipal, Depends(require_scopes("approvals:read"))]
+ApprovalWriteAuth = Annotated[AuthPrincipal, Depends(require_scopes("approvals:write"))]
 
 
 @router.get("/pending", response_model=list[ApprovalResponse])
 def list_pending_approvals(
     container: ContainerDep,
+    auth: ApprovalReadAuth,
     tenant_id: str = "default",
 ) -> list[ApprovalResponse]:
     return [
@@ -27,6 +31,7 @@ def approve_request(
     approval_id: UUID,
     request: ApproveRequest,
     container: ContainerDep,
+    auth: ApprovalWriteAuth,
 ) -> ApprovalResponse:
     approval = container.approval.approve(
         tenant_id=request.tenant_id,
@@ -43,6 +48,7 @@ def reject_request(
     approval_id: UUID,
     request: RejectApprovalRequest,
     container: ContainerDep,
+    auth: ApprovalWriteAuth,
 ) -> ApprovalResponse:
     approval = container.approval.reject(
         tenant_id=request.tenant_id,
