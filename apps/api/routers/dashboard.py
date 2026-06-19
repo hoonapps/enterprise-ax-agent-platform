@@ -636,6 +636,10 @@ _DASHBOARD_HTML = """<!doctype html>
         <div class="label">Readiness</div>
         <div class="value" id="metric-readiness">-</div>
       </article>
+      <article class="metric">
+        <div class="label">Schema</div>
+        <div class="value" id="metric-migrations">-</div>
+      </article>
     </section>
 
     <section class="panel-grid">
@@ -729,6 +733,16 @@ _DASHBOARD_HTML = """<!doctype html>
           </header>
           <div class="panel-body">
             <div class="dependency-list" id="dependency-readiness"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
+            <h2>Schema Migrations</h2>
+            <span class="meta">database ledger</span>
+          </header>
+          <div class="panel-body">
+            <div class="dependency-list" id="migration-status"></div>
           </div>
         </section>
 
@@ -879,7 +893,9 @@ _DASHBOARD_HTML = """<!doctype html>
       usage: document.querySelector("#metric-usage"),
       slo: document.querySelector("#metric-slo"),
       readiness: document.querySelector("#metric-readiness"),
+      migrations: document.querySelector("#metric-migrations"),
       dependencyReadiness: document.querySelector("#dependency-readiness"),
+      migrationStatus: document.querySelector("#migration-status"),
       operationsAlerts: document.querySelector("#operations-alerts"),
       incidentSnapshot: document.querySelector("#incident-snapshot"),
       feedbackSummary: document.querySelector("#feedback-summary"),
@@ -931,7 +947,19 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     function badgeClass(value) {
-      if (["allowed", "executed", "succeeded", "low", "read", "ready"].includes(value)) {
+      if (
+        [
+          "allowed",
+          "executed",
+          "succeeded",
+          "low",
+          "read",
+          "ready",
+          "applied",
+          "up_to_date",
+          "not_applicable"
+        ].includes(value)
+      ) {
         return "ok";
       }
       if (
@@ -942,14 +970,24 @@ _DASHBOARD_HTML = """<!doctype html>
           "write",
           "warning",
           "blocked",
-          "degraded"
+          "degraded",
+          "untracked",
+          "not_tracked"
         ]
           .includes(value)
       ) {
         return "warn";
       }
       if (
-        ["denied", "rejected", "failed", "high", "critical", "unavailable"].includes(value)
+        [
+          "denied",
+          "rejected",
+          "failed",
+          "high",
+          "critical",
+          "unavailable",
+          "checksum_mismatch"
+        ].includes(value)
       ) {
         return "danger";
       }
@@ -984,6 +1022,45 @@ _DASHBOARD_HTML = """<!doctype html>
             </span>
             <div class="dependency-detail">
               ${formatNumber(dependency.latency_ms)}ms${detail ? ` · ${escapeHtml(detail)}` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderMigrations(status) {
+      const migrations = status.migrations || [];
+      els.migrations.textContent = escapeHtml(status.status || "-");
+      els.migrations.title = [
+        `backend ${status.storage_backend || "-"}`,
+        `ledger ${status.ledger_available ? "available" : "missing"}`
+      ].join(" · ");
+
+      if (!migrations.length) {
+        els.migrationStatus.innerHTML = `
+          <div class="empty">migration 파일이 없습니다.</div>
+        `;
+        return;
+      }
+
+      els.migrationStatus.innerHTML = migrations.map((migration) => {
+        const checksum = String(migration.checksum || "").slice(0, 12);
+        const appliedChecksum = migration.applied_checksum
+          ? String(migration.applied_checksum).slice(0, 12)
+          : "-";
+        const appliedAt = migration.applied_at ? formatTime(migration.applied_at) : "-";
+        return `
+          <div class="dependency-item">
+            <span class="dependency-name">
+              ${escapeHtml(migration.version)} · ${escapeHtml(migration.filename)}
+            </span>
+            <span class="badge ${badgeClass(migration.status)}">
+              ${escapeHtml(migration.status)}
+            </span>
+            <div class="dependency-detail">
+              file ${escapeHtml(checksum)}
+              · db ${escapeHtml(appliedChecksum)}
+              · ${escapeHtml(appliedAt)}
             </div>
           </div>
         `;
@@ -1427,6 +1504,7 @@ _DASHBOARD_HTML = """<!doctype html>
       try {
         const [
           readiness,
+          migrations,
           summary,
           usage,
           slo,
@@ -1439,6 +1517,7 @@ _DASHBOARD_HTML = """<!doctype html>
           tools
         ] = await Promise.all([
           fetchReadiness(),
+          fetchJson("/v1/operations/migrations/status"),
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/operations/usage?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/slo?tenant_id=${tenantId}&event_limit=${eventLimit}`),
@@ -1472,6 +1551,7 @@ _DASHBOARD_HTML = """<!doctype html>
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
         renderReadiness(readiness);
+        renderMigrations(migrations);
         if (!runs.some((run) => run.run_id === selectedRunId)) {
           selectedRunId = runs.length ? runs[0].run_id : "";
         }

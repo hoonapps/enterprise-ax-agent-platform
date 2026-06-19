@@ -337,6 +337,7 @@ GET /dashboard
      -> /v1/operations/incidents/snapshot
      -> /v1/operations/feedback/summary
      -> /v1/operations/alerts
+     -> /v1/operations/migrations/status
      -> /v1/agents/runs/preview
      -> /v1/agents/runs
      -> /v1/agents/runs/{run_id}/timeline
@@ -345,7 +346,7 @@ GET /dashboard
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
-  -> 운영 지표, run preview, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, run preview, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, schema migration status, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.

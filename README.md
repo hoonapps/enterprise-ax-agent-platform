@@ -958,6 +958,7 @@ GET /dashboard
 - `/v1/operations/feedback/summary`
 - `/v1/operations/alerts`
 - `/v1/readiness`
+- `/v1/operations/migrations/status`
 - `/v1/agents/runs/preview`
 - `/v1/agents/runs`
 - `/v1/agents/runs/{run_id}/timeline`
@@ -965,8 +966,8 @@ GET /dashboard
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, run preview, feedback summary, dependency readiness, 최근 실행 이력,
-실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
+화면은 Agent 실행 수, run preview, feedback summary, dependency readiness, schema migration status,
+최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
 operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를 표시합니다.
 UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact
 read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.

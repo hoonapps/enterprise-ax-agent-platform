@@ -668,6 +668,7 @@ GET /dashboard
 | `GET /v1/operations/feedback/summary` | Agent run feedback 품질 신호 집계 |
 | `GET /v1/operations/alerts` | 임계치 기반 운영 alert |
 | `GET /v1/readiness` | storage, vector, LLM, auth dependency 상태 |
+| `GET /v1/operations/migrations/status` | schema migration ledger 상태 |
 | `POST /v1/agents/runs/preview` | 실행 전 redaction, policy, retrieval, tool route preview |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
