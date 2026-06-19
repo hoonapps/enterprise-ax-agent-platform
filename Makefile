@@ -1,0 +1,22 @@
+.PHONY: install dev test lint typecheck verify run
+
+install:
+	python3 -m venv .venv
+	. .venv/bin/activate && pip install -e ".[dev]"
+
+dev:
+	. .venv/bin/activate && uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8000
+
+test:
+	. .venv/bin/activate && pytest
+
+lint:
+	. .venv/bin/activate && ruff check .
+
+typecheck:
+	. .venv/bin/activate && mypy apps --explicit-package-bases
+
+verify: lint typecheck test
+
+run:
+	. .venv/bin/activate && uvicorn apps.api.main:app --host 127.0.0.1 --port 8000

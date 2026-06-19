@@ -1,0 +1,22 @@
+flowchart LR
+    User["사용자 / 업무 담당자"]
+    Workflow["n8n / Slack / 사내 Workflow"]
+    API["FastAPI Agent API"]
+    UseCase["Application Use Cases"]
+    Policy["Policy Guard<br/>PII Redaction / Approval"]
+    RAG["RAG Service<br/>Query Router / Retrieval"]
+    Vector["Vector DB<br/>Qdrant or pgvector"]
+    Postgres["Postgres<br/>Documents / Runs / Audit"]
+    Tools["MCP / ERP / CRM / HR Tools"]
+    Audit["Audit Events / Trace"]
+
+    User --> API
+    Workflow --> API
+    API --> UseCase
+    UseCase --> Policy
+    UseCase --> RAG
+    RAG --> Vector
+    UseCase --> Postgres
+    UseCase --> Tools
+    UseCase --> Audit
+    Audit --> Postgres

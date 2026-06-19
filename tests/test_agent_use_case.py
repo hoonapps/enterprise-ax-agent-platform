@@ -1,0 +1,77 @@
+from apps.api.adapters.persistence.in_memory import (
+    InMemoryAgentRunRepository,
+    InMemoryAuditLog,
+    InMemoryDocumentRepository,
+)
+from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
+from apps.api.application.answering import GroundedAnswerSynthesizer
+from apps.api.application.chunking import TextChunker
+from apps.api.application.query_classifier import QueryClassifier
+from apps.api.application.retrieval_strategy import RetrievalPlanner
+from apps.api.application.use_cases import IngestDocumentUseCase, RunAgentUseCase
+from apps.api.domain.models import Document, RunStatus
+from apps.api.domain.policies import AgentPolicy, RedactionPolicy
+
+
+def build_use_cases():
+    documents = InMemoryDocumentRepository()
+    vector = LocalKeywordVectorSearch()
+    audit = InMemoryAuditLog()
+    runs = InMemoryAgentRunRepository()
+    ingest = IngestDocumentUseCase(
+        documents=documents,
+        vector_search=vector,
+        audit_log=audit,
+        chunker=TextChunker(max_chars=300, overlap=40),
+    )
+    agent = RunAgentUseCase(
+        vector_search=vector,
+        audit_log=audit,
+        runs=runs,
+        classifier=QueryClassifier(),
+        planner=RetrievalPlanner(),
+        redaction_policy=RedactionPolicy(),
+        agent_policy=AgentPolicy(),
+        synthesizer=GroundedAnswerSynthesizer(),
+        default_top_k=4,
+    )
+    return ingest, agent, audit
+
+
+def test_agent_returns_grounded_answer_with_citations():
+    ingest, agent, audit = build_use_cases()
+    ingest.execute(
+        Document(
+            tenant_id="default",
+            title="AX 거버넌스",
+            content="Agent 실행은 개인정보 마스킹, 권한 검사, 감사로그를 반드시 포함해야 한다.",
+            source_uri="test://governance",
+        )
+    )
+
+    run = agent.execute(
+        tenant_id="default",
+        scenario="samsung-sds",
+        message="Agent 거버넌스 리스크를 정리해줘",
+        user_id="tester",
+    )
+
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.citations
+    assert "감사" in run.answer
+    assert audit.list_events("default", limit=10)
+
+
+def test_destructive_action_requires_approval():
+    _, agent, _ = build_use_cases()
+
+    run = agent.execute(
+        tenant_id="default",
+        scenario="finance",
+        message="고객 계좌로 100만원 송금 실행해줘",
+        user_id="tester",
+    )
+
+    assert run.status == RunStatus.BLOCKED
+    assert run.policy_decision.decision == "approval_required"
+    assert not run.citations

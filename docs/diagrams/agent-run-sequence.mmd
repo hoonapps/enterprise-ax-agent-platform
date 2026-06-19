@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor User as 사용자
+    participant API as FastAPI
+    participant UC as RunAgentUseCase
+    participant Policy as Policy Guard
+    participant Planner as Retrieval Planner
+    participant Vector as Vector Search
+    participant Synth as Answer Synthesizer
+    participant Audit as Audit Log
+
+    User->>API: POST /v1/agents/runs
+    API->>UC: execute(message, scenario)
+    UC->>Policy: redact(message)
+    Policy-->>UC: redacted_query, redaction_count
+    UC->>Planner: classify + plan
+    Planner-->>UC: query_type, strategy
+    UC->>Policy: evaluate(query_type)
+    alt approval required
+        UC->>Audit: agent.answer.generated(blocked)
+        UC-->>API: blocked response
+    else allowed
+        UC->>Vector: search(query, top_k)
+        Vector-->>UC: chunks + scores
+        UC->>Synth: synthesize grounded answer
+        Synth-->>UC: answer + citations
+        UC->>Audit: agent.answer.generated(succeeded)
+        UC-->>API: answer + citations + trace
+    end

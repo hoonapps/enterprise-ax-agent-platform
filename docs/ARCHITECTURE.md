@@ -1,0 +1,172 @@
+# 아키텍처
+
+## 목표
+
+`Enterprise AX Agent Platform`은 LLM Agent를 기업 업무 시스템에 붙일 때 필요한
+백엔드 구조를 로컬에서 검증하는 포트폴리오 프로젝트다.
+
+단순 챗봇이 아니라 다음 역량을 보여주는 것을 목표로 한다.
+
+- 업무 유스케이스 중심의 서비스 경계 설계
+- RAG, Tool Calling, 정책 검사, 감사로그의 실행 흐름 분리
+- LLM/Vector DB/MCP/n8n 같은 외부 기술을 교체 가능한 어댑터로 격리
+- 개인정보 마스킹, 권한, 승인, 추적성을 고려한 Agent 실행 구조
+- 장애 분석과 품질 개선이 가능한 실행 이력/평가 데이터 모델
+
+## 설계 스타일
+
+전체 구조는 실용적인 헥사고날 아키텍처를 따른다.
+
+```text
+FastAPI / n8n / MCP / CLI
+        |
+        v
+Application Use Case
+        |
+        v
+Domain Model / Policy
+        |
+        v
+Port Interface
+        |
+        v
+Adapter: Postgres, Vector DB, LLM, Tool Runtime, Observability
+```
+
+핵심 원칙은 간단하다.
+
+> 업무 규칙과 정책 판단은 프레임워크와 LLM SDK 바깥에 둔다.
+
+FastAPI는 입출력 계층이고, LangGraph/OpenAI/Qdrant/Postgres는 어댑터다.  
+Agent가 똑똑해 보이는 것보다, Agent가 **어떤 정책과 데이터 경계 안에서 실행되는지**가 더 중요하다.
+
+## 런타임 구조
+
+```text
+사용자 / 업무 워크플로우
+    |
+    | REST API
+    v
+FastAPI
+    |
+    +--> Agent 실행 유스케이스
+    |       |
+    |       +--> 질문 유형 분류
+    |       +--> RAG 검색 전략 선택
+    |       +--> 정책 사전 검사
+    |       +--> 문서 검색
+    |       +--> 근거 기반 답변 생성
+    |       +--> 감사 이벤트 기록
+    |
+    +--> 문서 적재 유스케이스
+    |       |
+    |       +--> 문서 정규화
+    |       +--> 청크 분리
+    |       +--> 임베딩/벡터 저장
+    |       +--> 문서 메타데이터 저장
+    |
+    +--> 검색/평가/감사 조회 API
+```
+
+## 모듈 책임
+
+| 모듈 | 책임 | 백엔드 관점의 의미 |
+| --- | --- | --- |
+| `domain` | 엔티티, 값 객체, 정책 | 업무 규칙을 프레임워크와 분리 |
+| `application` | 유스케이스 orchestration | API 없이도 테스트 가능한 서비스 흐름 |
+| `adapters/http` | REST API 입출력 | FastAPI 의존성 격리 |
+| `adapters/persistence` | 저장소 구현 | Postgres 전환 가능한 Repository 경계 |
+| `adapters/vector` | 임베딩/검색 | Qdrant, pgvector, Pinecone 교체 가능 |
+| `adapters/agent` | LLM/LangGraph 실행 | Agent 프레임워크 교체 가능 |
+| `security` | 마스킹, 정책, 권한 | 기업형 AX의 거버넌스 경계 |
+| `observability` | trace, audit, metric | 장애 분석과 품질 개선 기반 |
+
+## Agent 실행 흐름
+
+```text
+POST /v1/agents/runs
+  -> 요청 검증
+  -> 개인정보 마스킹
+  -> 질문 유형 분류
+  -> 검색 전략 선택
+  -> 정책 사전 검사
+  -> 벡터 검색
+  -> 근거 기반 답변 생성
+  -> 실행 이력 저장
+  -> 감사 이벤트 기록
+  -> 답변 + 출처 + trace 반환
+```
+
+이 흐름은 LG CNS의 Agentic RAG, 삼성SDS의 RAG 전략 자동 선택, SK AX의 운영 가능한 Agent 구조를
+동시에 설명할 수 있도록 설계했다.
+
+## 문서 적재 흐름
+
+```text
+POST /v1/documents/ingest
+  -> 문서 출처/등급 검증
+  -> content hash 생성
+  -> 청크 분리
+  -> chunk metadata 구성
+  -> 벡터 저장소 upsert
+  -> 문서/청크 메타데이터 저장
+  -> 감사 이벤트 기록
+```
+
+문서 원본과 검색 청크를 분리한 이유는 명확하다.
+
+- 원본 문서는 업무/컴플라이언스 단위다.
+- 청크는 검색/임베딩 단위다.
+- 벡터 DB는 파생 데이터이며, 원본 메타데이터의 source of truth는 RDB다.
+
+## 엔터프라이즈 고려사항
+
+### 멀티테넌시
+
+모든 핵심 데이터는 `tenant_id`를 가진다. MVP는 `default` 테넌트로 실행하지만,
+Postgres 전환 시 Row Level Security로 확장할 수 있다.
+
+### 멱등성
+
+쓰기 API는 `Idempotency-Key`를 받을 수 있는 구조로 설계한다.  
+Agent 실행, 문서 적재, 업무 tool call은 재시도될 수 있으므로 중복 실행 방지가 필요하다.
+
+### 감사 가능성
+
+Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가 남아야 한다.
+
+- 누가 요청했는가
+- 어떤 문서를 근거로 답했는가
+- 어떤 정책 검사를 통과했는가
+- 어떤 tool call이 허용/거부되었는가
+- 실행 결과와 신뢰도는 무엇인가
+
+### 보수적 기본값
+
+포트폴리오라도 기본값은 안전하게 둔다.
+
+- 외부 LLM 키 없이도 로컬 deterministic 모드로 실행
+- 쓰기성 tool call은 기본 비활성화
+- 개인정보 마스킹 기본 적용
+- 근거 문서가 없으면 답변 보류
+- 모든 실행은 감사 이벤트로 기록
+
+## 회사별 확장 포인트
+
+| 타깃 회사 | 추가 구현 | 현재 아키텍처 연결점 |
+| --- | --- | --- |
+| 현대오토에버 | MCP 서버, A2A, 지식그래프 | Tool Runtime, Agent Orchestrator, Graph Adapter |
+| LG CNS | Agentic RAG, 검색 전략 평가 | Query Classifier, Retrieval Planner, Evaluation |
+| 삼성SDS | RAG 전략 라우팅, 거버넌스 | Policy Guard, Audit Log, Workflow API |
+| 무신사 | n8n/iPaaS 업무 자동화 | REST API, Tool Executor, Scenario Module |
+| SK AX | LLMOps, retry/fallback, 관측성 | Trace, Adapter Boundary, Audit Event |
+| 한화시스템 | 멀티모달 RAG, Ontology | Document Metadata, Vector Adapter, Graph Extension |
+| 금융권 | 마스킹, 승인, 규제 대응 | Redaction, RBAC-ready Schema, Audit Trail |
+
+## MVP에서 일부러 하지 않는 것
+
+- Foundation model 직접 학습
+- 논문 재현형 모델링
+- 프롬프트만 많은 챗봇
+- 출처 없는 답변 생성
+- 외부 API 키가 있어야만 동작하는 구조
