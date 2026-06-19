@@ -79,6 +79,10 @@ def main() -> None:
         user_id=actor_id,
         actor_scopes=["records:read", "workflow:request"],
     )
+    scenario_history = container.agent_scenarios.list_runs(
+        tenant_id=tenant_id,
+        limit=5,
+    )
 
     pending_approvals = container.approval.list_pending(tenant_id=tenant_id)
     summary = container.operations_summary.execute(tenant_id=tenant_id)
@@ -97,6 +101,7 @@ def main() -> None:
         "replay": _replay_summary(replay),
         "action_run": _run_summary(action_run),
         "scenario_run": _scenario_run_summary(scenario_run),
+        "scenario_history": [_scenario_run_summary(result) for result in scenario_history],
         "pending_approvals": [_approval_summary(approval) for approval in pending_approvals],
         "operations": {
             "summary": _operations_summary(summary),

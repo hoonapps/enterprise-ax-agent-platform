@@ -7,6 +7,7 @@ from apps.api.adapters.agent.resilient_tool_gateway import ResilientToolGateway
 from apps.api.adapters.persistence.audit_context import RequestContextAuditLog
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
+    InMemoryAgentScenarioRunRepository,
     InMemoryApprovalRepository,
     InMemoryAuditLog,
     InMemoryDocumentRepository,
@@ -20,6 +21,7 @@ from apps.api.adapters.persistence.migrations import PostgresMigrationLedger
 from apps.api.adapters.persistence.outbox import OutboxAuditLog
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
+    PostgresAgentScenarioRunRepository,
     PostgresApprovalRepository,
     PostgresAuditLog,
     PostgresDocumentRepository,
@@ -38,6 +40,7 @@ from apps.api.application.migrations import MigrationStatusUseCase
 from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
+    AgentScenarioRunRepositoryPort,
     ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
@@ -80,6 +83,7 @@ class AppContainer:
         self.audit_log: AuditLogPort
         self.base_audit_log: AuditLogPort
         self.runs: AgentRunRepositoryPort
+        self.scenario_runs: AgentScenarioRunRepositoryPort
         self.approvals: ApprovalRepositoryPort
         self.evaluations: EvaluationRepositoryPort
         self.idempotency: IdempotencyRepositoryPort
@@ -95,6 +99,7 @@ class AppContainer:
             self.documents = PostgresDocumentRepository(settings.postgres_dsn)
             self.base_audit_log = PostgresAuditLog(settings.postgres_dsn)
             self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
+            self.scenario_runs = PostgresAgentScenarioRunRepository(settings.postgres_dsn)
             self.approvals = PostgresApprovalRepository(settings.postgres_dsn)
             self.evaluations = PostgresEvaluationRepository(settings.postgres_dsn)
             self.idempotency = PostgresIdempotencyRepository(settings.postgres_dsn)
@@ -108,6 +113,7 @@ class AppContainer:
             self.documents = InMemoryDocumentRepository()
             self.base_audit_log = InMemoryAuditLog()
             self.runs = InMemoryAgentRunRepository()
+            self.scenario_runs = InMemoryAgentScenarioRunRepository()
             self.approvals = InMemoryApprovalRepository()
             self.evaluations = InMemoryEvaluationRepository()
             self.idempotency = InMemoryIdempotencyRepository()
@@ -198,6 +204,7 @@ class AppContainer:
         )
         self.agent_scenarios = AgentScenarioUseCase(
             run_agent=self.run_agent,
+            scenario_runs=self.scenario_runs,
             audit_log=self.audit_log,
         )
         self.approval = ApprovalUseCase(

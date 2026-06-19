@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
@@ -33,6 +33,25 @@ def list_agent_scenarios(
         _to_scenario_response(scenario)
         for scenario in container.agent_scenarios.list_scenarios()
     ]
+
+
+@router.get("/runs", response_model=list[AgentScenarioRunResponse])
+def list_agent_scenario_runs(
+    container: ContainerDep,
+    auth: ScenarioReadAuth,
+    tenant_id: str = "default",
+    limit: int = Query(default=20, ge=1, le=100),
+    scenario_id: str | None = None,
+    status: str | None = None,
+) -> list[AgentScenarioRunResponse]:
+    require_tenant_access(auth, tenant_id)
+    results = container.agent_scenarios.list_runs(
+        tenant_id=tenant_id,
+        limit=limit,
+        scenario_id=scenario_id,
+        status=status,
+    )
+    return [_to_run_response(result) for result in results]
 
 
 @router.get("/{scenario_id}", response_model=AgentScenarioResponse)

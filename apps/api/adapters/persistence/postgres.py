@@ -11,6 +11,8 @@ from psycopg.types.json import Jsonb
 
 from apps.api.domain.models import (
     AgentRun,
+    AgentScenarioRunResult,
+    AgentScenarioStepResult,
     ApprovalRequest,
     ApprovalStatus,
     AuditEvent,
@@ -539,6 +541,117 @@ class PostgresAgentRunRepository(PostgresBase):
                     )
                 )
         return executions
+
+
+class PostgresAgentScenarioRunRepository(PostgresBase):
+    def save(self, result: AgentScenarioRunResult) -> AgentScenarioRunResult:
+        tenant_pk = self._tenant_pk(result.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
+            conn.execute(
+                """
+                insert into agent_scenario_runs (
+                  id, tenant_id, scenario_id, name, status, metrics,
+                  step_results, created_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do update set
+                  status = excluded.status,
+                  metrics = excluded.metrics,
+                  step_results = excluded.step_results
+                """,
+                (
+                    result.id,
+                    tenant_pk,
+                    result.scenario_id,
+                    result.name,
+                    result.status,
+                    Jsonb(result.metrics),
+                    Jsonb([self._step_to_dict(step) for step in result.step_results]),
+                    result.generated_at,
+                ),
+            )
+        return result
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 20,
+        scenario_id: str | None = None,
+        status: str | None = None,
+    ) -> list[AgentScenarioRunResult]:
+        filters = ["t.slug = %s"]
+        params: list[Any] = [tenant_id]
+        if scenario_id is not None:
+            filters.append("r.scenario_id = %s")
+            params.append(scenario_id)
+        if status is not None:
+            filters.append("r.status = %s")
+            params.append(status)
+        params.append(limit)
+
+        tenant_pk = self._tenant_pk(tenant_id)
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
+            rows = conn.execute(
+                f"""
+                select r.*, t.slug as tenant_slug
+                from agent_scenario_runs r
+                join tenants t on t.id = r.tenant_id
+                where {" and ".join(filters)}
+                order by r.created_at desc
+                limit %s
+                """,
+                params,
+            ).fetchall()
+        return [self._row_to_result(row) for row in rows]
+
+    def _step_to_dict(self, step: AgentScenarioStepResult) -> dict[str, Any]:
+        return {
+            "step_id": step.step_id,
+            "title": step.title,
+            "run_id": str(step.run_id),
+            "status": step.status,
+            "query_type": step.query_type,
+            "confidence": step.confidence,
+            "citation_count": step.citation_count,
+            "tool_decision_counts": step.tool_decision_counts,
+            "passed": step.passed,
+            "failed_checks": step.failed_checks,
+        }
+
+    def _row_to_result(self, row: dict[str, Any]) -> AgentScenarioRunResult:
+        return AgentScenarioRunResult(
+            id=cast(UUID, row["id"]),
+            tenant_id=cast(str, row["tenant_slug"]),
+            scenario_id=cast(str, row["scenario_id"]),
+            name=cast(str, row["name"]),
+            status=cast(str, row["status"]),
+            step_results=[
+                self._step_from_dict(item)
+                for item in cast(list[Any], row["step_results"])
+                if isinstance(item, dict)
+            ],
+            metrics=cast(dict[str, Any], row["metrics"]),
+            generated_at=row["created_at"],
+        )
+
+    def _step_from_dict(self, item: dict[str, Any]) -> AgentScenarioStepResult:
+        return AgentScenarioStepResult(
+            step_id=str(item["step_id"]),
+            title=str(item["title"]),
+            run_id=UUID(str(item["run_id"])),
+            status=str(item["status"]),
+            query_type=str(item["query_type"]),
+            confidence=float(item["confidence"]),
+            citation_count=int(item["citation_count"]),
+            tool_decision_counts={
+                str(key): int(value)
+                for key, value in cast(dict[str, Any], item["tool_decision_counts"]).items()
+            },
+            passed=bool(item["passed"]),
+            failed_checks=[str(value) for value in cast(list[Any], item["failed_checks"])],
+        )
 
 
 class PostgresAuditLog(PostgresBase):

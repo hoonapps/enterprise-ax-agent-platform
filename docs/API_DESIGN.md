@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/export`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence`, `GET /v1/scenarios`, `GET /v1/scenarios/{scenario_id}` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/export`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence`, `GET /v1/scenarios`, `GET /v1/scenarios/runs`, `GET /v1/scenarios/{scenario_id}` |
 | `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback`, `POST /v1/agents/runs/{run_id}/replay`, `POST /v1/scenarios/{scenario_id}/run` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -68,6 +68,7 @@ POST /v1/agents/runs/{run_id}/feedback
 POST /v1/agents/runs/{run_id}/replay
 
 GET  /v1/scenarios
+GET  /v1/scenarios/runs
 GET  /v1/scenarios/{scenario_id}
 POST /v1/scenarios/{scenario_id}/run
 
@@ -254,6 +255,7 @@ preview와 상태 지표만 반환한다.
 
 ```text
 GET /v1/scenarios
+GET /v1/scenarios/runs?tenant_id=default&limit=20
 GET /v1/scenarios/release-readiness
 POST /v1/scenarios/release-readiness/run
 ```
@@ -901,6 +903,9 @@ GET /dashboard
 | `GET /v1/agents/runs/{run_id}/diagnostics` | 선택한 Agent 실행 품질 진단 |
 | `POST /v1/agents/runs/{run_id}/replay` | 선택한 Agent 실행 재현 및 diff |
 | `POST /v1/agents/runs/{run_id}/feedback` | Agent run 품질 feedback 제출 |
+| `GET /v1/scenarios` | scenario runbook catalog |
+| `GET /v1/scenarios/runs` | 최근 scenario runbook 실행 이력 |
+| `POST /v1/scenarios/{scenario_id}/run` | scenario runbook 실행 |
 | `GET /v1/approvals/pending` | 승인 대기 queue |
 | `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |
 | `GET /v1/tools` | 등록된 tool catalog |

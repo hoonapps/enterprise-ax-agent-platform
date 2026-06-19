@@ -13,6 +13,7 @@ from apps.api.application.chunking import TextChunker
 from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
+    AgentScenarioRunRepositoryPort,
     ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
@@ -1230,9 +1231,11 @@ class AgentScenarioUseCase:
         self,
         *,
         run_agent: RunAgentUseCase,
+        scenario_runs: AgentScenarioRunRepositoryPort,
         audit_log: AuditLogPort,
     ) -> None:
         self.run_agent = run_agent
+        self.scenario_runs = scenario_runs
         self.audit_log = audit_log
         self._scenarios = _default_agent_scenarios()
 
@@ -1243,6 +1246,21 @@ class AgentScenarioUseCase:
         return next(
             (scenario for scenario in self._scenarios if scenario.id == scenario_id),
             None,
+        )
+
+    def list_runs(
+        self,
+        *,
+        tenant_id: str,
+        limit: int = 20,
+        scenario_id: str | None = None,
+        status: str | None = None,
+    ) -> list[AgentScenarioRunResult]:
+        return self.scenario_runs.list_runs(
+            tenant_id=tenant_id,
+            limit=limit,
+            scenario_id=scenario_id,
+            status=status,
         )
 
     def execute(
@@ -1277,6 +1295,7 @@ class AgentScenarioUseCase:
             step_results=step_results,
             metrics=self._metrics(step_results),
         )
+        saved = self.scenario_runs.save(result)
         self.audit_log.append(
             AuditEvent(
                 tenant_id=tenant_id,
@@ -1284,17 +1303,17 @@ class AgentScenarioUseCase:
                 actor_id=user_id,
                 event_type="agent.scenario.executed",
                 resource_type="agent_scenario",
-                resource_id=result.id,
+                resource_id=saved.id,
                 payload={
-                    "scenario_id": result.scenario_id,
-                    "name": result.name,
-                    "status": result.status,
-                    "metrics": result.metrics,
+                    "scenario_id": saved.scenario_id,
+                    "name": saved.name,
+                    "status": saved.status,
+                    "metrics": saved.metrics,
                     "run_ids": [str(step.run_id) for step in step_results],
                 },
             )
         )
-        return result
+        return saved
 
     def _evaluate_step(
         self,

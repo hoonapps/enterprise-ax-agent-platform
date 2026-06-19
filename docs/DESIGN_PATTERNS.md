@@ -260,7 +260,7 @@ GET /dashboard
   -> /v1/agents/runs/{run_id}/diagnostics
   -> /v1/agents/runs/{run_id}/replay
   -> /v1/tools/gateway/status
-  -> /v1/scenarios, /v1/scenarios/{scenario_id}/run
+  -> /v1/scenarios, /v1/scenarios/runs, /v1/scenarios/{scenario_id}/run
   -> 승인/반려 action은 approval API 호출
 ```
 

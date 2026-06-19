@@ -33,6 +33,7 @@ def test_demo_flow_script_outputs_operating_summary() -> None:
     assert body["action_run"]["tool_decisions"][0]["decision"] == "approval_required"
     assert body["scenario_run"]["status"] == "passed"
     assert body["scenario_run"]["metrics"]["step_count"] == 3
+    assert len(body["scenario_history"]) >= 1
     assert len(body["pending_approvals"]) >= 1
     assert body["operations"]["summary"]["agent_run_count"] >= 6
     assert body["operations"]["summary"]["pending_approval_count"] >= 1

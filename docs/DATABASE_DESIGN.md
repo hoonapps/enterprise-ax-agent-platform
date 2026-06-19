@@ -17,6 +17,7 @@ Postgres + Vector DB 조합을 전제로 설계했다.
 - 감사 이벤트는 append-only로 관리한다.
 - 외부 workflow 전송은 webhook delivery outbox로 분리한다.
 - 평가 결과는 Agent 실행과 분리해 회귀 테스트에 사용할 수 있게 한다.
+- Scenario runbook 실행 결과는 Agent 실행 묶음의 상위 운영 원장으로 저장한다.
 - 멱등 key는 요청 hash와 응답 payload를 저장해 재시도 안전성을 보장한다.
 
 ## ERD 개요
@@ -40,6 +41,8 @@ tenants
   |     +-- tool_calls
   |     +-- approval_requests
   |     +-- agent_messages
+  |
+  +-- agent_scenario_runs
   |
   +-- evaluation_runs
   |     |
@@ -187,6 +190,31 @@ Agent 요청 1건을 나타낸다.
 
 월간 quota guard와 operations usage read model은 `(tenant_id, created_at desc)` 인덱스로 기간 내
 실행 수를 계산한다. 별도 quota usage 테이블은 두지 않고, Agent 실행 원장을 기준으로 재계산한다.
+
+### `agent_scenario_runs`
+
+반복 가능한 운영 검증 흐름의 실행 원장이다. 단일 Agent run 여러 개를 묶어 release readiness,
+incident triage 같은 상위 업무 흐름의 통과 여부를 저장한다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK |
+| `scenario_id` | text | catalog scenario id |
+| `name` | text | 실행 시점의 scenario 이름 |
+| `status` | text | passed, failed |
+| `metrics` | jsonb | pass_rate, confidence, approval count 등 집계 |
+| `step_results` | jsonb | step별 run id, query type, citation, 실패 check |
+| `created_at` | timestamptz | 실행 시각 |
+
+주요 인덱스:
+
+- `(tenant_id, created_at desc)`
+- `(tenant_id, scenario_id, created_at desc)`
+- `(tenant_id, status, created_at desc)`
+
+Scenario runbook은 실제 Agent 실행 원장(`agent_runs`)을 대체하지 않는다. 상위 실행 결과와 step별
+판정만 저장하고, 상세 timeline과 diagnostics는 각 step의 `run_id`로 기존 Agent 실행 API에서 조회한다.
 
 ### `retrieval_events`
 

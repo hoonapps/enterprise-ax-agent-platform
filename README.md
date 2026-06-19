@@ -147,6 +147,7 @@ GET  /v1/operations/migrations/status
 POST /v1/operations/retention/prune
 
 GET  /v1/scenarios
+GET  /v1/scenarios/runs
 GET  /v1/scenarios/{scenario_id}
 POST /v1/scenarios/{scenario_id}/run
 

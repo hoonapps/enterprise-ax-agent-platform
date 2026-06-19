@@ -8,6 +8,7 @@ from uuid import UUID
 
 from apps.api.domain.models import (
     AgentRun,
+    AgentScenarioRunResult,
     ApprovalRequest,
     ApprovalStatus,
     AuditEvent,
@@ -147,6 +148,32 @@ class InMemoryAgentRunRepository:
                 for run in self._runs[tenant_id].values()
                 if start <= run.created_at < end
             )
+
+
+class InMemoryAgentScenarioRunRepository:
+    def __init__(self) -> None:
+        self._runs: dict[str, dict[UUID, AgentScenarioRunResult]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def save(self, result: AgentScenarioRunResult) -> AgentScenarioRunResult:
+        with self._lock:
+            self._runs[result.tenant_id][result.id] = result
+        return result
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 20,
+        scenario_id: str | None = None,
+        status: str | None = None,
+    ) -> list[AgentScenarioRunResult]:
+        with self._lock:
+            runs = list(self._runs[tenant_id].values())
+        if scenario_id is not None:
+            runs = [run for run in runs if run.scenario_id == scenario_id]
+        if status is not None:
+            runs = [run for run in runs if run.status == status]
+        return sorted(runs, key=lambda run: run.generated_at, reverse=True)[:limit]
 
 
 class InMemoryAuditLog:

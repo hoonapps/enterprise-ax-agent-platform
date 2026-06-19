@@ -91,6 +91,7 @@ FastAPI
     |       +--> expected facts 기반 scoring
     |       +--> evaluation.completed 감사 이벤트 기록
     |       +--> Scenario catalog 실행과 step별 통과 기준 평가
+    |       +--> AgentScenarioRunResult 저장
     |       +--> agent.scenario.executed 감사 이벤트 기록
     |       +--> AuditEvent JSONL/CSV export
     |       +--> OperationsSummary 집계
@@ -370,13 +371,16 @@ GET /dashboard
      -> /v1/agents/runs/{run_id}/timeline
      -> /v1/agents/runs/{run_id}/diagnostics
      -> /v1/agents/runs/{run_id}/replay
+     -> /v1/scenarios
+     -> /v1/scenarios/runs
+     -> /v1/scenarios/{scenario_id}/run
      -> /v1/approvals/pending
      -> /v1/approvals/{approval_id}/approve
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
      -> /v1/tools/gateway/status
-  -> 운영 지표, run preview, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, schema migration status, 최근 실행 이력, 실행 export, 실행 diagnostics, 실행 replay, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, gateway circuit 상태, 감사 이벤트 표시
+  -> 운영 지표, run preview, scenario runbook, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, schema migration status, 최근 실행 이력, 실행 export, 실행 diagnostics, 실행 replay, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, gateway circuit 상태, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.

@@ -5,6 +5,7 @@ from typing import Protocol
 
 from apps.api.domain.models import (
     AgentRun,
+    AgentScenarioRunResult,
     ApprovalRequest,
     AuditEvent,
     Document,
@@ -78,6 +79,18 @@ class AgentRunRepositoryPort(Protocol):
     ) -> list[AgentRun]: ...
 
     def count_runs_between(self, tenant_id: str, start: datetime, end: datetime) -> int: ...
+
+
+class AgentScenarioRunRepositoryPort(Protocol):
+    def save(self, result: AgentScenarioRunResult) -> AgentScenarioRunResult: ...
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 20,
+        scenario_id: str | None = None,
+        status: str | None = None,
+    ) -> list[AgentScenarioRunResult]: ...
 
 
 class ToolRuntimePort(Protocol):

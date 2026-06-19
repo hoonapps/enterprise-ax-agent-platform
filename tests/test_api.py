@@ -805,6 +805,14 @@ def test_agent_scenario_catalog_and_run_create_operating_evidence():
     assert body["metrics"]["approval_required_count"] >= 1
     assert all(step["passed"] for step in body["step_results"])
 
+    scenario_runs = client.get(f"/v1/scenarios/runs?tenant_id={tenant_id}")
+    assert scenario_runs.status_code == 200
+    scenario_run_body = scenario_runs.json()
+    assert len(scenario_run_body) == 1
+    assert scenario_run_body[0]["id"] == body["id"]
+    assert scenario_run_body[0]["status"] == "passed"
+    assert scenario_run_body[0]["metrics"]["pass_rate"] == 1.0
+
     listed_runs = client.get(
         f"/v1/agents/runs?tenant_id={tenant_id}&scenario=release-readiness"
     )
@@ -1493,6 +1501,7 @@ def test_operator_dashboard_serves_backend_console():
     assert "preview-result" in response.text
     assert "Scenario Runbooks" in response.text
     assert "/v1/scenarios" in response.text
+    assert "/v1/scenarios/runs" in response.text
     assert "/v1/scenarios/${encodeURIComponent(scenarioId)}/run" in response.text
     assert "scenario-catalog" in response.text
     assert "data-scenario-id" in response.text
