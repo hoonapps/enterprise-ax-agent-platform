@@ -689,6 +689,17 @@ _DASHBOARD_HTML = """<!doctype html>
 
         <section class="panel">
           <header>
+            <h2>Scenario Runbooks</h2>
+            <span class="meta">catalog · release checks</span>
+          </header>
+          <div class="panel-body">
+            <div class="alert-list" id="scenario-catalog"></div>
+            <div class="timeline-list" id="scenario-result"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Feedback Summary</h2>
             <span class="meta">human review signal</span>
           </header>
@@ -896,6 +907,8 @@ _DASHBOARD_HTML = """<!doctype html>
       previewMessage: document.querySelector("#preview-message"),
       previewSubmit: document.querySelector("#preview-submit"),
       previewResult: document.querySelector("#preview-result"),
+      scenarioCatalog: document.querySelector("#scenario-catalog"),
+      scenarioResult: document.querySelector("#scenario-result"),
       feedbackForm: document.querySelector("#agent-feedback-form"),
       feedbackRating: document.querySelector("#feedback-rating"),
       feedbackOutcome: document.querySelector("#feedback-outcome"),
@@ -937,6 +950,7 @@ _DASHBOARD_HTML = """<!doctype html>
     };
     let selectedRunId = "";
     let latestAgentRuns = [];
+    let latestScenarioRun = null;
 
     function formatNumber(value) {
       return Number(value || 0).toLocaleString("ko-KR");
@@ -1178,6 +1192,77 @@ _DASHBOARD_HTML = """<!doctype html>
             </div>
           `).join("") || `<div class="empty">feedback 데이터가 없습니다.</div>`}
         </div>
+      `;
+    }
+
+    function renderScenarios(scenarios) {
+      if (!scenarios.length) {
+        els.scenarioCatalog.innerHTML = `<div class="empty">등록된 scenario가 없습니다.</div>`;
+        return;
+      }
+      els.scenarioCatalog.innerHTML = scenarios.map((scenario) => `
+        <div class="alert-item">
+          <div class="alert-line">
+            <span class="alert-message">${escapeHtml(scenario.name)}</span>
+            <button
+              class="action-button"
+              type="button"
+              data-scenario-id="${escapeHtml(scenario.id)}"
+            >
+              Run
+            </button>
+          </div>
+          <div class="alert-metric">
+            ${escapeHtml(scenario.description)}
+          </div>
+          <div class="alert-metric">
+            ${formatNumber((scenario.steps || []).length)} steps
+            · ${(scenario.tags || []).map((tag) => escapeHtml(tag)).join(" · ")}
+          </div>
+        </div>
+      `).join("");
+      renderScenarioResult(latestScenarioRun);
+    }
+
+    function renderScenarioResult(result) {
+      if (!result) {
+        els.scenarioResult.innerHTML = `
+          <div class="empty">실행된 scenario 결과가 없습니다.</div>
+        `;
+        return;
+      }
+      const metrics = result.metrics || {};
+      const steps = result.step_results || [];
+      els.scenarioResult.innerHTML = `
+        <div class="timeline-item">
+          <div class="timeline-head">
+            <span class="timeline-title">${escapeHtml(result.name)}</span>
+            <span class="badge ${badgeClass(result.status)}">
+              ${escapeHtml(result.status)}
+            </span>
+          </div>
+          <div class="timeline-detail">
+            pass ${formatRatio(metrics.pass_rate)}
+            · confidence ${formatRatio(metrics.average_confidence)}
+            · approval ${formatNumber(metrics.approval_required_count)}
+          </div>
+        </div>
+        ${steps.map((step) => `
+          <div class="timeline-item">
+            <div class="timeline-head">
+              <span class="timeline-title">${escapeHtml(step.title)}</span>
+              <span class="badge ${badgeClass(step.passed ? "succeeded" : "failed")}">
+                ${step.passed ? "passed" : "failed"}
+              </span>
+            </div>
+            <div class="timeline-detail">
+              ${escapeHtml(step.query_type)}
+              · confidence ${formatRatio(step.confidence)}
+              · citations ${formatNumber(step.citation_count)}
+              · run ${escapeHtml(String(step.run_id || "").slice(0, 8))}
+            </div>
+          </div>
+        `).join("")}
       `;
     }
 
@@ -1618,6 +1703,43 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function runScenario(scenarioId) {
+      const tenantId = els.tenant.value || "default";
+      els.loadState.className = "";
+      els.loadState.textContent = `${scenarioId} scenario를 실행하는 중입니다.`;
+      els.scenarioCatalog.querySelectorAll("[data-scenario-id]").forEach((button) => {
+        button.disabled = true;
+      });
+      try {
+        latestScenarioRun = await postJson(
+          `/v1/scenarios/${encodeURIComponent(scenarioId)}/run`,
+          {
+            tenant_id: tenantId,
+            user_id: els.feedbackSubmittedBy.value.trim() || "operator-01",
+            actor_scopes: ["records:read", "workflow:request"]
+          }
+        );
+        const lastStep = [...(latestScenarioRun.step_results || [])].pop();
+        if (lastStep?.run_id) {
+          selectedRunId = lastStep.run_id;
+        }
+        renderScenarioResult(latestScenarioRun);
+        els.loadState.textContent = [
+          "Scenario 실행 완료",
+          latestScenarioRun.name,
+          latestScenarioRun.status
+        ].join(" · ");
+        await refreshDashboard();
+      } catch (error) {
+        els.loadState.className = "error";
+        els.loadState.textContent = `Scenario 실행 실패: ${error.message}`;
+      } finally {
+        els.scenarioCatalog.querySelectorAll("[data-scenario-id]").forEach((button) => {
+          button.disabled = false;
+        });
+      }
+    }
+
     async function exportAgentRuns(format) {
       const tenantId = encodeURIComponent(els.tenant.value || "default");
       const eventLimit = encodeURIComponent(els.eventLimit.value || "500");
@@ -1693,6 +1815,7 @@ _DASHBOARD_HTML = """<!doctype html>
           incident,
           feedback,
           alerts,
+          scenarios,
           runs,
           approvals,
           events,
@@ -1709,6 +1832,7 @@ _DASHBOARD_HTML = """<!doctype html>
           ),
           fetchJson(`/v1/operations/feedback/summary?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
+          fetchJson("/v1/scenarios"),
           fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
           fetchJson(buildAuditEventsUrl()),
@@ -1743,6 +1867,7 @@ _DASHBOARD_HTML = """<!doctype html>
         renderOperationsAlerts(alerts);
         renderIncidentSnapshot(incident);
         renderFeedbackSummary(feedback);
+        renderScenarios(scenarios);
         renderAgentRuns(runs);
         await loadAgentTimeline(selectedRunId);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
@@ -1793,6 +1918,14 @@ _DASHBOARD_HTML = """<!doctype html>
         return;
       }
       decideApproval(button.dataset.approvalId, button.dataset.approvalAction);
+    });
+
+    els.scenarioCatalog.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-scenario-id]");
+      if (!button) {
+        return;
+      }
+      runScenario(button.dataset.scenarioId);
     });
 
     els.agentRuns.addEventListener("click", (event) => {

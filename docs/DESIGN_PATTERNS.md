@@ -260,6 +260,7 @@ GET /dashboard
   -> /v1/agents/runs/{run_id}/diagnostics
   -> /v1/agents/runs/{run_id}/replay
   -> /v1/tools/gateway/status
+  -> /v1/scenarios, /v1/scenarios/{scenario_id}/run
   -> 승인/반려 action은 approval API 호출
 ```
 
@@ -268,6 +269,7 @@ GET /dashboard
 - 화면 전용 상태 저장소를 두지 않는다.
 - 운영 지표는 `OperationsSummaryUseCase`가 만든 read model을 사용한다.
 - 승인 실행/반려 같은 변경은 기존 API로 처리한다.
+- 반복 검증은 scenario catalog API를 호출하고 결과 run은 기존 timeline/diagnostics로 추적한다.
 - 화면은 Agent runtime의 내부 구현이 아니라 공개 API 계약에 의존한다.
 
 이 구조는 React 같은 별도 프론트엔드가 붙어도 유지된다. 기존 dashboard는 API 계약 검증용

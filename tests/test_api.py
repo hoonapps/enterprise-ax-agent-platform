@@ -1491,6 +1491,11 @@ def test_operator_dashboard_serves_backend_console():
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/agents/runs/preview" in response.text
     assert "preview-result" in response.text
+    assert "Scenario Runbooks" in response.text
+    assert "/v1/scenarios" in response.text
+    assert "/v1/scenarios/${encodeURIComponent(scenarioId)}/run" in response.text
+    assert "scenario-catalog" in response.text
+    assert "data-scenario-id" in response.text
     assert "/v1/agents/runs/${selectedRunId}/feedback" in response.text
     assert "agent-feedback-form" in response.text
     assert "/v1/operations/feedback/summary" in response.text
