@@ -336,6 +336,8 @@ RequestContextMiddleware
 - `RequestContextAuditLog`는 AuditLogPort decorator로 동작한다.
 - 이미 payload에 `request_id`가 있으면 덮어쓰지 않는다.
 - HTTP 요청 밖에서 생성된 이벤트는 request id 없이 기록될 수 있다.
+- audit event 조회와 export는 `request_id` 필터를 지원한다.
+- Postgres adapter는 `payload ->> 'request_id'` expression index로 필터 비용을 낮춘다.
 
 ## 19. Compatible Error Envelope
 

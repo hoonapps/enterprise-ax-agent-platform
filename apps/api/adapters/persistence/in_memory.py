@@ -138,6 +138,7 @@ class InMemoryAuditLog:
         limit: int,
         event_type: str | None = None,
         resource_type: str | None = None,
+        request_id: str | None = None,
     ) -> list[AuditEvent]:
         with self._lock:
             events = list(reversed(self._events[tenant_id]))
@@ -145,6 +146,8 @@ class InMemoryAuditLog:
             events = [event for event in events if event.event_type == event_type]
         if resource_type is not None:
             events = [event for event in events if event.resource_type == resource_type]
+        if request_id is not None:
+            events = [event for event in events if event.payload.get("request_id") == request_id]
         return events[:limit]
 
 

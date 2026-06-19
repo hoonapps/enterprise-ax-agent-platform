@@ -20,12 +20,14 @@ class RequestContextAuditLog:
         limit: int,
         event_type: str | None = None,
         resource_type: str | None = None,
+        request_id: str | None = None,
     ) -> list[AuditEvent]:
         return self.inner.list_events(
             tenant_id=tenant_id,
             limit=limit,
             event_type=event_type,
             resource_type=resource_type,
+            request_id=request_id,
         )
 
 

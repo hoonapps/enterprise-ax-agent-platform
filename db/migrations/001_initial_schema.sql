@@ -221,6 +221,9 @@ create index ix_audit_events_type_created
 create index ix_audit_events_resource
   on audit_events (tenant_id, resource_type, resource_id);
 
+create index ix_audit_events_request_id
+  on audit_events (tenant_id, (payload ->> 'request_id'), created_at desc);
+
 create table webhook_subscriptions (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id),

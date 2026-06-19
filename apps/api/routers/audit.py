@@ -24,6 +24,7 @@ def list_audit_events(
     limit: int = 50,
     event_type: str | None = None,
     resource_type: str | None = None,
+    request_id: str | None = None,
 ) -> list[AuditEventResponse]:
     require_tenant_access(auth, tenant_id)
     events = container.audit_log.list_events(
@@ -31,6 +32,7 @@ def list_audit_events(
         limit=limit,
         event_type=event_type,
         resource_type=resource_type,
+        request_id=request_id,
     )
     return [_to_response(event) for event in events]
 
@@ -43,6 +45,7 @@ def export_audit_events(
     limit: int = 500,
     event_type: str | None = None,
     resource_type: str | None = None,
+    request_id: str | None = None,
     format: str = "jsonl",
 ) -> Response:
     require_tenant_access(auth, tenant_id)
@@ -51,6 +54,7 @@ def export_audit_events(
         limit=limit,
         event_type=event_type,
         resource_type=resource_type,
+        request_id=request_id,
     )
     if format == "jsonl":
         return Response(

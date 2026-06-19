@@ -128,6 +128,56 @@ def test_audit_events_include_request_id_from_http_context():
     assert events.json()[0]["payload"]["request_id"] == "audit-trace-001"
 
 
+def test_audit_events_can_filter_and_export_by_request_id():
+    client = TestClient(create_app())
+    tenant_id = "request-filter"
+
+    first = client.post(
+        "/v1/documents/ingest",
+        headers={"X-Request-ID": "request-filter-001"},
+        json={
+            "tenant_id": tenant_id,
+            "title": "Request filter A",
+            "content": "request id 필터 테스트를 위한 첫 번째 감사 이벤트 문서입니다.",
+            "source_uri": "test://request-filter-a",
+        },
+    )
+    second = client.post(
+        "/v1/documents/ingest",
+        headers={"X-Request-ID": "request-filter-002"},
+        json={
+            "tenant_id": tenant_id,
+            "title": "Request filter B",
+            "content": "request id 필터 테스트를 위한 두 번째 감사 이벤트 문서입니다.",
+            "source_uri": "test://request-filter-b",
+        },
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    events = client.get(
+        "/v1/audit/events",
+        params={
+            "tenant_id": tenant_id,
+            "event_type": "document.ingested",
+            "request_id": "request-filter-001",
+        },
+    )
+    exported = client.get(
+        "/v1/audit/export",
+        params={"tenant_id": tenant_id, "format": "jsonl", "request_id": "request-filter-001"},
+    )
+
+    assert events.status_code == 200
+    body = events.json()
+    assert len(body) == 1
+    assert body[0]["payload"]["request_id"] == "request-filter-001"
+    assert exported.status_code == 200
+    exported_lines = [json.loads(line) for line in exported.text.splitlines() if line]
+    assert len(exported_lines) == 1
+    assert exported_lines[0]["payload"]["request_id"] == "request-filter-001"
+
+
 def test_health_and_agent_flow():
     client = TestClient(create_app())
 

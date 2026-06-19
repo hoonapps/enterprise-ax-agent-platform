@@ -54,6 +54,7 @@ class AuditLogPort(Protocol):
         limit: int,
         event_type: str | None = None,
         resource_type: str | None = None,
+        request_id: str | None = None,
     ) -> list[AuditEvent]: ...
 
 

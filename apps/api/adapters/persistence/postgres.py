@@ -495,6 +495,7 @@ class PostgresAuditLog(PostgresBase):
         limit: int,
         event_type: str | None = None,
         resource_type: str | None = None,
+        request_id: str | None = None,
     ) -> list[AuditEvent]:
         filters = ["t.slug = %s"]
         params: list[Any] = [tenant_id]
@@ -504,6 +505,9 @@ class PostgresAuditLog(PostgresBase):
         if resource_type is not None:
             filters.append("e.resource_type = %s")
             params.append(resource_type)
+        if request_id is not None:
+            filters.append("e.payload ->> 'request_id' = %s")
+            params.append(request_id)
         params.append(limit)
 
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:

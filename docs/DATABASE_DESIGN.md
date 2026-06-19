@@ -228,6 +228,14 @@ Tool call을 별도 테이블로 둔 이유:
 | `created_at` | timestamptz | 발생 시각 |
 
 감사 로그는 운영자와 보안 담당자가 Agent 실행을 재구성하기 위한 핵심 데이터다.
+`payload.request_id`는 HTTP 요청, audit event, webhook delivery를 연결하는 correlation id로 사용한다.
+
+주요 인덱스:
+
+- `(tenant_id, created_at desc)`
+- `(tenant_id, event_type, created_at desc)`
+- `(tenant_id, resource_type, resource_id)`
+- `(tenant_id, (payload ->> 'request_id'), created_at desc)`
 
 ### `webhook_subscriptions`
 

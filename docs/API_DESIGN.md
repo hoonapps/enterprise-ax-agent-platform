@@ -308,6 +308,13 @@ CSV export:
 GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
 ```
 
+Request ID 필터:
+
+```text
+GET /v1/audit/events?tenant_id=default&request_id=local-trace-001
+GET /v1/audit/export?tenant_id=default&request_id=local-trace-001&format=jsonl
+```
+
 지원 query parameter:
 
 | 파라미터 | 의미 |
@@ -315,6 +322,7 @@ GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
 | `tenant_id` | export 대상 tenant |
 | `event_type` | 특정 이벤트 타입 필터 |
 | `resource_type` | 특정 리소스 타입 필터 |
+| `request_id` | audit payload의 request id 필터 |
 | `limit` | 최대 export 개수 |
 | `format` | `jsonl` 또는 `csv` |
 

@@ -603,7 +603,14 @@ curl "http://127.0.0.1:8000/v1/audit/export?tenant_id=default&resource_type=agen
 
 - `event_type`
 - `resource_type`
+- `request_id`
 - `limit`
+
+Request ID로 감사 이벤트를 추적할 수 있습니다.
+
+```bash
+curl "http://127.0.0.1:8000/v1/audit/events?tenant_id=default&request_id=local-trace-001"
+```
 
 export 결과에는 `id`, `tenant_id`, `actor_type`, `actor_id`, `event_type`, `resource_type`,
 `resource_id`, `payload`, `created_at`이 포함됩니다.
