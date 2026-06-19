@@ -13,6 +13,8 @@ from apps.api.core.idempotency import (
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AgentRun, AgentRunTimelineItem, AuditEvent
 from apps.api.schemas.agents import (
+    AgentRunDiagnosticSignalResponse,
+    AgentRunDiagnosticsResponse,
     AgentRunEvidenceBundleResponse,
     AgentRunFeedbackRequest,
     AgentRunFeedbackResponse,
@@ -238,6 +240,43 @@ def get_agent_run_evidence_bundle(
         feedback_events=[_to_audit_event_response(event) for event in bundle.feedback_events],
         evidence_hash=bundle.evidence_hash,
         generated_at=bundle.generated_at,
+    )
+
+
+@router.get("/agents/runs/{run_id}/diagnostics", response_model=AgentRunDiagnosticsResponse)
+def get_agent_run_diagnostics(
+    run_id: UUID,
+    container: ContainerDep,
+    auth: AgentReadAuth,
+    tenant_id: str = "default",
+    audit_event_limit: int = Query(default=500, ge=1, le=2000),
+) -> AgentRunDiagnosticsResponse:
+    require_tenant_access(auth, tenant_id)
+    diagnostics = container.run_agent.get_diagnostics(
+        tenant_id=tenant_id,
+        run_id=run_id,
+        audit_event_limit=audit_event_limit,
+    )
+    if diagnostics is None:
+        raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
+    return AgentRunDiagnosticsResponse(
+        tenant_id=diagnostics.tenant_id,
+        run_id=diagnostics.run_id,
+        status=diagnostics.status,
+        severity=diagnostics.severity,
+        quality_score=diagnostics.quality_score,
+        signals=[
+            AgentRunDiagnosticSignalResponse(
+                code=signal.code,
+                severity=signal.severity,
+                message=signal.message,
+                detail=signal.detail,
+            )
+            for signal in diagnostics.signals
+        ],
+        metrics=diagnostics.metrics,
+        recommended_actions=diagnostics.recommended_actions,
+        generated_at=diagnostics.generated_at,
     )
 
 

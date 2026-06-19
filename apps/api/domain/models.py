@@ -465,6 +465,27 @@ class AgentRunEvidenceBundle:
 
 
 @dataclass(frozen=True)
+class AgentRunDiagnosticSignal:
+    code: str
+    severity: str
+    message: str
+    detail: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AgentRunDiagnostics:
+    tenant_id: str
+    run_id: UUID
+    status: str
+    severity: str
+    quality_score: float
+    signals: list[AgentRunDiagnosticSignal]
+    metrics: dict[str, Any]
+    recommended_actions: list[str] = field(default_factory=list)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentFeedbackSummary:
     tenant_id: str
     event_limit: int

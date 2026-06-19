@@ -775,9 +775,10 @@ _DASHBOARD_HTML = """<!doctype html>
         <section class="panel">
           <header>
             <h2>Agent Run Timeline</h2>
-            <span class="meta">trace · tool · audit</span>
+            <span class="meta">diagnostics · trace · tool · audit</span>
           </header>
           <div class="panel-body">
+            <div id="agent-run-diagnostics"></div>
             <div class="timeline-list" id="agent-run-timeline"></div>
             <form class="feedback-form" id="agent-feedback-form">
               <div class="feedback-header">
@@ -916,6 +917,7 @@ _DASHBOARD_HTML = """<!doctype html>
       feedbackSummary: document.querySelector("#feedback-summary"),
       toolDecisions: document.querySelector("#tool-decisions"),
       agentRuns: document.querySelector("#agent-runs"),
+      agentDiagnostics: document.querySelector("#agent-run-diagnostics"),
       agentTimeline: document.querySelector("#agent-run-timeline"),
       auditEvents: document.querySelector("#audit-events"),
       approvalList: document.querySelector("#approval-list"),
@@ -974,7 +976,8 @@ _DASHBOARD_HTML = """<!doctype html>
           "applied",
           "up_to_date",
           "not_applicable",
-          "closed"
+          "closed",
+          "healthy"
         ].includes(value)
       ) {
         return "ok";
@@ -1356,6 +1359,53 @@ _DASHBOARD_HTML = """<!doctype html>
       `).join("");
     }
 
+    function renderAgentDiagnostics(diagnostics) {
+      if (!diagnostics) {
+        els.agentDiagnostics.innerHTML = `
+          <div class="empty">선택된 실행 diagnostics가 없습니다.</div>
+        `;
+        return;
+      }
+      const signals = diagnostics.signals || [];
+      const actions = diagnostics.recommended_actions || [];
+      els.agentDiagnostics.innerHTML = `
+        <div class="alert-item">
+          <div class="alert-line">
+            <span class="alert-message">
+              Quality ${formatRatio(diagnostics.quality_score)}
+            </span>
+            <span class="badge ${badgeClass(diagnostics.severity)}">
+              ${escapeHtml(diagnostics.severity)}
+            </span>
+          </div>
+          <div class="alert-metric">
+            ${escapeHtml(diagnostics.status)}
+            · confidence ${formatRatio(diagnostics.metrics?.confidence)}
+            · citations ${formatNumber(diagnostics.metrics?.citation_count)}
+            · feedback ${formatNumber(diagnostics.metrics?.feedback_count)}
+          </div>
+        </div>
+        <div class="timeline-list">
+          ${signals.slice(0, 4).map((signal) => `
+            <div class="timeline-item">
+              <div class="timeline-head">
+                <span class="timeline-title">${escapeHtml(signal.code)}</span>
+                <span class="badge ${badgeClass(signal.severity)}">
+                  ${escapeHtml(signal.severity)}
+                </span>
+              </div>
+              <div class="timeline-detail">${escapeHtml(signal.message)}</div>
+            </div>
+          `).join("") || `<div class="empty">활성 diagnostic signal이 없습니다.</div>`}
+          ${actions.slice(0, 2).map((action) => `
+            <div class="timeline-item">
+              <div class="timeline-detail">${escapeHtml(action)}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
     function renderAuditEvents(events) {
       if (!events.length) {
         els.auditEvents.innerHTML = `
@@ -1521,17 +1571,24 @@ _DASHBOARD_HTML = """<!doctype html>
     async function loadAgentTimeline(runId) {
       if (!runId) {
         renderAgentTimeline([]);
+        renderAgentDiagnostics(null);
         renderSelectedRunLabel();
         return;
       }
       const tenantId = encodeURIComponent(els.tenant.value || "default");
       try {
-        const timeline = await fetchJson(
-          `/v1/agents/runs/${encodeURIComponent(runId)}/timeline?tenant_id=${tenantId}`
-        );
+        const encodedRunId = encodeURIComponent(runId);
+        const [timeline, diagnostics] = await Promise.all([
+          fetchJson(`/v1/agents/runs/${encodedRunId}/timeline?tenant_id=${tenantId}`),
+          fetchJson(`/v1/agents/runs/${encodedRunId}/diagnostics?tenant_id=${tenantId}`)
+        ]);
         renderAgentTimeline(timeline);
+        renderAgentDiagnostics(diagnostics);
         renderSelectedRunLabel();
       } catch (error) {
+        els.agentDiagnostics.innerHTML = `
+          <div class="empty">Diagnostics 조회 실패: ${escapeHtml(error.message)}</div>
+        `;
         els.agentTimeline.innerHTML = `
           <div class="empty">Timeline 조회 실패: ${escapeHtml(error.message)}</div>
         `;

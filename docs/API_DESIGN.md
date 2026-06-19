@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/evidence` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence` |
 | `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -61,6 +61,7 @@ POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
+GET  /v1/agents/runs/{run_id}/diagnostics
 GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
 
@@ -278,6 +279,57 @@ GET /v1/agents/runs/{run_id}/timeline?tenant_id=default&audit_event_limit=500
 
 Timeline은 trace, tool execution, 관련 audit event를 하나의 sequence로 합친 read model이다.
 Audit event는 `resource_id`가 run id와 같거나 payload의 `agent_run_id`가 같은 항목만 포함한다.
+
+## Agent 실행 Diagnostics
+
+```text
+GET /v1/agents/runs/{run_id}/diagnostics?tenant_id=default&audit_event_limit=500
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "run_id": "018f...",
+  "status": "blocked",
+  "severity": "critical",
+  "quality_score": 20.0,
+  "signals": [
+    {
+      "code": "run_not_successful",
+      "severity": "critical",
+      "message": "Agent 실행이 성공 상태로 끝나지 않았습니다.",
+      "detail": {
+        "status": "blocked"
+      }
+    }
+  ],
+  "metrics": {
+    "confidence": 0.0,
+    "citation_count": 0,
+    "trace_step_count": 3,
+    "failed_trace_step_count": 1,
+    "tool_execution_count": 0,
+    "approval_required_count": 0,
+    "gateway_fallback_count": 0,
+    "gateway_circuit_open_count": 0,
+    "audit_event_count": 2,
+    "feedback_count": 1,
+    "average_feedback_rating": 1.0,
+    "policy_decision": "denied"
+  },
+  "recommended_actions": [
+    "Agent run timeline에서 실패 단계의 입력과 출력 payload를 확인합니다."
+  ],
+  "generated_at": "2026-06-19T00:00:00Z"
+}
+```
+
+Diagnostics는 저장된 run, trace, tool execution, audit event, feedback event에서 재계산되는
+운영 read model이다. `quality_score`는 성공 상태, confidence, citation, trace 상태, gateway fallback,
+circuit open, approval, feedback 신호를 기준으로 계산한다. Evidence bundle이 증거 원본 묶음이라면,
+diagnostics는 운영자가 먼저 확인해야 할 위험 신호와 다음 조치를 정리한 판단 모델이다.
 
 ## Agent 실행 Evidence Bundle
 
@@ -699,6 +751,7 @@ GET /dashboard
 | `POST /v1/agents/runs/preview` | 실행 전 redaction, policy, retrieval, tool route preview |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
+| `GET /v1/agents/runs/{run_id}/diagnostics` | 선택한 Agent 실행 품질 진단 |
 | `POST /v1/agents/runs/{run_id}/feedback` | Agent run 품질 feedback 제출 |
 | `GET /v1/approvals/pending` | 승인 대기 queue |
 | `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |

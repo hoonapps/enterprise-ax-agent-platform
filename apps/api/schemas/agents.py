@@ -112,6 +112,25 @@ class AgentRunEvidenceBundleResponse(BaseModel):
     generated_at: datetime
 
 
+class AgentRunDiagnosticSignalResponse(BaseModel):
+    code: str
+    severity: str
+    message: str
+    detail: dict[str, Any]
+
+
+class AgentRunDiagnosticsResponse(BaseModel):
+    tenant_id: str
+    run_id: UUID
+    status: str
+    severity: str
+    quality_score: float
+    signals: list[AgentRunDiagnosticSignalResponse]
+    metrics: dict[str, Any]
+    recommended_actions: list[str]
+    generated_at: datetime
+
+
 class SearchKnowledgeRequest(BaseModel):
     tenant_id: str = "default"
     query: str = Field(..., min_length=2)

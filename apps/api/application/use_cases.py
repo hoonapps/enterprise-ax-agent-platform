@@ -28,6 +28,8 @@ from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
     AgentFeedbackSummary,
     AgentRun,
+    AgentRunDiagnostics,
+    AgentRunDiagnosticSignal,
     AgentRunEvidenceBundle,
     AgentRunFeedback,
     AgentRunPreview,
@@ -433,6 +435,46 @@ class RunAgentUseCase:
             evidence_hash=evidence_hash,
         )
 
+    def get_diagnostics(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        audit_event_limit: int = 500,
+    ) -> AgentRunDiagnostics | None:
+        run = self.get_run(tenant_id=tenant_id, run_id=run_id)
+        if run is None:
+            return None
+
+        audit_events = self._list_run_audit_events(
+            tenant_id=tenant_id,
+            run=run,
+            audit_event_limit=audit_event_limit,
+        )
+        feedback_events = [
+            event for event in audit_events if event.event_type == "agent.feedback.submitted"
+        ]
+        signals = self._diagnostic_signals(
+            run=run,
+            audit_events=audit_events,
+            feedback_events=feedback_events,
+        )
+        quality_score = self._diagnostic_quality_score(run=run, signals=signals)
+        return AgentRunDiagnostics(
+            tenant_id=tenant_id,
+            run_id=run.id,
+            status=run.status.value,
+            severity=self._diagnostic_severity(quality_score=quality_score, signals=signals),
+            quality_score=quality_score,
+            signals=signals,
+            metrics=self._diagnostic_metrics(
+                run=run,
+                audit_events=audit_events,
+                feedback_events=feedback_events,
+            ),
+            recommended_actions=self._diagnostic_actions(signals),
+        )
+
     def _build_timeline(
         self,
         *,
@@ -534,6 +576,249 @@ class RunAgentUseCase:
             separators=(",", ":"),
         ).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
+
+    def _diagnostic_signals(
+        self,
+        *,
+        run: AgentRun,
+        audit_events: list[AuditEvent],
+        feedback_events: list[AuditEvent],
+    ) -> list[AgentRunDiagnosticSignal]:
+        signals: list[AgentRunDiagnosticSignal] = []
+        failed_trace_steps = [
+            step for step in run.trace if step.status in {"failed", "blocked", "degraded"}
+        ]
+        fallback_tools = [
+            execution
+            for execution in run.tool_executions
+            if execution.output_payload.get("_gateway", {}).get("fallback_used") is True
+        ]
+        open_circuit_tools = [
+            execution
+            for execution in run.tool_executions
+            if execution.output_payload.get("_gateway", {}).get("circuit_state") == "open"
+        ]
+        approval_required_tools = [
+            execution
+            for execution in run.tool_executions
+            if execution.decision == ToolDecision.APPROVAL_REQUIRED
+        ]
+        feedback_ratings = [
+            int(event.payload["rating"])
+            for event in feedback_events
+            if isinstance(event.payload.get("rating"), int | float)
+        ]
+        negative_feedback = [rating for rating in feedback_ratings if rating <= 2]
+
+        if run.status in {RunStatus.FAILED, RunStatus.BLOCKED}:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="run_not_successful",
+                    severity="critical",
+                    message="Agent 실행이 성공 상태로 끝나지 않았습니다.",
+                    detail={"status": run.status.value},
+                )
+            )
+        if run.confidence < 0.5:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="confidence_critical",
+                    severity="critical",
+                    message="답변 confidence가 운영 기준보다 크게 낮습니다.",
+                    detail={"confidence": run.confidence, "threshold": 0.5},
+                )
+            )
+        elif run.confidence < 0.75:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="confidence_low",
+                    severity="warning",
+                    message="답변 confidence가 낮아 근거 재확인이 필요합니다.",
+                    detail={"confidence": run.confidence, "threshold": 0.75},
+                )
+            )
+        if not run.citations and run.status == RunStatus.SUCCEEDED:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="citation_missing",
+                    severity="warning",
+                    message="성공 응답에 citation이 없습니다.",
+                    detail={"citation_count": 0},
+                )
+            )
+        if failed_trace_steps:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="trace_step_unhealthy",
+                    severity="warning",
+                    message="trace에 실패 또는 차단 단계가 포함되어 있습니다.",
+                    detail={"steps": [step.step for step in failed_trace_steps]},
+                )
+            )
+        if fallback_tools:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="tool_gateway_fallback",
+                    severity="critical",
+                    message="tool gateway fallback이 사용되었습니다.",
+                    detail={"tools": [execution.tool_name for execution in fallback_tools]},
+                )
+            )
+        if open_circuit_tools:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="tool_gateway_circuit_open",
+                    severity="critical",
+                    message="tool gateway circuit이 열린 상태로 기록되었습니다.",
+                    detail={"tools": [execution.tool_name for execution in open_circuit_tools]},
+                )
+            )
+        if approval_required_tools:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="approval_required",
+                    severity="warning",
+                    message="승인이 필요한 tool 실행이 포함되어 있습니다.",
+                    detail={
+                        "tools": [
+                            execution.tool_name for execution in approval_required_tools
+                        ]
+                    },
+                )
+            )
+        if negative_feedback:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="negative_feedback",
+                    severity="warning",
+                    message="낮은 사용자 feedback이 제출되었습니다.",
+                    detail={"ratings": negative_feedback},
+                )
+            )
+        if not audit_events:
+            signals.append(
+                AgentRunDiagnosticSignal(
+                    code="audit_event_missing",
+                    severity="warning",
+                    message="실행과 연결된 audit event가 없습니다.",
+                    detail={"audit_event_count": 0},
+                )
+            )
+        return signals
+
+    def _diagnostic_metrics(
+        self,
+        *,
+        run: AgentRun,
+        audit_events: list[AuditEvent],
+        feedback_events: list[AuditEvent],
+    ) -> dict[str, Any]:
+        feedback_ratings = [
+            float(event.payload["rating"])
+            for event in feedback_events
+            if isinstance(event.payload.get("rating"), int | float)
+        ]
+        gateway_fallback_count = sum(
+            1
+            for execution in run.tool_executions
+            if execution.output_payload.get("_gateway", {}).get("fallback_used") is True
+        )
+        gateway_circuit_open_count = sum(
+            1
+            for execution in run.tool_executions
+            if execution.output_payload.get("_gateway", {}).get("circuit_state") == "open"
+        )
+        return {
+            "confidence": run.confidence,
+            "citation_count": len(run.citations),
+            "trace_step_count": len(run.trace),
+            "failed_trace_step_count": len(
+                [step for step in run.trace if step.status in {"failed", "blocked", "degraded"}]
+            ),
+            "tool_execution_count": len(run.tool_executions),
+            "approval_required_count": len(
+                [
+                    execution
+                    for execution in run.tool_executions
+                    if execution.decision == ToolDecision.APPROVAL_REQUIRED
+                ]
+            ),
+            "gateway_fallback_count": gateway_fallback_count,
+            "gateway_circuit_open_count": gateway_circuit_open_count,
+            "audit_event_count": len(audit_events),
+            "feedback_count": len(feedback_events),
+            "average_feedback_rating": (
+                round(sum(feedback_ratings) / len(feedback_ratings), 2)
+                if feedback_ratings
+                else None
+            ),
+            "policy_decision": run.policy_decision.decision,
+        }
+
+    def _diagnostic_quality_score(
+        self,
+        *,
+        run: AgentRun,
+        signals: list[AgentRunDiagnosticSignal],
+    ) -> float:
+        score = 100.0
+        penalties = {
+            "run_not_successful": 35,
+            "confidence_critical": 30,
+            "confidence_low": 15,
+            "citation_missing": 15,
+            "trace_step_unhealthy": 15,
+            "tool_gateway_fallback": 25,
+            "tool_gateway_circuit_open": 30,
+            "approval_required": 8,
+            "negative_feedback": 20,
+            "audit_event_missing": 10,
+        }
+        for signal in signals:
+            score -= penalties.get(signal.code, 0)
+        if run.policy_decision.decision in {"denied", "quota_exceeded"}:
+            score -= 15
+        return round(max(0.0, min(100.0, score)), 2)
+
+    def _diagnostic_severity(
+        self,
+        *,
+        quality_score: float,
+        signals: list[AgentRunDiagnosticSignal],
+    ) -> str:
+        if any(signal.severity == "critical" for signal in signals) or quality_score < 50:
+            return "critical"
+        if signals or quality_score < 80:
+            return "warning"
+        return "healthy"
+
+    def _diagnostic_actions(self, signals: list[AgentRunDiagnosticSignal]) -> list[str]:
+        if not signals:
+            return ["현재 실행은 추가 조치 없이 관찰 상태로 유지합니다."]
+
+        actions: list[str] = []
+        codes = {signal.code for signal in signals}
+        if (
+            "confidence_critical" in codes
+            or "confidence_low" in codes
+            or "citation_missing" in codes
+        ):
+            actions.append(
+                "검색 결과와 citation coverage를 확인하고 retrieval strategy를 재평가합니다."
+            )
+        if "trace_step_unhealthy" in codes:
+            actions.append("Agent run timeline에서 실패 단계의 입력과 출력 payload를 확인합니다.")
+        if "tool_gateway_fallback" in codes or "tool_gateway_circuit_open" in codes:
+            actions.append("Gateway Circuits 상태와 외부 tool adapter 로그를 함께 확인합니다.")
+        if "approval_required" in codes:
+            actions.append("승인 queue에서 요청 사유와 tool input payload를 검토합니다.")
+        if "negative_feedback" in codes:
+            actions.append(
+                "feedback comment와 evidence bundle을 비교해 답변 품질 이슈를 분류합니다."
+            )
+        if "audit_event_missing" in codes:
+            actions.append("audit log 저장소와 request id 전파 상태를 점검합니다.")
+        return actions
 
     def _confidence(self, results: list[RetrievalResult]) -> float:
         if not results:

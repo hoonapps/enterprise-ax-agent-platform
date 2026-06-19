@@ -485,6 +485,55 @@ def test_agent_run_evidence_bundle_combines_run_timeline_audit_and_feedback():
     assert body["feedback_events"][0]["payload"]["tags"] == ["traceable"]
 
 
+def test_agent_run_diagnostics_reports_quality_signals():
+    client = TestClient(create_app())
+    tenant_id = "run-diagnostics"
+
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "finance-ops",
+            "message": "고객 계좌로 100만원 송금 실행해줘",
+        },
+    )
+    assert run.status_code == 200
+    run_id = run.json()["run_id"]
+
+    feedback = client.post(
+        f"/v1/agents/runs/{run_id}/feedback",
+        json={
+            "tenant_id": tenant_id,
+            "rating": 1,
+            "outcome": "rejected",
+            "submitted_by": "reviewer-01",
+            "comment": "정책 차단 사유를 더 명확히 봐야 합니다.",
+            "tags": ["blocked", "review"],
+        },
+    )
+    assert feedback.status_code == 200
+
+    diagnostics = client.get(f"/v1/agents/runs/{run_id}/diagnostics?tenant_id={tenant_id}")
+
+    assert diagnostics.status_code == 200
+    body = diagnostics.json()
+    signal_codes = {signal["code"] for signal in body["signals"]}
+    assert body["tenant_id"] == tenant_id
+    assert body["run_id"] == run_id
+    assert body["status"] == "blocked"
+    assert body["severity"] == "critical"
+    assert body["quality_score"] < 50
+    assert {
+        "run_not_successful",
+        "confidence_critical",
+        "trace_step_unhealthy",
+        "negative_feedback",
+    }.issubset(signal_codes)
+    assert body["metrics"]["feedback_count"] == 1
+    assert body["metrics"]["average_feedback_rating"] == 1.0
+    assert body["recommended_actions"]
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"
@@ -1256,6 +1305,8 @@ def test_operator_dashboard_serves_backend_console():
     assert "agent-feedback-form" in response.text
     assert "/v1/operations/feedback/summary" in response.text
     assert "feedback-summary" in response.text
+    assert "/v1/agents/runs/${encodedRunId}/diagnostics" in response.text
+    assert "agent-run-diagnostics" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text

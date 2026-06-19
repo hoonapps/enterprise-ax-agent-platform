@@ -105,6 +105,7 @@
 - tool gateway status API는 tool별 circuit state, 실패 누적, open 잔여 시간을 운영 read model로 제공한다.
 - 월간 Agent 실행 quota guard는 실행 전 사용량을 확인하고, 초과 요청을 blocked run과 감사 이벤트로 남긴다.
 - Agent run preview는 실행 저장 없이 redaction, policy, retrieval strategy, 예상 tool route를 검토하게 한다.
+- Agent run diagnostics는 단일 실행의 품질 점수, 위험 신호, 권장 조치를 재계산 가능한 read model로 제공한다.
 - SLO read model은 success rate, blocked rate, p95 latency, error budget을 계산해 운영 상태를
   `healthy`, `watch`, `breached`로 분류한다.
 - Incident snapshot은 summary, usage, SLO, alert 신호를 조합해 원인 후보와 권장 조치를 제공한다.
