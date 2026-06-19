@@ -35,7 +35,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/usage`, `GET /v1/operations/slo`, `GET /v1/operations/incidents/snapshot`, `GET /v1/operations/feedback/summary`, `GET /v1/operations/alerts`, `GET /v1/operations/migrations/status` |
 | `operations:write` | `POST /v1/operations/retention/prune` |
 | `ontology:read` | `GET /v1/ontology/graph` |
-| `tools:read` | `GET /v1/tools` |
+| `tools:read` | `GET /v1/tools`, `GET /v1/tools/gateway/status` |
 | `webhooks:read` | `GET /v1/webhooks/subscriptions`, `GET /v1/webhooks/deliveries` |
 | `webhooks:write` | `POST /v1/webhooks/subscriptions`, delivery dispatch/status 변경 |
 | `evaluations:read` | `GET /v1/evaluations/runs/{evaluation_run_id}` |
@@ -90,6 +90,7 @@ POST /v1/evaluations/runs
 GET  /v1/evaluations/runs/{evaluation_run_id}
 
 GET  /v1/tools
+GET  /v1/tools/gateway/status
 POST /mcp
 GET  /v1/approvals/pending
 POST /v1/approvals/{approval_id}/approve
@@ -379,6 +380,31 @@ validation error도 같은 envelope를 사용한다.
   }
 ]
 ```
+
+## Tool Gateway Status 응답
+
+```text
+GET /v1/tools/gateway/status
+```
+
+등록된 tool별 gateway circuit 상태를 반환한다. Catalog는 정적 실행 계약이고,
+gateway status는 운영 중 실패 누적과 circuit open 여부를 보여주는 read model이다.
+
+```json
+[
+  {
+    "tool_name": "internal-records.lookup",
+    "state": "closed",
+    "failure_streak": 0,
+    "open_remaining_ms": 0,
+    "failure_threshold": 2,
+    "open_seconds": 30.0
+  }
+]
+```
+
+`state`는 `closed`, `half_open`, `open` 중 하나다. `open` 상태에서는 실제 외부 호출을 생략하고
+fallback 결과를 반환한다.
 
 ## MCP-Compatible JSON-RPC
 
@@ -677,6 +703,7 @@ GET /dashboard
 | `GET /v1/approvals/pending` | 승인 대기 queue |
 | `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |
 | `GET /v1/tools` | 등록된 tool catalog |
+| `GET /v1/tools/gateway/status` | tool별 gateway circuit 상태 |
 | `POST /v1/approvals/{approval_id}/approve` | 승인 실행 |
 | `POST /v1/approvals/{approval_id}/reject` | 반려 처리 |
 

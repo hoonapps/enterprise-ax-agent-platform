@@ -148,7 +148,9 @@ class AppContainer:
         self.agent_policy = AgentPolicy()
         self.tool_policy = ToolPolicy()
         self.tool_registry = LocalToolRegistry()
-        self.tool_gateway = ResilientToolGateway(inner=LocalToolGateway())
+        self.tool_gateway: ResilientToolGateway = ResilientToolGateway(
+            inner=LocalToolGateway()
+        )
         self.tool_runtime = LocalToolRuntime(
             policy=self.tool_policy,
             registry=self.tool_registry,

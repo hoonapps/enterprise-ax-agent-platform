@@ -834,6 +834,16 @@ _DASHBOARD_HTML = """<!doctype html>
 
         <section class="panel">
           <header>
+            <h2>Gateway Circuits</h2>
+            <span class="meta">tool gateway state</span>
+          </header>
+          <div class="panel-body">
+            <div class="dependency-list" id="gateway-circuits"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Tool Catalog</h2>
             <span class="meta">registered tools</span>
           </header>
@@ -909,6 +919,7 @@ _DASHBOARD_HTML = """<!doctype html>
       agentTimeline: document.querySelector("#agent-run-timeline"),
       auditEvents: document.querySelector("#audit-events"),
       approvalList: document.querySelector("#approval-list"),
+      gatewayCircuits: document.querySelector("#gateway-circuits"),
       toolCatalog: document.querySelector("#tool-catalog"),
       evaluationMetrics: document.querySelector("#evaluation-metrics")
     };
@@ -962,7 +973,8 @@ _DASHBOARD_HTML = """<!doctype html>
           "ready",
           "applied",
           "up_to_date",
-          "not_applicable"
+          "not_applicable",
+          "closed"
         ].includes(value)
       ) {
         return "ok";
@@ -977,7 +989,8 @@ _DASHBOARD_HTML = """<!doctype html>
           "blocked",
           "degraded",
           "untracked",
-          "not_tracked"
+          "not_tracked",
+          "half_open"
         ]
           .includes(value)
       ) {
@@ -991,7 +1004,8 @@ _DASHBOARD_HTML = """<!doctype html>
           "high",
           "critical",
           "unavailable",
-          "checksum_mismatch"
+          "checksum_mismatch",
+          "open"
         ].includes(value)
       ) {
         return "danger";
@@ -1229,6 +1243,32 @@ _DASHBOARD_HTML = """<!doctype html>
           </table>
         </div>
       `;
+    }
+
+    function renderGatewayCircuits(statuses) {
+      if (!statuses.length) {
+        els.gatewayCircuits.innerHTML = `
+          <div class="empty">gateway circuit 상태가 없습니다.</div>
+        `;
+        return;
+      }
+
+      els.gatewayCircuits.innerHTML = statuses.map((status) => {
+        const remaining = Math.round(Number(status.open_remaining_ms || 0));
+        return `
+          <div class="dependency-item">
+            <span class="dependency-name">${escapeHtml(status.tool_name)}</span>
+            <span class="badge ${badgeClass(status.state)}">
+              ${escapeHtml(status.state)}
+            </span>
+            <div class="dependency-detail">
+              failures ${formatNumber(status.failure_streak)}
+              / ${formatNumber(status.failure_threshold)}
+              · open ${formatNumber(remaining)}ms
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
     function renderTools(tools) {
@@ -1519,6 +1559,7 @@ _DASHBOARD_HTML = """<!doctype html>
           runs,
           approvals,
           events,
+          gatewayCircuits,
           tools
         ] = await Promise.all([
           fetchReadiness(),
@@ -1534,6 +1575,7 @@ _DASHBOARD_HTML = """<!doctype html>
           fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
           fetchJson(buildAuditEventsUrl()),
+          fetchJson("/v1/tools/gateway/status"),
           fetchJson("/v1/tools")
         ]);
 
@@ -1568,6 +1610,7 @@ _DASHBOARD_HTML = """<!doctype html>
         await loadAgentTimeline(selectedRunId);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
         renderApprovals(approvals);
+        renderGatewayCircuits(gatewayCircuits);
         renderTools(tools);
         renderAuditEvents(events);
         els.evaluationMetrics.textContent = JSON.stringify(

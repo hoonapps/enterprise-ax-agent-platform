@@ -204,6 +204,16 @@ class ToolGatewayResult:
 
 
 @dataclass(frozen=True)
+class ToolGatewayCircuitStatus:
+    tool_name: str
+    state: str
+    failure_streak: int
+    open_remaining_ms: int
+    failure_threshold: int
+    open_seconds: float
+
+
+@dataclass(frozen=True)
 class ApprovalRequest:
     tenant_id: str
     agent_run_id: UUID

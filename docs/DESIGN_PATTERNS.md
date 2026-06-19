@@ -170,6 +170,8 @@ ToolCallUseCase
 `ToolGatewayResult`에는 `attempts`, `elapsed_ms`, `fallback_used`, `error_message`,
 `circuit_state`, `circuit_open_remaining_ms`가 포함된다.
 Runtime은 이 정보를 tool execution의 `_gateway` metadata로 남긴다.
+현재 tool별 circuit 상태는 `/v1/tools/gateway/status` read model로 노출한다. 실행 결과 메타데이터는
+단건 trace 분석에 쓰고, gateway status API는 운영자가 현재 차단 중인 tool을 식별하는 데 사용한다.
 
 ## 11. Regression Gate
 
@@ -234,6 +236,7 @@ GET /dashboard
   -> HTML shell
   -> browser fetch
   -> /v1/operations/summary, /v1/approvals/pending, /v1/audit/events, /v1/tools
+  -> /v1/tools/gateway/status
   -> 승인/반려 action은 approval API 호출
 ```
 

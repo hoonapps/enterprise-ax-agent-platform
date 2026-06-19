@@ -8,6 +8,7 @@ from apps.api.application.ports import ToolGatewayPort
 from apps.api.domain.models import (
     ApprovalRequest,
     ToolDefinition,
+    ToolGatewayCircuitStatus,
     ToolGatewayResult,
     ToolRequest,
 )
@@ -53,6 +54,17 @@ class ResilientToolGateway:
             operation=lambda: self.inner.replay(approval),
             fallback_source=approval.tool_name,
         )
+
+    def circuit_status(
+        self,
+        *,
+        tool_names: list[str] | None = None,
+    ) -> list[ToolGatewayCircuitStatus]:
+        names = sorted(set(tool_names or []) | set(self.circuits))
+        return [
+            self._status_for_tool(tool_name=name, circuit=self.circuits.get(name))
+            for name in names
+        ]
 
     def _execute(
         self,
@@ -189,3 +201,27 @@ class ResilientToolGateway:
 
     def _open_remaining_ms(self, circuit: CircuitState) -> int:
         return max(0, int((circuit.open_until - self.clock()) * 1000))
+
+    def _status_for_tool(
+        self,
+        *,
+        tool_name: str,
+        circuit: CircuitState | None,
+    ) -> ToolGatewayCircuitStatus:
+        if circuit is None:
+            return ToolGatewayCircuitStatus(
+                tool_name=tool_name,
+                state="closed",
+                failure_streak=0,
+                open_remaining_ms=0,
+                failure_threshold=self.circuit_failure_threshold,
+                open_seconds=self.circuit_open_seconds,
+            )
+        return ToolGatewayCircuitStatus(
+            tool_name=tool_name,
+            state=self._current_circuit_state(circuit),
+            failure_streak=circuit.failure_streak,
+            open_remaining_ms=self._open_remaining_ms(circuit),
+            failure_threshold=self.circuit_failure_threshold,
+            open_seconds=self.circuit_open_seconds,
+        )

@@ -309,6 +309,16 @@ def test_health_and_agent_flow():
         "workflow.request-change",
     }
 
+    gateway_status = client.get("/v1/tools/gateway/status")
+    assert gateway_status.status_code == 200
+    circuit_names = {status["tool_name"] for status in gateway_status.json()}
+    assert circuit_names >= {
+        "internal-records.lookup",
+        "workflow.request-change",
+    }
+    assert {status["state"] for status in gateway_status.json()} == {"closed"}
+    assert all(status["failure_threshold"] >= 1 for status in gateway_status.json())
+
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
@@ -1269,6 +1279,9 @@ def test_operator_dashboard_serves_backend_console():
     assert "audit-request-id" in response.text
     assert "request_id" in response.text
     assert "/v1/tools" in response.text
+    assert "/v1/tools/gateway/status" in response.text
+    assert "Gateway Circuits" in response.text
+    assert "gateway-circuits" in response.text
     assert "data-approval-action=\"approve\"" in response.text
     assert "data-approval-action=\"reject\"" in response.text
     assert "X-API-Key" in response.text

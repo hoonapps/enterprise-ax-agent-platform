@@ -267,16 +267,17 @@ def test_tool_gateway_opens_circuit_after_repeated_failures_and_recovers():
         return now
 
     inner = ToggleGateway()
+    gateway = ResilientToolGateway(
+        inner=inner,
+        max_attempts=1,
+        circuit_failure_threshold=2,
+        circuit_open_seconds=10,
+        clock=clock,
+    )
     runtime = LocalToolRuntime(
         policy=ToolPolicy(),
         registry=registry,
-        gateway=ResilientToolGateway(
-            inner=inner,
-            max_attempts=1,
-            circuit_failure_threshold=2,
-            circuit_open_seconds=10,
-            clock=clock,
-        ),
+        gateway=gateway,
     )
     request = ToolRequest(
         name=definition.name,
@@ -292,6 +293,11 @@ def test_tool_gateway_opens_circuit_after_repeated_failures_and_recovers():
     assert first.output_payload["_gateway"]["circuit_state"] == "closed"
     assert second.output_payload["_gateway"]["circuit_state"] == "open"
     assert second.output_payload["_gateway"]["circuit_open_remaining_ms"] > 0
+    opened_status = gateway.circuit_status(tool_names=[definition.name])[0]
+    assert opened_status.tool_name == definition.name
+    assert opened_status.state == "open"
+    assert opened_status.failure_streak == 2
+    assert opened_status.open_remaining_ms > 0
     assert third.output_payload["_gateway"]["attempts"] == 0
     assert third.output_payload["_gateway"]["circuit_state"] == "open"
     assert inner.calls == 2
@@ -303,4 +309,8 @@ def test_tool_gateway_opens_circuit_after_repeated_failures_and_recovers():
     assert recovered.status == "succeeded"
     assert recovered.output_payload["result"] == "recovered"
     assert recovered.output_payload["_gateway"]["circuit_state"] == "closed"
+    recovered_status = gateway.circuit_status(tool_names=[definition.name])[0]
+    assert recovered_status.state == "closed"
+    assert recovered_status.failure_streak == 0
+    assert recovered_status.open_remaining_ms == 0
     assert inner.calls == 3
