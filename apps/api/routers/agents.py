@@ -12,7 +12,12 @@ from apps.api.schemas.agents import (
     SearchKnowledgeResponse,
     SearchResultResponse,
 )
-from apps.api.schemas.common import CitationResponse, PolicyResponse, TraceStepResponse
+from apps.api.schemas.common import (
+    CitationResponse,
+    PolicyResponse,
+    ToolExecutionResponse,
+    TraceStepResponse,
+)
 
 router = APIRouter(prefix="/v1", tags=["agents"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
@@ -98,4 +103,17 @@ def _to_response(run: AgentRun) -> RunAgentResponse:
             reason=run.policy_decision.reason,
             redactions=run.policy_decision.redactions,
         ),
+        tool_executions=[
+            ToolExecutionResponse(
+                id=execution.id,
+                tool_name=execution.tool_name,
+                action_type=execution.action_type.value,
+                decision=execution.decision.value,
+                status=execution.status,
+                reason=execution.reason,
+                input_payload=execution.input_payload,
+                output_payload=execution.output_payload,
+            )
+            for execution in run.tool_executions
+        ],
     )

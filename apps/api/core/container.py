@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
     InMemoryAuditLog,
@@ -28,7 +29,7 @@ from apps.api.application.use_cases import (
     SearchKnowledgeUseCase,
 )
 from apps.api.core.config import get_settings
-from apps.api.domain.policies import AgentPolicy, RedactionPolicy
+from apps.api.domain.policies import AgentPolicy, RedactionPolicy, ToolPolicy
 
 
 class AppContainer:
@@ -63,6 +64,8 @@ class AppContainer:
         self.planner = RetrievalPlanner()
         self.redaction_policy = RedactionPolicy()
         self.agent_policy = AgentPolicy()
+        self.tool_policy = ToolPolicy()
+        self.tool_runtime = LocalToolRuntime(self.tool_policy)
         self.synthesizer = GroundedAnswerSynthesizer()
 
         self.ingest_document = IngestDocumentUseCase(
@@ -83,6 +86,7 @@ class AppContainer:
             planner=self.planner,
             redaction_policy=self.redaction_policy,
             agent_policy=self.agent_policy,
+            tool_runtime=self.tool_runtime,
             synthesizer=self.synthesizer,
             default_top_k=settings.top_k,
         )

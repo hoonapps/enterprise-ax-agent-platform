@@ -26,6 +26,17 @@ class PolicyResponse(BaseModel):
     redactions: int
 
 
+class ToolExecutionResponse(BaseModel):
+    id: UUID
+    tool_name: str
+    action_type: str
+    decision: str
+    status: str
+    reason: str
+    input_payload: dict[str, Any]
+    output_payload: dict[str, Any]
+
+
 class AuditEventResponse(BaseModel):
     id: UUID
     tenant_id: str

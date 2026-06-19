@@ -10,6 +10,7 @@ from apps.api.application.ports import (
     AgentRunRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
+    ToolRuntimePort,
     VectorSearchPort,
 )
 from apps.api.application.query_classifier import QueryClassifier
@@ -18,8 +19,12 @@ from apps.api.domain.models import (
     AgentRun,
     AuditEvent,
     Document,
+    QueryType,
     RetrievalResult,
     RunStatus,
+    ToolActionType,
+    ToolExecution,
+    ToolRequest,
     TraceStep,
 )
 from apps.api.domain.policies import AgentPolicy, RedactionPolicy
@@ -93,6 +98,7 @@ class RunAgentUseCase:
         planner: RetrievalPlanner,
         redaction_policy: RedactionPolicy,
         agent_policy: AgentPolicy,
+        tool_runtime: ToolRuntimePort,
         synthesizer: GroundedAnswerSynthesizer,
         default_top_k: int,
     ) -> None:
@@ -103,6 +109,7 @@ class RunAgentUseCase:
         self.planner = planner
         self.redaction_policy = redaction_policy
         self.agent_policy = agent_policy
+        self.tool_runtime = tool_runtime
         self.synthesizer = synthesizer
         self.default_top_k = default_top_k
 
@@ -184,10 +191,19 @@ class RunAgentUseCase:
             )
         )
 
+        tool_executions = self._execute_tools_if_needed(
+            tenant_id=tenant_id,
+            query_type=query_type,
+            message=redacted,
+            user_id=user_id,
+            trace=trace,
+        )
+
         answer = self.synthesizer.synthesize(
             message=redacted,
             query_type=query_type,
             results=results,
+            tool_executions=tool_executions,
         )
         citations = [result.citation() for result in results]
         confidence = self._confidence(results)
@@ -207,6 +223,7 @@ class RunAgentUseCase:
             trace=trace,
             confidence=confidence,
             policy_decision=decision,
+            tool_executions=tool_executions,
             completed_at=datetime.now(UTC),
         )
         self.runs.save(run)
@@ -222,6 +239,78 @@ class RunAgentUseCase:
         top_score = max(result.score for result in results)
         coverage_bonus = min(len(results) * 0.08, 0.24)
         return round(min(0.95, top_score + coverage_bonus), 3)
+
+    def _execute_tools_if_needed(
+        self,
+        *,
+        tenant_id: str,
+        query_type: QueryType,
+        message: str,
+        user_id: str | None,
+        trace: list[TraceStep],
+    ) -> list[ToolExecution]:
+        if query_type != QueryType.ACTION:
+            trace.append(
+                TraceStep(
+                    step="tool_runtime",
+                    status="skipped",
+                    detail={"reason": "query_type_does_not_require_tool"},
+                )
+            )
+            return []
+
+        request = self._build_tool_request(message)
+        execution = self.tool_runtime.execute(request)
+        trace.append(
+            TraceStep(
+                step="tool_runtime",
+                status=execution.status,
+                detail={
+                    "tool_name": execution.tool_name,
+                    "action_type": execution.action_type.value,
+                    "decision": execution.decision.value,
+                    "reason": execution.reason,
+                },
+            )
+        )
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="agent",
+                actor_id=user_id or "system",
+                event_type=f"tool.{execution.decision.value}",
+                resource_type="tool_call",
+                resource_id=execution.id,
+                payload={
+                    "tool_name": execution.tool_name,
+                    "action_type": execution.action_type.value,
+                    "status": execution.status,
+                    "reason": execution.reason,
+                    "input_payload": execution.input_payload,
+                    "output_payload": execution.output_payload,
+                },
+            )
+        )
+        return [execution]
+
+    def _build_tool_request(self, message: str) -> ToolRequest:
+        lowered = message.lower()
+        if any(keyword in lowered for keyword in ("조회", "확인", "search", "find", "get")):
+            return ToolRequest(
+                name="internal-records.lookup",
+                action_type=ToolActionType.READ,
+                input_payload={"query": message},
+                risk_level="low",
+                description="내부 업무 레코드 조회",
+            )
+
+        return ToolRequest(
+            name="workflow.request-change",
+            action_type=ToolActionType.WRITE,
+            input_payload={"request": message},
+            risk_level="high",
+            description="외부 상태 변경이 필요한 업무 요청",
+        )
 
     def _audit_agent_run(self, run: AgentRun, latency_ms: int | None = None) -> None:
         self.audit_log.append(
@@ -239,6 +328,15 @@ class RunAgentUseCase:
                     "confidence": run.confidence,
                     "citations": len(run.citations),
                     "policy_decision": run.policy_decision.decision,
+                    "tool_executions": [
+                        {
+                            "tool_name": execution.tool_name,
+                            "action_type": execution.action_type.value,
+                            "decision": execution.decision.value,
+                            "status": execution.status,
+                        }
+                        for execution in run.tool_executions
+                    ],
                     "latency_ms": latency_ms,
                 },
             )

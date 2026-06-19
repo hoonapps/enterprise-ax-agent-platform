@@ -29,6 +29,19 @@ class Classification(StrEnum):
     RESTRICTED = "restricted"
 
 
+class ToolActionType(StrEnum):
+    READ = "read"
+    WRITE = "write"
+    APPROVAL = "approval"
+
+
+class ToolDecision(StrEnum):
+    ALLOWED = "allowed"
+    DENIED = "denied"
+    APPROVAL_REQUIRED = "approval_required"
+    NOT_REQUIRED = "not_required"
+
+
 @dataclass(frozen=True)
 class Document:
     tenant_id: str
@@ -99,6 +112,27 @@ class PolicyDecision:
 
 
 @dataclass(frozen=True)
+class ToolRequest:
+    name: str
+    action_type: ToolActionType
+    input_payload: dict[str, Any]
+    risk_level: str = "low"
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ToolExecution:
+    tool_name: str
+    action_type: ToolActionType
+    decision: ToolDecision
+    status: str
+    reason: str
+    input_payload: dict[str, Any] = field(default_factory=dict)
+    output_payload: dict[str, Any] = field(default_factory=dict)
+    id: UUID = field(default_factory=uuid4)
+
+
+@dataclass(frozen=True)
 class AgentRun:
     tenant_id: str
     scenario: str
@@ -111,6 +145,7 @@ class AgentRun:
     trace: list[TraceStep]
     confidence: float
     policy_decision: PolicyDecision
+    tool_executions: list[ToolExecution] = field(default_factory=list)
     user_id: str | None = None
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

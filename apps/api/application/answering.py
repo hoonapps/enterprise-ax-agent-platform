@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from apps.api.domain.models import QueryType, RetrievalResult
+from apps.api.domain.models import QueryType, RetrievalResult, ToolExecution
 
 
 class GroundedAnswerSynthesizer:
@@ -12,6 +12,7 @@ class GroundedAnswerSynthesizer:
         message: str,
         query_type: QueryType,
         results: list[RetrievalResult],
+        tool_executions: list[ToolExecution] | None = None,
     ) -> str:
         if not results:
             return (
@@ -22,11 +23,13 @@ class GroundedAnswerSynthesizer:
         evidence = [self._compact(result.chunk.content) for result in results[:3]]
         prefix = self._prefix(query_type)
         bullets = "\n".join(f"- 근거 {idx + 1}: {line}" for idx, line in enumerate(evidence))
+        tool_summary = self._tool_summary(tool_executions or [])
         next_actions = self._next_actions(query_type)
         return (
             f"{prefix}\n\n"
             f"요청: {message}\n\n"
             f"핵심 근거:\n{bullets}\n\n"
+            f"도구 실행 상태:\n{tool_summary}\n\n"
             f"권장 실행:\n{next_actions}\n\n"
             "이 답변은 검색된 내부 문서 근거를 기준으로 생성되었으며, 쓰기 작업은 정책 검사를 "
             "통과한 경우에만 실행해야 합니다."
@@ -43,7 +46,7 @@ class GroundedAnswerSynthesizer:
 
     def _next_actions(self, query_type: QueryType) -> str:
         if query_type == QueryType.ACTION:
-            return "- 실행 권한 확인\n- 승인 필요 여부 판단\n- 감사로그 기록 후 tool call 수행"
+            return "- 실행 권한 확인\n- 승인 필요 여부 판단\n- 감사로그 기록 후 tool call 처리"
         if query_type == QueryType.RISK:
             return (
                 "- 개인정보/권한 경계 확인\n"
@@ -53,6 +56,16 @@ class GroundedAnswerSynthesizer:
         if query_type == QueryType.COMPARE:
             return "- 비교 기준 고정\n- 누락 문서 확인\n- 의사결정자에게 trade-off 표로 공유"
         return "- 근거 문서 확인\n- 최신성 검토\n- 필요 시 담당 시스템 API로 재확인"
+
+    def _tool_summary(self, tool_executions: list[ToolExecution]) -> str:
+        if not tool_executions:
+            return "- tool 실행 없음"
+        return "\n".join(
+            "- "
+            f"{execution.tool_name}: {execution.decision.value} "
+            f"({execution.status}) - {execution.reason}"
+            for execution in tool_executions
+        )
 
     def _compact(self, text: str) -> str:
         compacted = " ".join(text.split())

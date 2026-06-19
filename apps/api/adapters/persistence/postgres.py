@@ -18,6 +18,9 @@ from apps.api.domain.models import (
     PolicyDecision,
     QueryType,
     RunStatus,
+    ToolActionType,
+    ToolDecision,
+    ToolExecution,
     TraceStep,
 )
 
@@ -144,6 +147,19 @@ class PostgresAgentRunRepository(PostgresBase):
             ],
             "trace": [step.__dict__ for step in run.trace],
             "policy": run.policy_decision.__dict__,
+            "tool_executions": [
+                {
+                    "id": str(execution.id),
+                    "tool_name": execution.tool_name,
+                    "action_type": execution.action_type.value,
+                    "decision": execution.decision.value,
+                    "status": execution.status,
+                    "reason": execution.reason,
+                    "input_payload": execution.input_payload,
+                    "output_payload": execution.output_payload,
+                }
+                for execution in run.tool_executions
+            ],
         }
 
         with psycopg.connect(self.dsn) as conn:
@@ -181,6 +197,30 @@ class PostgresAgentRunRepository(PostgresBase):
                 """,
                 (tenant_pk, run.id, "assistant", run.answer, Jsonb(metadata)),
             )
+            for execution in run.tool_executions:
+                conn.execute(
+                    """
+                    insert into tool_calls (
+                      id, tenant_id, agent_run_id, tool_name, action_type,
+                      input_payload, output_payload, policy_decision, status,
+                      latency_ms, created_at
+                    )
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                    on conflict (id) do nothing
+                    """,
+                    (
+                        execution.id,
+                        tenant_pk,
+                        run.id,
+                        execution.tool_name,
+                        execution.action_type.value,
+                        Jsonb(execution.input_payload),
+                        Jsonb(execution.output_payload),
+                        execution.decision.value,
+                        execution.status,
+                        None,
+                    ),
+                )
 
         return run
 
@@ -220,6 +260,7 @@ class PostgresAgentRunRepository(PostgresBase):
             trace=self._trace(metadata.get("trace", [])),
             confidence=float(row["confidence"]),
             policy_decision=self._policy(metadata.get("policy", {})),
+            tool_executions=self._tool_executions(metadata.get("tool_executions", [])),
             user_id=None,
             created_at=row["created_at"],
             completed_at=row["completed_at"],
@@ -268,6 +309,27 @@ class PostgresAgentRunRepository(PostgresBase):
             reason=str(raw.get("reason", "")),
             redactions=int(raw.get("redactions", 0)),
         )
+
+    def _tool_executions(self, raw: Any) -> list[ToolExecution]:
+        if not isinstance(raw, list):
+            return []
+
+        executions: list[ToolExecution] = []
+        for item in raw:
+            if isinstance(item, dict):
+                executions.append(
+                    ToolExecution(
+                        id=UUID(str(item["id"])),
+                        tool_name=str(item["tool_name"]),
+                        action_type=ToolActionType(str(item["action_type"])),
+                        decision=ToolDecision(str(item["decision"])),
+                        status=str(item["status"]),
+                        reason=str(item["reason"]),
+                        input_payload=cast(dict[str, Any], item.get("input_payload", {})),
+                        output_payload=cast(dict[str, Any], item.get("output_payload", {})),
+                    )
+                )
+        return executions
 
 
 class PostgresAuditLog(PostgresBase):

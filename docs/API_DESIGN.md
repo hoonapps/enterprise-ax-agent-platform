@@ -26,8 +26,8 @@ GET  /v1/audit/events
 ```json
 {
   "tenant_id": "default",
-  "user_id": "portfolio-reviewer",
-  "scenario": "lg-cns",
+  "user_id": "operator-01",
+  "scenario": "operations",
   "message": "고객사의 AX 전환 리스크와 실행 순서를 정리해줘.",
   "context": {
     "department": "digital-transformation",
@@ -64,10 +64,19 @@ GET  /v1/audit/events
     }
   ],
   "policy": {
+    "allowed": true,
     "decision": "allowed",
-    "reason": "Request is allowed under local portfolio policy.",
+    "reason": "요청이 현재 정책 기준을 통과했습니다.",
     "redactions": 0
-  }
+  },
+  "tool_executions": [
+    {
+      "tool_name": "workflow.request-change",
+      "action_type": "write",
+      "decision": "approval_required",
+      "status": "pending_approval"
+    }
+  ]
 }
 ```
 
@@ -96,4 +105,5 @@ GET  /v1/audit/events
 - raw prompt를 그대로 노출하지 않고 구조화된 trace만 반환한다.
 - citation을 응답에 포함해 RAG 답변을 검증 가능하게 만든다.
 - policy decision을 응답에 포함해 차단/승인 상태를 제품 상태로 다룬다.
+- tool execution을 응답에 포함해 외부 시스템 실행 경계를 확인할 수 있게 한다.
 - 평가 API를 별도 축으로 두어 Agent 품질을 회귀 테스트할 수 있게 한다.

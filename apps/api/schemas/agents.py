@@ -3,7 +3,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from apps.api.schemas.common import CitationResponse, PolicyResponse, TraceStepResponse
+from apps.api.schemas.common import (
+    CitationResponse,
+    PolicyResponse,
+    ToolExecutionResponse,
+    TraceStepResponse,
+)
 
 
 class RunAgentRequest(BaseModel):
@@ -25,6 +30,7 @@ class RunAgentResponse(BaseModel):
     citations: list[CitationResponse]
     trace: list[TraceStepResponse]
     policy: PolicyResponse
+    tool_executions: list[ToolExecutionResponse]
 
 
 class SearchKnowledgeRequest(BaseModel):

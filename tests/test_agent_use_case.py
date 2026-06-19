@@ -1,3 +1,4 @@
+from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
     InMemoryAuditLog,
@@ -9,8 +10,8 @@ from apps.api.application.chunking import TextChunker
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import IngestDocumentUseCase, RunAgentUseCase
-from apps.api.domain.models import Document, RunStatus
-from apps.api.domain.policies import AgentPolicy, RedactionPolicy
+from apps.api.domain.models import Document, RunStatus, ToolDecision
+from apps.api.domain.policies import AgentPolicy, RedactionPolicy, ToolPolicy
 
 
 def build_use_cases():
@@ -32,6 +33,7 @@ def build_use_cases():
         planner=RetrievalPlanner(),
         redaction_policy=RedactionPolicy(),
         agent_policy=AgentPolicy(),
+        tool_runtime=LocalToolRuntime(ToolPolicy()),
         synthesizer=GroundedAnswerSynthesizer(),
         default_top_k=4,
     )
@@ -75,3 +77,30 @@ def test_destructive_action_requires_approval():
     assert run.status == RunStatus.BLOCKED
     assert run.policy_decision.decision == "approval_required"
     assert not run.citations
+
+
+def test_action_query_records_tool_approval_decision():
+    ingest, agent, audit = build_use_cases()
+    ingest.execute(
+        Document(
+            tenant_id="default",
+            title="업무 실행 정책",
+            content="외부 상태를 변경하는 업무 실행은 승인 대기 상태로 전환하고 감사로그에 남긴다.",
+            source_uri="test://tool-policy",
+        )
+    )
+
+    run = agent.execute(
+        tenant_id="default",
+        scenario="operations",
+        message="보고서 생성 요청을 처리해줘",
+        user_id="tester",
+    )
+
+    assert run.status == RunStatus.SUCCEEDED
+    assert run.tool_executions
+    assert run.tool_executions[0].decision == ToolDecision.APPROVAL_REQUIRED
+    assert run.tool_executions[0].status == "pending_approval"
+
+    events = audit.list_events("default", limit=20)
+    assert any(event.event_type == "tool.approval_required" for event in events)

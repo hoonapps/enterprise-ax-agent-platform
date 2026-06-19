@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from apps.api.domain.models import AgentRun, AuditEvent, Document, DocumentChunk, RetrievalResult
+from apps.api.domain.models import (
+    AgentRun,
+    AuditEvent,
+    Document,
+    DocumentChunk,
+    RetrievalResult,
+    ToolExecution,
+    ToolRequest,
+)
 
 
 class DocumentRepositoryPort(Protocol):
@@ -27,3 +35,7 @@ class AgentRunRepositoryPort(Protocol):
     def save(self, run: AgentRun) -> AgentRun: ...
 
     def get(self, tenant_id: str, run_id: str) -> AgentRun | None: ...
+
+
+class ToolRuntimePort(Protocol):
+    def execute(self, request: ToolRequest) -> ToolExecution: ...

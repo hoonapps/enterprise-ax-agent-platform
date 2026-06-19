@@ -38,3 +38,35 @@ def test_health_and_agent_flow():
     assert body["status"] == "succeeded"
     assert body["citations"]
     assert body["trace"]
+    assert body["tool_executions"] == []
+
+
+def test_api_returns_tool_execution_for_action_request():
+    client = TestClient(create_app())
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "업무 실행 정책",
+            "content": (
+                "외부 상태를 변경하는 업무 실행은 승인 대기 상태로 전환하고 "
+                "감사로그에 남겨야 한다."
+            ),
+            "source_uri": "test://tool-policy",
+        },
+    )
+
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": "default",
+            "scenario": "operations",
+            "message": "정책 문서를 근거로 보고서 생성 요청을 처리해줘",
+        },
+    )
+
+    assert run.status_code == 200
+    body = run.json()
+    assert body["tool_executions"]
+    assert body["tool_executions"][0]["decision"] == "approval_required"
