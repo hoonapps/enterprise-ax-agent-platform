@@ -403,6 +403,30 @@ CI regression gate는 API request와 유사한 JSON dataset을 사용한다.
 | `Idempotency-Key` | 쓰기 API 재시도 안전성 |
 | `X-Tenant-Id` | 요청 body가 없을 때 tenant 지정 |
 
+### Idempotency-Key
+
+지원 API:
+
+| API | 동작 |
+| --- | --- |
+| `POST /v1/documents/ingest` | 중복 문서 적재 방지 |
+| `POST /v1/agents/runs` | 중복 Agent 실행 방지 |
+| `POST /v1/evaluations/runs` | 중복 평가 실행 방지 |
+
+처리 규칙:
+
+- 같은 tenant, 같은 key, 같은 request payload는 저장된 응답을 replay한다.
+- 같은 tenant, 같은 key, 다른 request payload는 `409 Conflict`를 반환한다.
+- key가 없으면 일반 요청으로 처리한다.
+
+충돌 응답:
+
+```json
+{
+  "detail": "같은 Idempotency-Key로 다른 요청 payload를 처리할 수 없습니다."
+}
+```
+
 ## 설계 의도
 
 - raw prompt를 그대로 노출하지 않고 구조화된 trace만 반환한다.

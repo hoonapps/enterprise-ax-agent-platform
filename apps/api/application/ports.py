@@ -10,6 +10,7 @@ from apps.api.domain.models import (
     DocumentChunk,
     EvaluationCase,
     EvaluationRun,
+    IdempotencyRecord,
     RetrievalResult,
     ToolDefinition,
     ToolExecution,
@@ -78,3 +79,9 @@ class EvaluationRepositoryPort(Protocol):
     def save(self, run: EvaluationRun, cases: list[EvaluationCase]) -> EvaluationRun: ...
 
     def get(self, tenant_id: str, evaluation_run_id: str) -> EvaluationRun | None: ...
+
+
+class IdempotencyRepositoryPort(Protocol):
+    def get(self, tenant_id: str, key: str) -> IdempotencyRecord | None: ...
+
+    def save(self, record: IdempotencyRecord) -> IdempotencyRecord: ...

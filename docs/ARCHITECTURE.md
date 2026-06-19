@@ -114,6 +114,7 @@ POST /v1/agents/runs
   -> X-API-Key 인증
   -> agents:run HTTP scope 확인
   -> 요청 검증
+  -> Idempotency-Key replay 가능 여부 확인
   -> 개인정보 마스킹
   -> 질문 유형 분류
   -> 검색 전략 선택
@@ -127,6 +128,7 @@ POST /v1/agents/runs
   -> approval_required tool은 승인 요청으로 승격
   -> 실행 이력 저장
   -> 감사 이벤트 기록
+  -> Idempotency-Key 응답 저장
   -> 답변 + 출처 + trace 반환
 ```
 
@@ -242,8 +244,26 @@ Postgres 전환 시 Row Level Security로 확장할 수 있다.
 
 ### 멱등성
 
-쓰기 API는 `Idempotency-Key`를 받을 수 있는 구조로 설계한다.  
-Agent 실행, 문서 적재, 업무 tool call은 재시도될 수 있으므로 중복 실행 방지가 필요하다.
+재시도 가능한 쓰기 API는 `Idempotency-Key`를 지원한다.
+
+```text
+POST write API
+  -> request payload canonical hash
+  -> IdempotencyRepositoryPort 조회
+  -> 같은 key + 같은 hash면 저장된 response replay
+  -> 같은 key + 다른 hash면 409 Conflict
+  -> 신규 요청이면 use case 실행 후 response 저장
+```
+
+현재 적용 대상:
+
+- `POST /v1/documents/ingest`
+- `POST /v1/agents/runs`
+- `POST /v1/evaluations/runs`
+
+메모리 모드와 Postgres 모드는 같은 `IdempotencyRepositoryPort`를 구현한다.
+Postgres 모드에서는 `idempotency_keys` 테이블에 request hash와 response payload를 저장한다.
+
 승인 replay는 이미 `executed` 상태인 요청을 다시 실행하지 않고 기존 replay 결과를 반환한다.
 반려된 요청은 `rejected` 상태로 닫히며 이후 승인 요청이 들어와도 replay하지 않는다.
 

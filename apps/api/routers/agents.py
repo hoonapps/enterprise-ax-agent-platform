@@ -4,6 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.idempotency import (
+    IdempotencyKeyHeader,
+    replay_idempotent_response,
+    request_payload_hash,
+    save_idempotent_response,
+)
 from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
@@ -58,7 +64,19 @@ def run_agent(
     request: RunAgentRequest,
     container: ContainerDep,
     auth: AgentRunAuth,
+    idempotency_key: IdempotencyKeyHeader = None,
 ) -> RunAgentResponse:
+    request_hash = request_payload_hash(request)
+    replayed = replay_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response_type=RunAgentResponse,
+    )
+    if replayed is not None:
+        return replayed
+
     run = container.run_agent.execute(
         tenant_id=request.tenant_id,
         scenario=request.scenario,
@@ -66,7 +84,15 @@ def run_agent(
         user_id=request.user_id,
         actor_scopes=request.actor_scopes,
     )
-    return _to_response(run)
+    response = _to_response(run)
+    save_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response=response,
+    )
+    return response
 
 
 @router.get("/agents/runs/{run_id}", response_model=RunAgentResponse)

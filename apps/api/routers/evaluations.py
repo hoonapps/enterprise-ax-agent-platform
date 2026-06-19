@@ -4,6 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.idempotency import (
+    IdempotencyKeyHeader,
+    replay_idempotent_response,
+    request_payload_hash,
+    save_idempotent_response,
+)
 from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import EvaluationCase, EvaluationRun
 from apps.api.schemas.evaluations import (
@@ -23,7 +29,19 @@ def run_evaluation(
     request: RunEvaluationRequest,
     container: ContainerDep,
     auth: EvaluationWriteAuth,
+    idempotency_key: IdempotencyKeyHeader = None,
 ) -> EvaluationRunResponse:
+    request_hash = request_payload_hash(request)
+    replayed = replay_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response_type=EvaluationRunResponse,
+    )
+    if replayed is not None:
+        return replayed
+
     cases = [
         EvaluationCase(
             tenant_id=request.tenant_id,
@@ -39,7 +57,15 @@ def run_evaluation(
         scenario=request.scenario,
         cases=cases,
     )
-    return _to_response(run)
+    response = _to_response(run)
+    save_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response=response,
+    )
+    return response
 
 
 @router.get("/runs/{evaluation_run_id}", response_model=EvaluationRunResponse)

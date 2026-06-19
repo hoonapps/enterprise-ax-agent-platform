@@ -20,6 +20,7 @@ from apps.api.domain.models import (
     EvaluationCase,
     EvaluationRun,
     EvaluationStatus,
+    IdempotencyRecord,
     PolicyDecision,
     QueryType,
     RunStatus,
@@ -607,3 +608,48 @@ class PostgresEvaluationRepository(PostgresBase):
             created_at=run_row["created_at"],
             completed_at=run_row["completed_at"],
         )
+
+
+class PostgresIdempotencyRepository(PostgresBase):
+    def get(self, tenant_id: str, key: str) -> IdempotencyRecord | None:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            row = conn.execute(
+                """
+                select i.*, t.slug as tenant_slug
+                from idempotency_keys i
+                join tenants t on t.id = i.tenant_id
+                where t.slug = %s and i.key = %s
+                """,
+                (tenant_id, key),
+            ).fetchone()
+        if row is None:
+            return None
+        return IdempotencyRecord(
+            tenant_id=cast(str, row["tenant_slug"]),
+            key=cast(str, row["key"]),
+            request_hash=cast(str, row["request_hash"]),
+            response_payload=cast(dict[str, Any], row["response_payload"] or {}),
+            created_at=row["created_at"],
+        )
+
+    def save(self, record: IdempotencyRecord) -> IdempotencyRecord:
+        tenant_pk = self._tenant_pk(record.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute(
+                """
+                insert into idempotency_keys (
+                  tenant_id, key, request_hash, response_payload, created_at
+                )
+                values (%s, %s, %s, %s, %s)
+                on conflict (tenant_id, key) do update set
+                  response_payload = excluded.response_payload
+                """,
+                (
+                    tenant_pk,
+                    record.key,
+                    record.request_hash,
+                    Jsonb(record.response_payload),
+                    record.created_at,
+                ),
+            )
+        return record

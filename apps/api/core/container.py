@@ -10,6 +10,7 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryAuditLog,
     InMemoryDocumentRepository,
     InMemoryEvaluationRepository,
+    InMemoryIdempotencyRepository,
 )
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
@@ -17,6 +18,7 @@ from apps.api.adapters.persistence.postgres import (
     PostgresAuditLog,
     PostgresDocumentRepository,
     PostgresEvaluationRepository,
+    PostgresIdempotencyRepository,
 )
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
 from apps.api.adapters.vector.qdrant import QdrantVectorSearch
@@ -28,6 +30,7 @@ from apps.api.application.ports import (
     AuditLogPort,
     DocumentRepositoryPort,
     EvaluationRepositoryPort,
+    IdempotencyRepositoryPort,
     VectorSearchPort,
 )
 from apps.api.application.query_classifier import QueryClassifier
@@ -54,6 +57,7 @@ class AppContainer:
         self.runs: AgentRunRepositoryPort
         self.approvals: ApprovalRepositoryPort
         self.evaluations: EvaluationRepositoryPort
+        self.idempotency: IdempotencyRepositoryPort
         self.vector_search: VectorSearchPort
 
         if settings.storage_backend == "postgres":
@@ -62,12 +66,14 @@ class AppContainer:
             self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
             self.approvals = PostgresApprovalRepository(settings.postgres_dsn)
             self.evaluations = PostgresEvaluationRepository(settings.postgres_dsn)
+            self.idempotency = PostgresIdempotencyRepository(settings.postgres_dsn)
         else:
             self.documents = InMemoryDocumentRepository()
             self.audit_log = InMemoryAuditLog()
             self.runs = InMemoryAgentRunRepository()
             self.approvals = InMemoryApprovalRepository()
             self.evaluations = InMemoryEvaluationRepository()
+            self.idempotency = InMemoryIdempotencyRepository()
 
         if settings.vector_backend == "qdrant":
             self.vector_search = QdrantVectorSearch(

@@ -242,3 +242,27 @@ X-API-Key
 
 기본 로컬 모드는 `AUTH_ENABLED=false`로 둔다. 외부 DB 없이 빠르게 실행해도 되지만,
 운영형 로컬 환경에서는 `AUTH_ENABLED=true`와 `API_KEY_CREDENTIALS`로 같은 API를 보호할 수 있다.
+
+## 15. Idempotency Repository
+
+재시도 가능한 쓰기 API는 `Idempotency-Key`를 처리한다.
+
+```text
+HTTP Request
+  -> canonical request hash
+  -> IdempotencyRepositoryPort.get(tenant_id, key)
+  -> replay / conflict / execute
+  -> IdempotencyRepositoryPort.save(response)
+```
+
+이 패턴의 핵심은 “중복 요청을 알아보는 책임”을 라우터에 두되,
+저장 방식은 port로 분리하는 것이다.
+
+- `InMemoryIdempotencyRepository`: 로컬 실행과 테스트용
+- `PostgresIdempotencyRepository`: `idempotency_keys` 테이블 사용
+
+같은 key로 같은 payload가 들어오면 저장된 응답을 replay한다.
+같은 key로 다른 payload가 들어오면 `409 Conflict`를 반환한다.
+
+승인 replay 멱등성과는 책임이 다르다. `Idempotency-Key`는 HTTP write API 재시도 중복을 막고,
+approval replay는 승인 이후 외부 tool 실행 중복을 막는다.

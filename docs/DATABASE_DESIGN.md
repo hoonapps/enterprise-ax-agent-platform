@@ -15,6 +15,7 @@ Postgres + Vector DB 조합을 전제로 설계했다.
 - Tool call은 프롬프트 로그 안에 숨기지 않고 별도 테이블로 남긴다.
 - 감사 이벤트는 append-only로 관리한다.
 - 평가 결과는 Agent 실행과 분리해 회귀 테스트에 사용할 수 있게 한다.
+- 멱등 key는 요청 hash와 응답 payload를 저장해 재시도 안전성을 보장한다.
 
 ## ERD 개요
 
@@ -39,6 +40,8 @@ tenants
   |     +-- evaluation_cases
   |
   +-- audit_events
+  |
+  +-- idempotency_keys
 ```
 
 ## 핵심 테이블
@@ -201,6 +204,26 @@ Tool call을 별도 테이블로 둔 이유:
 | `replay_result` | jsonb | 승인 후 replay 결과 |
 | `created_at` | timestamptz | 생성 시각 |
 | `updated_at` | timestamptz | 수정 시각 |
+
+### `idempotency_keys`
+
+쓰기 API의 재시도 안전성을 위한 테이블이다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `tenant_id` | uuid | FK |
+| `key` | text | 호출자가 보낸 `Idempotency-Key` |
+| `request_hash` | text | canonical request payload hash |
+| `response_payload` | jsonb | 최초 처리 응답 |
+| `created_at` | timestamptz | 생성 시각 |
+
+Primary key는 `(tenant_id, key)`다.
+
+처리 규칙:
+
+- 같은 tenant/key/request hash는 `response_payload`를 replay한다.
+- 같은 tenant/key에서 request hash가 다르면 충돌로 처리한다.
+- key가 없는 요청은 멱등 저장소를 거치지 않는다.
 
 ## Vector DB Payload
 

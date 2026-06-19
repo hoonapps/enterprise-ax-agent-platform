@@ -12,6 +12,7 @@
 - tool별 required scope와 risk level을 registry에서 관리한다.
 - 외부 tool 호출은 MCP-compatible boundary와 Tool Gateway를 통해 분리한다.
 - 외부 tool 장애는 timeout/retry/fallback 정책으로 격리한다.
+- 재시도 가능한 쓰기 API는 Idempotency-Key로 중복 실행을 막는다.
 - 승인 대기 요청을 운영자가 재검토하고 실행 또는 반려할 수 있게 한다.
 - expected facts 기반 evaluation run으로 답변 품질을 회귀 평가한다.
 - CI regression gate로 품질 기준 미달 변경을 차단한다.
@@ -50,16 +51,17 @@
 4. 조회성 tool은 실행 가능하지만, 쓰기성 tool은 승인 대기 상태를 기본값으로 둔다.
 5. 등록되지 않은 tool이나 required scope가 없는 tool 요청은 실행하지 않는다.
 6. HTTP API 접근은 API key와 endpoint scope로 제어할 수 있어야 한다.
-7. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
-8. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
-9. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
-10. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
-11. 답변 품질은 evaluation dataset으로 반복 측정한다.
-12. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
-13. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
-14. 운영 요약은 audit event와 업무 원장에서 계산한다.
-15. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
-16. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
+7. 쓰기 API 재시도는 Idempotency-Key로 중복 실행을 막는다.
+8. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
+9. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
+10. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
+11. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
+12. 답변 품질은 evaluation dataset으로 반복 측정한다.
+13. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
+14. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
+15. 운영 요약은 audit event와 업무 원장에서 계산한다.
+16. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+17. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
 
 ## 확장 축
 

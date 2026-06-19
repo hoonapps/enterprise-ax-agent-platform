@@ -206,6 +206,33 @@ HTTP API scope와 Agent tool scope는 분리되어 있습니다.
 | `evaluations:read` / `evaluations:write` | 평가 조회/실행 |
 | `mcp:use` | MCP-compatible boundary |
 
+## Idempotency
+
+재시도 가능한 쓰기 API는 `Idempotency-Key`를 지원합니다.
+
+지원 API:
+
+- `POST /v1/documents/ingest`
+- `POST /v1/agents/runs`
+- `POST /v1/evaluations/runs`
+
+같은 tenant에서 같은 key와 같은 payload가 다시 들어오면 이전 응답을 그대로 replay합니다.
+같은 key로 다른 payload가 들어오면 `409 Conflict`를 반환합니다.
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/agents/runs \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: agent-run-20260619-001" \
+  -d '{
+    "tenant_id": "default",
+    "scenario": "operations",
+    "message": "Agent 운영 정책을 정리해줘"
+  }'
+```
+
+메모리 모드에서는 프로세스 생명주기 동안 보관하고, Postgres 모드에서는 `idempotency_keys` 테이블에
+요청 hash와 응답 payload를 저장합니다.
+
 ## 운영형 로컬 인프라
 
 Postgres와 Qdrant를 함께 띄웁니다.
@@ -586,7 +613,8 @@ tenants
   │    └─ agent_messages
   ├─ evaluation_runs
   │    └─ evaluation_cases
-  └─ audit_events
+  ├─ audit_events
+  └─ idempotency_keys
 ```
 
 RDB와 Vector DB의 책임을 분리합니다.

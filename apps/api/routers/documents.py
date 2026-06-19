@@ -3,6 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
+from apps.api.core.idempotency import (
+    IdempotencyKeyHeader,
+    replay_idempotent_response,
+    request_payload_hash,
+    save_idempotent_response,
+)
 from apps.api.core.security import AuthPrincipal, require_scopes
 from apps.api.domain.models import Classification, Document
 from apps.api.schemas.documents import (
@@ -22,7 +28,19 @@ def ingest_document(
     request: IngestDocumentRequest,
     container: ContainerDep,
     auth: DocumentWriteAuth,
+    idempotency_key: IdempotencyKeyHeader = None,
 ) -> IngestDocumentResponse:
+    request_hash = request_payload_hash(request)
+    replayed = replay_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response_type=IngestDocumentResponse,
+    )
+    if replayed is not None:
+        return replayed
+
     document = Document(
         tenant_id=request.tenant_id,
         title=request.title,
@@ -33,13 +51,21 @@ def ingest_document(
         metadata=request.metadata,
     )
     saved, chunk_count = container.ingest_document.execute(document=document)
-    return IngestDocumentResponse(
+    response = IngestDocumentResponse(
         document_id=saved.id,
         tenant_id=saved.tenant_id,
         title=saved.title,
         chunk_count=chunk_count,
         classification=saved.classification.value,
     )
+    save_idempotent_response(
+        repository=container.idempotency,
+        tenant_id=request.tenant_id,
+        key=idempotency_key,
+        request_hash=request_hash,
+        response=response,
+    )
+    return response
 
 
 @router.get("", response_model=list[DocumentResponse])

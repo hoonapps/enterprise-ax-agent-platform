@@ -213,6 +213,15 @@ class EvaluationRun:
 
 
 @dataclass(frozen=True)
+class IdempotencyRecord:
+    tenant_id: str
+    key: str
+    request_hash: str
+    response_payload: dict[str, Any]
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class OperationsSummary:
     tenant_id: str
     event_limit: int

@@ -13,6 +13,7 @@ from apps.api.domain.models import (
     DocumentChunk,
     EvaluationCase,
     EvaluationRun,
+    IdempotencyRecord,
 )
 
 
@@ -147,3 +148,18 @@ class InMemoryEvaluationRepository:
             created_at=run.created_at,
             completed_at=run.completed_at,
         )
+
+
+class InMemoryIdempotencyRepository:
+    def __init__(self) -> None:
+        self._records: dict[str, dict[str, IdempotencyRecord]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def get(self, tenant_id: str, key: str) -> IdempotencyRecord | None:
+        with self._lock:
+            return self._records[tenant_id].get(key)
+
+    def save(self, record: IdempotencyRecord) -> IdempotencyRecord:
+        with self._lock:
+            self._records[record.tenant_id][record.key] = record
+        return record

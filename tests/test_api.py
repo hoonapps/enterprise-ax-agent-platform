@@ -474,3 +474,70 @@ def test_api_key_auth_can_protect_operational_apis(monkeypatch):
         assert forbidden.json()["detail"]["missing_scopes"] == ["documents:write"]
 
     _clear_runtime_caches()
+
+
+def test_idempotency_key_replays_document_ingest_response():
+    client = TestClient(create_app())
+    request = {
+        "tenant_id": "default",
+        "title": "멱등 문서 적재",
+        "content": "Idempotency-Key가 같으면 같은 문서 적재 응답을 replay해야 한다.",
+        "source_uri": "test://idempotent-document",
+    }
+    headers = {"Idempotency-Key": "doc-ingest-001"}
+
+    first = client.post("/v1/documents/ingest", json=request, headers=headers)
+    second = client.post("/v1/documents/ingest", json=request, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+
+    documents = client.get("/v1/documents?tenant_id=default")
+    assert documents.status_code == 200
+    matching = [
+        document
+        for document in documents.json()
+        if document["source_uri"] == "test://idempotent-document"
+    ]
+    assert len(matching) == 1
+
+    conflict = client.post(
+        "/v1/documents/ingest",
+        json={**request, "title": "다른 payload"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+
+
+def test_idempotency_key_replays_agent_run_response():
+    client = TestClient(create_app())
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "Agent 멱등 실행 기준",
+            "content": "Agent 실행 요청은 같은 Idempotency-Key에서 같은 응답을 반환해야 한다.",
+            "source_uri": "test://idempotent-agent",
+        },
+    )
+    request = {
+        "tenant_id": "default",
+        "scenario": "operations",
+        "message": "Agent 멱등 실행 기준을 설명해줘",
+    }
+    headers = {"Idempotency-Key": "agent-run-001"}
+
+    first = client.post("/v1/agents/runs", json=request, headers=headers)
+    second = client.post("/v1/agents/runs", json=request, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+
+    conflict = client.post(
+        "/v1/agents/runs",
+        json={**request, "message": "다른 질문"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
