@@ -54,6 +54,8 @@ FastAPI
     |       +--> X-Request-ID echo/generate
     |       +--> X-Process-Time-Ms response header
     |       +--> request scoped log context
+    |       +--> AuditEvent payload request_id
+    |       +--> WebhookDelivery payload request_id
     |
     +--> API Key Auth / HTTP Scope Guard
     |

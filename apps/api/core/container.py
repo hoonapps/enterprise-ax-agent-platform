@@ -4,6 +4,7 @@ from apps.api.adapters.agent.local_tool_gateway import LocalToolGateway
 from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.agent.resilient_tool_gateway import ResilientToolGateway
+from apps.api.adapters.persistence.audit_context import RequestContextAuditLog
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
     InMemoryApprovalRepository,
@@ -101,10 +102,12 @@ class AppContainer:
             self.webhook_subscriptions = InMemoryWebhookSubscriptionRepository()
             self.webhook_deliveries = InMemoryWebhookDeliveryRepository()
 
-        self.audit_log = OutboxAuditLog(
-            inner=self.base_audit_log,
-            subscriptions=self.webhook_subscriptions,
-            deliveries=self.webhook_deliveries,
+        self.audit_log = RequestContextAuditLog(
+            inner=OutboxAuditLog(
+                inner=self.base_audit_log,
+                subscriptions=self.webhook_subscriptions,
+                deliveries=self.webhook_deliveries,
+            )
         )
         self.webhook_http_client = UrllibWebhookHttpClient()
         self.webhook_dispatcher = WebhookDispatcher(

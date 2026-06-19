@@ -315,3 +315,24 @@ AuditEvent
 - lease가 만료된 `dispatching` delivery는 다시 claim 대상이 되어 worker 중단 후에도 복구된다.
 - 최대 재시도 횟수를 넘은 delivery는 `dead_letter`로 분리해 자동 재시도 폭주를 막는다.
 - 수동 retry는 상태와 attempt count를 초기화해 운영자가 원인 조치 후 다시 큐에 넣는 동작이다.
+
+## 18. Request Context Audit Enrichment
+
+HTTP request context와 audit event를 연결한다.
+
+```text
+RequestContextMiddleware
+  -> current_request_id()
+  -> RequestContextAuditLog
+  -> AuditEvent.payload.request_id
+  -> WebhookDelivery.payload.payload.request_id
+```
+
+이 패턴은 use case가 HTTP 헤더를 알지 않게 하면서도, 운영 추적에 필요한 correlation id를
+감사 이벤트와 외부 workflow payload에 포함한다.
+
+- middleware는 `X-Request-ID`를 읽거나 생성한다.
+- `ContextVar`는 같은 요청 처리 흐름 안에서 request id를 보관한다.
+- `RequestContextAuditLog`는 AuditLogPort decorator로 동작한다.
+- 이미 payload에 `request_id`가 있으면 덮어쓰지 않는다.
+- HTTP 요청 밖에서 생성된 이벤트는 request id 없이 기록될 수 있다.

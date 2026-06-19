@@ -72,6 +72,27 @@ def test_request_context_headers_generate_request_id():
     assert float(response.headers["X-Process-Time-Ms"]) >= 0
 
 
+def test_audit_events_include_request_id_from_http_context():
+    client = TestClient(create_app())
+
+    ingest = client.post(
+        "/v1/documents/ingest",
+        headers={"X-Request-ID": "audit-trace-001"},
+        json={
+            "tenant_id": "default",
+            "title": "Request context 문서",
+            "content": "감사 이벤트는 HTTP request id와 연결되어야 한다.",
+            "source_uri": "test://request-context",
+        },
+    )
+    assert ingest.status_code == 200
+
+    events = client.get("/v1/audit/events?tenant_id=default&event_type=document.ingested")
+
+    assert events.status_code == 200
+    assert events.json()[0]["payload"]["request_id"] == "audit-trace-001"
+
+
 def test_health_and_agent_flow():
     client = TestClient(create_app())
 
@@ -743,6 +764,38 @@ def test_webhook_subscription_creates_audit_delivery_outbox():
     assert delivered.json()["attempt_count"] == 1
 
 
+def test_webhook_delivery_payload_includes_request_id():
+    client = TestClient(create_app())
+
+    subscription = client.post(
+        "/v1/webhooks/subscriptions",
+        json={
+            "tenant_id": "default",
+            "name": "request-context-workflow",
+            "target_url": "https://workflow.internal/hooks/request-context",
+            "event_types": ["document.ingested"],
+        },
+    )
+    assert subscription.status_code == 200
+
+    ingest = client.post(
+        "/v1/documents/ingest",
+        headers={"X-Request-ID": "webhook-trace-001"},
+        json={
+            "tenant_id": "default",
+            "title": "Webhook request context 문서",
+            "content": "Webhook delivery payload는 request id를 포함해야 한다.",
+            "source_uri": "test://webhook-request-context",
+        },
+    )
+    assert ingest.status_code == 200
+
+    deliveries = client.get("/v1/webhooks/deliveries?tenant_id=default&status=pending")
+
+    assert deliveries.status_code == 200
+    assert deliveries.json()[0]["payload"]["payload"]["request_id"] == "webhook-trace-001"
+
+
 def test_webhook_dispatcher_signs_and_marks_delivered():
     subscriptions = InMemoryWebhookSubscriptionRepository()
     deliveries = InMemoryWebhookDeliveryRepository()
@@ -984,7 +1037,7 @@ def test_webhook_dispatch_pending_api_returns_empty_batch():
 
     response = client.post(
         "/v1/webhooks/deliveries/dispatch-pending",
-        json={"tenant_id": "default", "limit": 10},
+        json={"tenant_id": "empty-batch", "limit": 10},
     )
 
     assert response.status_code == 200
