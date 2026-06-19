@@ -6,10 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md LICENSE ./
-RUN pip install --no-cache-dir ".[dev]"
-
 COPY apps ./apps
+RUN pip install --no-cache-dir "."
+
 COPY data ./data
+COPY scripts ./scripts
 
 EXPOSE 8000
 

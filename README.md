@@ -259,7 +259,7 @@ Postgres와 Qdrant를 함께 띄웁니다.
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres qdrant redis
+docker compose up -d postgres qdrant
 ```
 
 `.env`에서 저장소를 전환합니다.
@@ -270,6 +270,8 @@ VECTOR_BACKEND=qdrant
 POSTGRES_DSN=postgresql://ax_agent:ax_agent@localhost:5432/ax_agent
 QDRANT_URL=http://localhost:6333
 QDRANT_COLLECTION=ax_agent_chunks
+CONTAINER_POSTGRES_DSN=postgresql://ax_agent:ax_agent@postgres:5432/ax_agent
+CONTAINER_QDRANT_URL=http://qdrant:6333
 ```
 
 그 다음 API 서버를 실행합니다.
@@ -283,7 +285,13 @@ Postgres는 `db/migrations`의 초기 schema로 뜨고, Qdrant collection은 어
 API 컨테이너까지 함께 띄울 때는 환경변수로 backend mode를 지정합니다.
 
 ```bash
-STORAGE_BACKEND=postgres VECTOR_BACKEND=qdrant docker compose up --build api
+docker compose up --build api
+```
+
+Webhook outbox worker까지 함께 실행할 때는 worker profile을 켭니다.
+
+```bash
+docker compose --profile worker up --build api webhook-worker
 ```
 
 ## 사용 예시

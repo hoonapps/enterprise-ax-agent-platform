@@ -1,23 +1,30 @@
+x-api-environment: &api-environment
+  APP_NAME: ${APP_NAME:-Enterprise AX Agent Platform}
+  APP_ENV: ${APP_ENV:-local}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-postgres}
+  VECTOR_BACKEND: ${VECTOR_BACKEND:-qdrant}
+  RUNTIME_DIR: ${RUNTIME_DIR:-data/runtime}
+  SAMPLE_DOCS_DIR: ${SAMPLE_DOCS_DIR:-data/sample_docs}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
+  TOP_K: ${TOP_K:-4}
+  AUTH_ENABLED: ${AUTH_ENABLED:-false}
+  API_KEY_CREDENTIALS: ${API_KEY_CREDENTIALS:-}
+  WEBHOOK_TIMEOUT_SECONDS: ${WEBHOOK_TIMEOUT_SECONDS:-3}
+  WEBHOOK_MAX_ATTEMPTS: ${WEBHOOK_MAX_ATTEMPTS:-5}
+  WEBHOOK_LEASE_SECONDS: ${WEBHOOK_LEASE_SECONDS:-60}
+  QDRANT_URL: ${CONTAINER_QDRANT_URL:-http://qdrant:6333}
+  QDRANT_COLLECTION: ${QDRANT_COLLECTION:-ax_agent_chunks}
+  POSTGRES_DSN: ${CONTAINER_POSTGRES_DSN:-postgresql://ax_agent:ax_agent@postgres:5432/ax_agent}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      APP_NAME: ${APP_NAME:-Enterprise AX Agent Platform}
-      APP_ENV: ${APP_ENV:-local}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-memory}
-      VECTOR_BACKEND: ${VECTOR_BACKEND:-local}
-      RUNTIME_DIR: ${RUNTIME_DIR:-data/runtime}
-      SAMPLE_DOCS_DIR: ${SAMPLE_DOCS_DIR:-data/sample_docs}
-      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
-      TOP_K: ${TOP_K:-4}
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-ax_agent_chunks}
-      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://ax_agent:ax_agent@postgres:5432/ax_agent}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    environment: *api-environment
     ports:
       - "8000:8000"
     volumes:
@@ -25,7 +32,31 @@ services:
     depends_on:
       - qdrant
       - postgres
-      - redis
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  webhook-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - python
+      - scripts/dispatch_webhooks.py
+      - --tenant-id
+      - ${WEBHOOK_WORKER_TENANT_ID:-default}
+      - --limit
+      - ${WEBHOOK_WORKER_LIMIT:-100}
+      - --loop
+      - --interval-seconds
+      - ${WEBHOOK_WORKER_INTERVAL_SECONDS:-15}
+    environment: *api-environment
+    depends_on:
+      - postgres
+    profiles:
+      - worker
 
   qdrant:
     image: qdrant/qdrant:v1.12.6
@@ -46,11 +77,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ax_agent -d ax_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   qdrant_data:
