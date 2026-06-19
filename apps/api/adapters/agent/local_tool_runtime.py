@@ -92,5 +92,7 @@ class LocalToolRuntime:
                 "elapsed_ms": result.elapsed_ms,
                 "fallback_used": result.fallback_used,
                 "error_message": result.error_message,
+                "circuit_state": result.circuit_state,
+                "circuit_open_remaining_ms": result.circuit_open_remaining_ms,
             },
         }

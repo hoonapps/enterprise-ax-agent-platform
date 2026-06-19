@@ -1191,6 +1191,7 @@ class OperationsSummaryUseCase:
             tool_decision_counts=self._tool_decision_counts(events),
             approval_counts=self._approval_counts(events),
             gateway_fallback_count=self._gateway_fallback_count(events),
+            gateway_circuit_open_count=self._gateway_circuit_open_count(events),
             latest_evaluation_metrics=self._latest_evaluation_metrics(events),
         )
 
@@ -1228,6 +1229,17 @@ class OperationsSummaryUseCase:
                 continue
             gateway = output_payload.get("_gateway")
             if isinstance(gateway, dict) and gateway.get("fallback_used") is True:
+                count += 1
+        return count
+
+    def _gateway_circuit_open_count(self, events: list[AuditEvent]) -> int:
+        count = 0
+        for event in events:
+            output_payload = event.payload.get("output_payload")
+            if not isinstance(output_payload, dict):
+                continue
+            gateway = output_payload.get("_gateway")
+            if isinstance(gateway, dict) and gateway.get("circuit_state") == "open":
                 count += 1
         return count
 
@@ -1430,6 +1442,7 @@ class OperationsAlertUseCase:
         max_average_latency_ms: int = 3000,
         min_average_confidence: float = 0.55,
         max_gateway_fallbacks: int = 0,
+        max_gateway_circuit_opens: int = 0,
         min_evaluation_pass_rate: float = 0.85,
         max_monthly_usage_ratio: float = 0.9,
     ) -> list[OperationsAlert]:
@@ -1486,6 +1499,19 @@ class OperationsAlertUseCase:
                     metric="gateway_fallback_count",
                     actual_value=float(summary.gateway_fallback_count),
                     threshold=float(max_gateway_fallbacks),
+                )
+            )
+
+        if summary.gateway_circuit_open_count > max_gateway_circuit_opens:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="tool_gateway_circuit_open",
+                    severity="critical",
+                    message="Tool gateway circuit breaker가 열린 상태입니다.",
+                    metric="gateway_circuit_open_count",
+                    actual_value=float(summary.gateway_circuit_open_count),
+                    threshold=float(max_gateway_circuit_opens),
                 )
             )
 

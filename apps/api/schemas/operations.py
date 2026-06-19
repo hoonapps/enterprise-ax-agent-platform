@@ -16,6 +16,7 @@ class OperationsSummaryResponse(BaseModel):
     tool_decision_counts: dict[str, int]
     approval_counts: dict[str, int]
     gateway_fallback_count: int
+    gateway_circuit_open_count: int
     latest_evaluation_metrics: dict[str, Any]
     generated_at: datetime
 

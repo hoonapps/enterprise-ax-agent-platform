@@ -928,6 +928,7 @@ def test_operations_summary_aggregates_runtime_signals():
     assert body["event_counts"]["document.ingested"] >= 1
     assert body["tool_decision_counts"]["approval_required"] >= 1
     assert body["approval_counts"]["requested"] >= 1
+    assert body["gateway_circuit_open_count"] == 0
     assert body["latest_evaluation_metrics"]["case_count"] == 1
 
 
@@ -1086,6 +1087,7 @@ def test_operations_alerts_detect_runtime_threshold_breaches():
                 "output_payload": {
                     "_gateway": {
                         "fallback_used": True,
+                        "circuit_state": "open",
                     }
                 }
             },
@@ -1114,6 +1116,7 @@ def test_operations_alerts_detect_runtime_threshold_breaches():
             "max_average_latency_ms": 3000,
             "min_average_confidence": 0.55,
             "max_gateway_fallbacks": 0,
+            "max_gateway_circuit_opens": 0,
             "min_evaluation_pass_rate": 0.85,
         },
     )
@@ -1125,11 +1128,13 @@ def test_operations_alerts_detect_runtime_threshold_breaches():
         "agent_latency_high",
         "answer_confidence_low",
         "tool_gateway_fallback",
+        "tool_gateway_circuit_open",
         "evaluation_pass_rate_low",
     }
     severities = {alert["code"]: alert["severity"] for alert in alerts}
     assert severities["agent_latency_high"] == "warning"
     assert severities["tool_gateway_fallback"] == "critical"
+    assert severities["tool_gateway_circuit_open"] == "critical"
 
 
 def test_retention_prune_supports_dry_run_and_terminal_cleanup():
@@ -1257,6 +1262,7 @@ def test_operator_dashboard_serves_backend_console():
     assert "agent-run-timeline" in response.text
     assert "metric-usage" in response.text
     assert "metric-slo" in response.text
+    assert "metric-circuit-open" in response.text
     assert "incident-snapshot" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text

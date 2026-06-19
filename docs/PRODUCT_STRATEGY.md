@@ -13,7 +13,7 @@
 - 조회성 tool과 쓰기성 tool의 실행 경계를 분리한다.
 - tool별 required scope와 risk level을 registry에서 관리한다.
 - 외부 tool 호출은 MCP-compatible boundary와 Tool Gateway를 통해 분리한다.
-- 외부 tool 장애는 timeout/retry/fallback 정책으로 격리한다.
+- 외부 tool 장애는 timeout/retry/fallback/circuit breaker 정책으로 격리한다.
 - 재시도 가능한 쓰기 API는 Idempotency-Key로 중복 실행을 막는다.
 - 승인 대기 요청을 운영자가 재검토하고 실행 또는 반려할 수 있게 한다.
 - expected facts 기반 evaluation run으로 답변 품질을 회귀 평가한다.
@@ -87,7 +87,7 @@
 - 위험 action은 자동 실행되지 않고 승인 상태로 전환된다.
 - 승인된 action은 replay 결과와 함께 executed 상태로 남는다.
 - 반려된 action은 reason과 함께 rejected 상태로 남는다.
-- 외부 tool 실패는 attempts, elapsed time, fallback 여부와 함께 남는다.
+- 외부 tool 실패는 attempts, elapsed time, fallback 여부, circuit 상태와 함께 남는다.
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
@@ -100,8 +100,8 @@
 - retention prune은 dry-run으로 삭제 대상을 먼저 계산하고, terminal webhook delivery와 오래된 audit
   event를 보관 정책에 맞춰 정리한다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
-- 운영 alert API는 summary 지표를 임계치와 비교해 latency, confidence, gateway fallback, evaluation
-  품질 하락을 별도 read model로 반환한다.
+- 운영 alert API는 summary 지표를 임계치와 비교해 latency, confidence, gateway fallback,
+  gateway circuit open, evaluation 품질 하락을 별도 read model로 반환한다.
 - 월간 Agent 실행 quota guard는 실행 전 사용량을 확인하고, 초과 요청을 blocked run과 감사 이벤트로 남긴다.
 - Agent run preview는 실행 저장 없이 redaction, policy, retrieval strategy, 예상 tool route를 검토하게 한다.
 - SLO read model은 success rate, blocked rate, p95 latency, error budget을 계산해 운영 상태를

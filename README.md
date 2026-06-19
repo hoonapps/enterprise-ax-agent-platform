@@ -605,6 +605,8 @@ ToolRuntime
 - timeout을 초과한 호출은 실패한 attempt로 간주
 - 일시적 오류는 설정된 횟수만큼 retry
 - 모든 attempt가 실패하면 fallback 결과를 반환
+- 실패가 반복되면 tool별 circuit breaker를 열어 일정 시간 실제 호출을 차단
+- cool-down 이후 half-open probe가 성공하면 circuit을 닫음
 - 실행 결과에는 `_gateway` metadata를 포함
 
 예시:
@@ -617,7 +619,9 @@ ToolRuntime
     "attempts": 2,
     "elapsed_ms": 34,
     "fallback_used": true,
-    "error_message": "ConnectionError: gateway unavailable"
+    "error_message": "ConnectionError: gateway unavailable",
+    "circuit_state": "open",
+    "circuit_open_remaining_ms": 29980
   }
 }
 ```
@@ -844,6 +848,7 @@ curl "http://127.0.0.1:8000/v1/operations/summary?tenant_id=default"
 - tool decision별 count
 - approval 상태별 count
 - gateway fallback count
+- gateway circuit open count
 - 최신 evaluation metrics
 
 ## Operations Usage
@@ -904,6 +909,7 @@ curl "http://127.0.0.1:8000/v1/operations/alerts?tenant_id=default&event_limit=5
 - Agent 평균 지연 시간이 3000ms 초과
 - Agent 평균 신뢰도가 0.55 미만
 - Gateway fallback이 0건 초과
+- Gateway circuit open이 0건 초과
 - 최근 evaluation pass rate가 0.85 미만
 - 월간 Agent 실행 사용률이 0.9 이상
 

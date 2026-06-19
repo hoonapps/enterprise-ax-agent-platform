@@ -524,6 +524,7 @@ GET /v1/operations/alerts?tenant_id=default&event_limit=500
 | `max_average_latency_ms` | `3000` | 평균 지연 시간 임계치 |
 | `min_average_confidence` | `0.55` | 평균 신뢰도 하한 |
 | `max_gateway_fallbacks` | `0` | gateway fallback 허용 건수 |
+| `max_gateway_circuit_opens` | `0` | gateway circuit open 허용 건수 |
 | `min_evaluation_pass_rate` | `0.85` | 최근 evaluation pass rate 하한 |
 
 응답:
@@ -710,6 +711,7 @@ GET /dashboard
     "rejected": 1
   },
   "gateway_fallback_count": 0,
+  "gateway_circuit_open_count": 0,
   "latest_evaluation_metrics": {
     "average_score": 1.0,
     "pass_rate": 1.0

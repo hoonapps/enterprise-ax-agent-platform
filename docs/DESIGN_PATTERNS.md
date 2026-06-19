@@ -163,11 +163,12 @@ ToolCallUseCase
 이 분리는 중요하다.
 
 - Runtime은 등록/권한/위험도/승인 판단에 집중한다.
-- Resilient Gateway는 timeout, retry, fallback을 공통으로 처리한다.
+- Resilient Gateway는 timeout, retry, fallback, circuit breaker를 공통으로 처리한다.
 - Gateway Adapter는 외부 시스템 호출과 응답 정규화에 집중한다.
 - MCP, 사내 API, workflow engine은 Gateway 어댑터만 교체해서 붙일 수 있다.
 
-`ToolGatewayResult`에는 `attempts`, `elapsed_ms`, `fallback_used`, `error_message`가 포함된다.
+`ToolGatewayResult`에는 `attempts`, `elapsed_ms`, `fallback_used`, `error_message`,
+`circuit_state`, `circuit_open_remaining_ms`가 포함된다.
 Runtime은 이 정보를 tool execution의 `_gateway` metadata로 남긴다.
 
 ## 11. Regression Gate

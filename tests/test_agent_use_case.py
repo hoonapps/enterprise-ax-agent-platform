@@ -183,6 +183,28 @@ class AlwaysFailsGateway:
         raise ConnectionError("gateway unavailable")
 
 
+class ToggleGateway:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.fail = True
+
+    def invoke(self, request: ToolRequest, definition: ToolDefinition) -> ToolGatewayResult:
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("gateway unavailable")
+        return ToolGatewayResult(
+            status="succeeded",
+            reason="circuit half-open probe succeeded",
+            output_payload={"result": "recovered", "source": request.name},
+        )
+
+    def replay(self, approval: ApprovalRequest) -> ToolGatewayResult:
+        self.calls += 1
+        if self.fail:
+            raise ConnectionError("gateway unavailable")
+        return ToolGatewayResult(status="succeeded")
+
+
 def test_tool_gateway_retries_before_success():
     registry = LocalToolRegistry()
     definition = registry.get("internal-records.lookup")
@@ -233,3 +255,52 @@ def test_tool_gateway_returns_fallback_after_retries_exhausted():
     assert execution.output_payload["_gateway"]["attempts"] == 2
     assert execution.output_payload["_gateway"]["fallback_used"] is True
     assert "ConnectionError" in execution.output_payload["_gateway"]["error_message"]
+
+
+def test_tool_gateway_opens_circuit_after_repeated_failures_and_recovers():
+    registry = LocalToolRegistry()
+    definition = registry.get("internal-records.lookup")
+    assert definition is not None
+    now = 100.0
+
+    def clock() -> float:
+        return now
+
+    inner = ToggleGateway()
+    runtime = LocalToolRuntime(
+        policy=ToolPolicy(),
+        registry=registry,
+        gateway=ResilientToolGateway(
+            inner=inner,
+            max_attempts=1,
+            circuit_failure_threshold=2,
+            circuit_open_seconds=10,
+            clock=clock,
+        ),
+    )
+    request = ToolRequest(
+        name=definition.name,
+        action_type=definition.action_type,
+        input_payload={"query": "승인 대기 조회"},
+        actor_scopes=["records:read"],
+    )
+
+    first = runtime.execute(request)
+    second = runtime.execute(request)
+    third = runtime.execute(request)
+
+    assert first.output_payload["_gateway"]["circuit_state"] == "closed"
+    assert second.output_payload["_gateway"]["circuit_state"] == "open"
+    assert second.output_payload["_gateway"]["circuit_open_remaining_ms"] > 0
+    assert third.output_payload["_gateway"]["attempts"] == 0
+    assert third.output_payload["_gateway"]["circuit_state"] == "open"
+    assert inner.calls == 2
+
+    now = 111.0
+    inner.fail = False
+    recovered = runtime.execute(request)
+
+    assert recovered.status == "succeeded"
+    assert recovered.output_payload["result"] == "recovered"
+    assert recovered.output_payload["_gateway"]["circuit_state"] == "closed"
+    assert inner.calls == 3

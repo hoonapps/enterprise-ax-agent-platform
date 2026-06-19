@@ -199,6 +199,8 @@ class ToolGatewayResult:
     elapsed_ms: int = 0
     fallback_used: bool = False
     error_message: str | None = None
+    circuit_state: str = "closed"
+    circuit_open_remaining_ms: int = 0
 
 
 @dataclass(frozen=True)
@@ -267,6 +269,7 @@ class OperationsSummary:
     tool_decision_counts: dict[str, int] = field(default_factory=dict)
     approval_counts: dict[str, int] = field(default_factory=dict)
     gateway_fallback_count: int = 0
+    gateway_circuit_open_count: int = 0
     latest_evaluation_metrics: dict[str, Any] = field(default_factory=dict)
     generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 

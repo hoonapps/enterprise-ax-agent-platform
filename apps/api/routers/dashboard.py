@@ -625,6 +625,10 @@ _DASHBOARD_HTML = """<!doctype html>
         <div class="value" id="metric-fallbacks">-</div>
       </article>
       <article class="metric">
+        <div class="label">Gateway circuit</div>
+        <div class="value" id="metric-circuit-open">-</div>
+      </article>
+      <article class="metric">
         <div class="label">월간 사용률</div>
         <div class="value" id="metric-usage">-</div>
       </article>
@@ -890,6 +894,7 @@ _DASHBOARD_HTML = """<!doctype html>
       latency: document.querySelector("#metric-latency"),
       confidence: document.querySelector("#metric-confidence"),
       fallbacks: document.querySelector("#metric-fallbacks"),
+      circuitOpen: document.querySelector("#metric-circuit-open"),
       usage: document.querySelector("#metric-usage"),
       slo: document.querySelector("#metric-slo"),
       readiness: document.querySelector("#metric-readiness"),
@@ -1538,6 +1543,7 @@ _DASHBOARD_HTML = """<!doctype html>
         els.latency.textContent = formatLatency(summary.average_latency_ms);
         els.confidence.textContent = formatRatio(summary.average_confidence);
         els.fallbacks.textContent = formatNumber(summary.gateway_fallback_count);
+        els.circuitOpen.textContent = formatNumber(summary.gateway_circuit_open_count);
         els.usage.textContent = `${Math.round(Number(usage.usage_ratio || 0) * 100)}%`;
         els.usage.title = [
           formatNumber(usage.agent_runs_used),

@@ -115,6 +115,7 @@ def get_operations_alerts(
     max_average_latency_ms: int = 3000,
     min_average_confidence: float = 0.55,
     max_gateway_fallbacks: int = 0,
+    max_gateway_circuit_opens: int = 0,
     min_evaluation_pass_rate: float = 0.85,
     max_monthly_usage_ratio: float = 0.9,
 ) -> list[OperationsAlertResponse]:
@@ -126,6 +127,7 @@ def get_operations_alerts(
         max_average_latency_ms=max_average_latency_ms,
         min_average_confidence=min_average_confidence,
         max_gateway_fallbacks=max_gateway_fallbacks,
+        max_gateway_circuit_opens=max_gateway_circuit_opens,
         min_evaluation_pass_rate=min_evaluation_pass_rate,
         max_monthly_usage_ratio=max_monthly_usage_ratio,
     )
@@ -172,6 +174,7 @@ def _to_response(summary: OperationsSummary) -> OperationsSummaryResponse:
         tool_decision_counts=summary.tool_decision_counts,
         approval_counts=summary.approval_counts,
         gateway_fallback_count=summary.gateway_fallback_count,
+        gateway_circuit_open_count=summary.gateway_circuit_open_count,
         latest_evaluation_metrics=summary.latest_evaluation_metrics,
         generated_at=summary.generated_at,
     )
