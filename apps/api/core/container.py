@@ -53,6 +53,7 @@ from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import (
     AgentFeedbackUseCase,
+    AgentScenarioUseCase,
     ApprovalUseCase,
     EvaluateAgentUseCase,
     IngestDocumentUseCase,
@@ -193,6 +194,10 @@ class AppContainer:
         )
         self.agent_feedback = AgentFeedbackUseCase(
             runs=self.runs,
+            audit_log=self.audit_log,
+        )
+        self.agent_scenarios = AgentScenarioUseCase(
+            run_agent=self.run_agent,
             audit_log=self.audit_log,
         )
         self.approval = ApprovalUseCase(

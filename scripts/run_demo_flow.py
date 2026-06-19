@@ -73,6 +73,12 @@ def main() -> None:
         user_id=actor_id,
         actor_scopes=["records:read", "workflow:request"],
     )
+    scenario_run = container.agent_scenarios.execute(
+        tenant_id=tenant_id,
+        scenario_id="release-readiness",
+        user_id=actor_id,
+        actor_scopes=["records:read", "workflow:request"],
+    )
 
     pending_approvals = container.approval.list_pending(tenant_id=tenant_id)
     summary = container.operations_summary.execute(tenant_id=tenant_id)
@@ -90,6 +96,7 @@ def main() -> None:
         "primary_evidence": _evidence_summary(evidence_bundle),
         "replay": _replay_summary(replay),
         "action_run": _run_summary(action_run),
+        "scenario_run": _scenario_run_summary(scenario_run),
         "pending_approvals": [_approval_summary(approval) for approval in pending_approvals],
         "operations": {
             "summary": _operations_summary(summary),
@@ -229,6 +236,28 @@ def _approval_summary(approval: Any) -> dict[str, Any]:
         "status": approval.status.value,
         "reason": approval.reason,
         "requested_by": approval.requested_by,
+    }
+
+
+def _scenario_run_summary(result: Any) -> dict[str, Any]:
+    if result is None:
+        return {}
+    return {
+        "id": str(result.id),
+        "scenario_id": result.scenario_id,
+        "name": result.name,
+        "status": result.status,
+        "metrics": result.metrics,
+        "steps": [
+            {
+                "step_id": step.step_id,
+                "title": step.title,
+                "run_id": str(step.run_id),
+                "passed": step.passed,
+                "failed_checks": step.failed_checks,
+            }
+            for step in result.step_results
+        ],
     }
 
 

@@ -90,6 +90,8 @@ FastAPI
     |       +--> Agent 실행 재사용
     |       +--> expected facts 기반 scoring
     |       +--> evaluation.completed 감사 이벤트 기록
+    |       +--> Scenario catalog 실행과 step별 통과 기준 평가
+    |       +--> agent.scenario.executed 감사 이벤트 기록
     |       +--> AuditEvent JSONL/CSV export
     |       +--> OperationsSummary 집계
     |       +--> Webhook delivery outbox 조회

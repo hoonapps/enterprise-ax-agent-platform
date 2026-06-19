@@ -754,6 +754,73 @@ def test_agent_run_timeline_combines_trace_tool_and_audit_events():
     assert audit_items[0]["detail"]["payload"]
 
 
+def test_agent_scenario_catalog_and_run_create_operating_evidence():
+    client = TestClient(create_app())
+    tenant_id = "scenario-release"
+
+    for title, content in [
+        (
+            "Agentic RAG 운영 모델",
+            "질문 유형은 factual, summary, action으로 분류하고 검색 전략은 질문 유형별로 선택한다.",
+        ),
+        (
+            "AX Agent 거버넌스 기준",
+            "거버넌스는 감사 이벤트, 승인 정책, 근거 문서, 개인정보 마스킹을 함께 관리한다.",
+        ),
+        (
+            "업무 실행 정책",
+            "외부 상태를 변경하는 workflow 실행은 승인 대기 상태로 전환하고 감사 이벤트로 남긴다.",
+        ),
+    ]:
+        response = client.post(
+            "/v1/documents/ingest",
+            json={
+                "tenant_id": tenant_id,
+                "title": title,
+                "content": content,
+                "source_uri": f"test://{title}",
+            },
+        )
+        assert response.status_code == 200
+
+    scenarios = client.get("/v1/scenarios")
+    assert scenarios.status_code == 200
+    scenario_ids = {item["id"] for item in scenarios.json()}
+    assert "release-readiness" in scenario_ids
+
+    scenario = client.get("/v1/scenarios/release-readiness")
+    assert scenario.status_code == 200
+    assert len(scenario.json()["steps"]) == 3
+
+    run = client.post(
+        "/v1/scenarios/release-readiness/run",
+        json={"tenant_id": tenant_id, "user_id": "operator-01"},
+    )
+
+    assert run.status_code == 200
+    body = run.json()
+    assert body["scenario_id"] == "release-readiness"
+    assert body["status"] == "passed"
+    assert body["metrics"]["step_count"] == 3
+    assert body["metrics"]["approval_required_count"] >= 1
+    assert all(step["passed"] for step in body["step_results"])
+
+    listed_runs = client.get(
+        f"/v1/agents/runs?tenant_id={tenant_id}&scenario=release-readiness"
+    )
+    assert listed_runs.status_code == 200
+    assert len(listed_runs.json()) == 3
+
+    audit = client.get(
+        f"/v1/audit/events?tenant_id={tenant_id}&event_type=agent.scenario.executed"
+    )
+    assert audit.status_code == 200
+    events = audit.json()
+    assert events
+    assert events[0]["payload"]["status"] == "passed"
+    assert len(events[0]["payload"]["run_ids"]) == 3
+
+
 def test_api_returns_tool_execution_for_action_request():
     client = TestClient(create_app())
 

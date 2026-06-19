@@ -36,6 +36,10 @@ from apps.api.domain.models import (
     AgentRunReplayDiff,
     AgentRunReplayResult,
     AgentRunTimelineItem,
+    AgentScenarioDefinition,
+    AgentScenarioRunResult,
+    AgentScenarioStep,
+    AgentScenarioStepResult,
     ApprovalRequest,
     ApprovalStatus,
     AuditEvent,
@@ -1219,6 +1223,210 @@ class AgentFeedbackUseCase:
             negative_count=negative_count,
             outcome_counts=outcome_counts,
         )
+
+
+class AgentScenarioUseCase:
+    def __init__(
+        self,
+        *,
+        run_agent: RunAgentUseCase,
+        audit_log: AuditLogPort,
+    ) -> None:
+        self.run_agent = run_agent
+        self.audit_log = audit_log
+        self._scenarios = _default_agent_scenarios()
+
+    def list_scenarios(self) -> list[AgentScenarioDefinition]:
+        return list(self._scenarios)
+
+    def get_scenario(self, scenario_id: str) -> AgentScenarioDefinition | None:
+        return next(
+            (scenario for scenario in self._scenarios if scenario.id == scenario_id),
+            None,
+        )
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        scenario_id: str,
+        user_id: str,
+        actor_scopes: list[str] | None = None,
+    ) -> AgentScenarioRunResult | None:
+        definition = self.get_scenario(scenario_id)
+        if definition is None:
+            return None
+
+        step_results: list[AgentScenarioStepResult] = []
+        for step in definition.steps:
+            scopes = sorted(set(step.actor_scopes + (actor_scopes or [])))
+            run = self.run_agent.execute(
+                tenant_id=tenant_id,
+                scenario=definition.scenario,
+                message=step.message,
+                user_id=user_id,
+                actor_scopes=scopes,
+            )
+            step_results.append(self._evaluate_step(step=step, run=run))
+
+        result = AgentScenarioRunResult(
+            tenant_id=tenant_id,
+            scenario_id=definition.id,
+            name=definition.name,
+            status="passed" if all(item.passed for item in step_results) else "failed",
+            step_results=step_results,
+            metrics=self._metrics(step_results),
+        )
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="operator",
+                actor_id=user_id,
+                event_type="agent.scenario.executed",
+                resource_type="agent_scenario",
+                resource_id=result.id,
+                payload={
+                    "scenario_id": result.scenario_id,
+                    "name": result.name,
+                    "status": result.status,
+                    "metrics": result.metrics,
+                    "run_ids": [str(step.run_id) for step in step_results],
+                },
+            )
+        )
+        return result
+
+    def _evaluate_step(
+        self,
+        *,
+        step: AgentScenarioStep,
+        run: AgentRun,
+    ) -> AgentScenarioStepResult:
+        failed_checks: list[str] = []
+        if run.status != RunStatus.SUCCEEDED:
+            failed_checks.append("run_status")
+        if run.query_type != step.expected_query_type:
+            failed_checks.append("query_type")
+        if run.confidence < step.min_confidence:
+            failed_checks.append("confidence")
+        if step.require_citation and not run.citations:
+            failed_checks.append("citation")
+        if step.require_approval and not any(
+            execution.decision == ToolDecision.APPROVAL_REQUIRED
+            for execution in run.tool_executions
+        ):
+            failed_checks.append("approval_required")
+
+        return AgentScenarioStepResult(
+            step_id=step.id,
+            title=step.title,
+            run_id=run.id,
+            status=run.status.value,
+            query_type=run.query_type.value,
+            confidence=run.confidence,
+            citation_count=len(run.citations),
+            tool_decision_counts=self._tool_decision_counts(run),
+            passed=not failed_checks,
+            failed_checks=failed_checks,
+        )
+
+    def _tool_decision_counts(self, run: AgentRun) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for execution in run.tool_executions:
+            key = execution.decision.value
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    def _metrics(self, step_results: list[AgentScenarioStepResult]) -> dict[str, Any]:
+        step_count = len(step_results)
+        passed_count = len([step for step in step_results if step.passed])
+        citation_steps = len([step for step in step_results if step.citation_count > 0])
+        approval_required_count = sum(
+            step.tool_decision_counts.get(ToolDecision.APPROVAL_REQUIRED.value, 0)
+            for step in step_results
+        )
+        average_confidence = (
+            round(sum(step.confidence for step in step_results) / step_count, 3)
+            if step_count
+            else 0.0
+        )
+        return {
+            "step_count": step_count,
+            "passed_count": passed_count,
+            "failed_count": step_count - passed_count,
+            "pass_rate": round(passed_count / step_count, 3) if step_count else 0.0,
+            "average_confidence": average_confidence,
+            "citation_coverage_ratio": (
+                round(citation_steps / step_count, 3) if step_count else 0.0
+            ),
+            "approval_required_count": approval_required_count,
+        }
+
+
+def _default_agent_scenarios() -> list[AgentScenarioDefinition]:
+    return [
+        AgentScenarioDefinition(
+            id="release-readiness",
+            name="Release Readiness",
+            description=(
+                "문서 근거 답변, 거버넌스 설명, 승인 필요 workflow 실행을 한 번에 검증합니다."
+            ),
+            scenario="release-readiness",
+            tags=["readiness", "governance", "workflow"],
+            steps=[
+                AgentScenarioStep(
+                    id="rag-operating-model",
+                    title="Agentic RAG 운영 모델 확인",
+                    message=(
+                        "Agentic RAG 운영 모델에서 질문 유형과 검색 전략을 어떻게 "
+                        "분리하는지 정리해줘"
+                    ),
+                    expected_query_type=QueryType.SUMMARY,
+                    min_confidence=0.5,
+                ),
+                AgentScenarioStep(
+                    id="governance-policy",
+                    title="거버넌스 정책 확인",
+                    message="AX Agent 거버넌스 기준과 감사 이벤트 원칙을 설명해줘",
+                    expected_query_type=QueryType.RISK,
+                    min_confidence=0.45,
+                ),
+                AgentScenarioStep(
+                    id="approval-workflow",
+                    title="승인 필요 workflow 검증",
+                    message="정책 문서를 근거로 workflow 생성 실행을 처리해줘",
+                    expected_query_type=QueryType.ACTION,
+                    actor_scopes=["records:read", "workflow:request"],
+                    require_approval=True,
+                ),
+            ],
+        ),
+        AgentScenarioDefinition(
+            id="incident-triage",
+            name="Incident Triage",
+            description=(
+                "LLMOps 장애 대응에 필요한 trace, tool gateway, audit event 관점을 검증합니다."
+            ),
+            scenario="incident-triage",
+            tags=["incident", "observability", "tool-gateway"],
+            steps=[
+                AgentScenarioStep(
+                    id="backend-reliability",
+                    title="백엔드 안정성 점검",
+                    message="LLMOps 백엔드 안정성에 필요한 요소를 정리해줘",
+                    expected_query_type=QueryType.SUMMARY,
+                    min_confidence=0.45,
+                ),
+                AgentScenarioStep(
+                    id="mcp-integration",
+                    title="MCP 연동 기준 점검",
+                    message="MCP 기반 사내 시스템 연동에서 중요한 기준은?",
+                    expected_query_type=QueryType.FACTUAL,
+                    min_confidence=0.4,
+                ),
+            ],
+        ),
+    ]
 
 
 class ToolCallUseCase:

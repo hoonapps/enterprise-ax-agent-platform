@@ -27,8 +27,8 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/export`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence` |
-| `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback`, `POST /v1/agents/runs/{run_id}/replay` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/export`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence`, `GET /v1/scenarios`, `GET /v1/scenarios/{scenario_id}` |
+| `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback`, `POST /v1/agents/runs/{run_id}/replay`, `POST /v1/scenarios/{scenario_id}/run` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
@@ -67,6 +67,10 @@ GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
 POST /v1/agents/runs/{run_id}/replay
 
+GET  /v1/scenarios
+GET  /v1/scenarios/{scenario_id}
+POST /v1/scenarios/{scenario_id}/run
+
 GET  /v1/ontology/graph
 
 GET  /v1/audit/events
@@ -80,6 +84,7 @@ GET  /v1/operations/feedback/summary
 GET  /v1/operations/alerts
 GET  /v1/operations/migrations/status
 POST /v1/operations/retention/prune
+
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
@@ -240,6 +245,60 @@ GET /v1/agents/runs?tenant_id=default&limit=50&status=succeeded
 
 목록 응답은 운영 추적용 summary다. 원문 query와 전체 답변은 내려보내지 않고, redaction이 적용된
 preview와 상태 지표만 반환한다.
+
+## Agent Scenario
+
+반복 검증이 필요한 운영 흐름은 scenario catalog로 정의한다. Scenario 실행은 여러 Agent run을
+순서대로 만들고, 각 step의 query type, citation, confidence, approval requirement를 검증한다.
+실행 결과는 `agent.scenario.executed` audit event로 남긴다.
+
+```text
+GET /v1/scenarios
+GET /v1/scenarios/release-readiness
+POST /v1/scenarios/release-readiness/run
+```
+
+실행 요청:
+
+```json
+{
+  "tenant_id": "default",
+  "user_id": "operator-01",
+  "actor_scopes": ["records:read", "workflow:request"]
+}
+```
+
+응답:
+
+```json
+{
+  "scenario_id": "release-readiness",
+  "status": "passed",
+  "metrics": {
+    "step_count": 3,
+    "passed_count": 3,
+    "failed_count": 0,
+    "pass_rate": 1.0,
+    "average_confidence": 0.73,
+    "citation_coverage_ratio": 1.0,
+    "approval_required_count": 1
+  },
+  "step_results": [
+    {
+      "step_id": "approval-workflow",
+      "run_id": "018f...",
+      "status": "succeeded",
+      "query_type": "action",
+      "citation_count": 2,
+      "tool_decision_counts": {
+        "approval_required": 1
+      },
+      "passed": true,
+      "failed_checks": []
+    }
+  ]
+}
+```
 
 ## Agent 실행 Export
 

@@ -514,6 +514,54 @@ class AgentRunReplayResult:
 
 
 @dataclass(frozen=True)
+class AgentScenarioStep:
+    id: str
+    title: str
+    message: str
+    expected_query_type: QueryType
+    actor_scopes: list[str] = field(default_factory=lambda: ["records:read"])
+    min_confidence: float = 0.0
+    require_citation: bool = True
+    require_approval: bool = False
+
+
+@dataclass(frozen=True)
+class AgentScenarioDefinition:
+    id: str
+    name: str
+    description: str
+    scenario: str
+    tags: list[str]
+    steps: list[AgentScenarioStep]
+
+
+@dataclass(frozen=True)
+class AgentScenarioStepResult:
+    step_id: str
+    title: str
+    run_id: UUID
+    status: str
+    query_type: str
+    confidence: float
+    citation_count: int
+    tool_decision_counts: dict[str, int]
+    passed: bool
+    failed_checks: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AgentScenarioRunResult:
+    tenant_id: str
+    scenario_id: str
+    name: str
+    status: str
+    step_results: list[AgentScenarioStepResult]
+    metrics: dict[str, Any]
+    id: UUID = field(default_factory=uuid4)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentFeedbackSummary:
     tenant_id: str
     event_limit: int
