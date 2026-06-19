@@ -118,6 +118,7 @@ GET  /v1/documents
 POST /v1/knowledge/search
 
 POST /v1/agents/runs
+POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
@@ -349,6 +350,22 @@ curl -X POST http://127.0.0.1:8000/v1/agents/runs \
     "message": "AX 전환 리스크와 거버넌스 기준을 정리해줘"
   }'
 ```
+
+Agent 실행 preview:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/agents/runs/preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "default",
+    "scenario": "operations",
+    "message": "운영 보고서 생성 workflow를 실행해줘.",
+    "actor_scopes": ["records:read", "workflow:request"]
+  }'
+```
+
+preview는 Agent run을 저장하거나 audit event를 만들지 않고 redaction, query type, retrieval strategy,
+policy decision, quota 상태, 예상 tool route를 반환합니다.
 
 Agent 실행 이력:
 
@@ -823,14 +840,15 @@ GET /dashboard
 - `/v1/operations/slo`
 - `/v1/operations/incidents/snapshot`
 - `/v1/operations/alerts`
+- `/v1/agents/runs/preview`
 - `/v1/agents/runs`
 - `/v1/agents/runs/{run_id}/timeline`
 - `/v1/approvals/pending`
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, 최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot,
-승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를
+화면은 Agent 실행 수, run preview, 최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, incident
+snapshot, 승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를
 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
 승인/반려 버튼은 기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서

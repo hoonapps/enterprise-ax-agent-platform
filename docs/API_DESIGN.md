@@ -57,6 +57,7 @@ GET  /v1/documents
 POST /v1/knowledge/search
 
 POST /v1/agents/runs
+POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
@@ -544,6 +545,7 @@ GET /dashboard
 | `GET /v1/operations/slo` | 성공률, blocked 비율, p95 latency, error budget |
 | `GET /v1/operations/incidents/snapshot` | incident severity, 원인 후보, 권장 조치 |
 | `GET /v1/operations/alerts` | 임계치 기반 운영 alert |
+| `POST /v1/agents/runs/preview` | 실행 전 redaction, policy, retrieval, tool route preview |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
 | `GET /v1/approvals/pending` | 승인 대기 queue |

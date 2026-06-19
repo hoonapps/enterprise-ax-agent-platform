@@ -103,6 +103,7 @@
 - 운영 alert API는 summary 지표를 임계치와 비교해 latency, confidence, gateway fallback, evaluation
   품질 하락을 별도 read model로 반환한다.
 - 월간 Agent 실행 quota guard는 실행 전 사용량을 확인하고, 초과 요청을 blocked run과 감사 이벤트로 남긴다.
+- Agent run preview는 실행 저장 없이 redaction, policy, retrieval strategy, 예상 tool route를 검토하게 한다.
 - SLO read model은 success rate, blocked rate, p95 latency, error budget을 계산해 운영 상태를
   `healthy`, `watch`, `breached`로 분류한다.
 - Incident snapshot은 summary, usage, SLO, alert 신호를 조합해 원인 후보와 권장 조치를 제공한다.

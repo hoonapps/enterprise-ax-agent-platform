@@ -149,6 +149,22 @@ POST /v1/agents/runs
 
 이 흐름은 Agentic RAG, RAG 전략 자동 선택, 운영 가능한 Agent runtime을 동시에 수용하도록 설계했다.
 
+```text
+POST /v1/agents/runs/preview
+  -> X-API-Key 인증
+  -> agents:run HTTP scope 확인
+  -> 개인정보 마스킹
+  -> 질문 유형 분류
+  -> 월간 quota 확인
+  -> 검색 전략 선택
+  -> 정책 사전 검사
+  -> 예상 tool route 계산
+  -> 실행 이력과 감사 이벤트 저장 없이 preview 반환
+```
+
+preview는 실제 실행 전 dry-run 경계다. 실행 저장소, 검색 실행, tool runtime을 호출하지 않고 같은
+정책/분류/검색 계획 컴포넌트로 요청의 실행 경로만 계산한다.
+
 ## Agent 실행 이력 조회
 
 ```text
@@ -305,6 +321,7 @@ GET /dashboard
      -> /v1/operations/slo
      -> /v1/operations/incidents/snapshot
      -> /v1/operations/alerts
+     -> /v1/agents/runs/preview
      -> /v1/agents/runs
      -> /v1/agents/runs/{run_id}/timeline
      -> /v1/approvals/pending
@@ -312,7 +329,7 @@ GET /dashboard
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
-  -> 운영 지표, 월간 사용률, SLO 상태, incident snapshot, alert, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, run preview, 월간 사용률, SLO 상태, incident snapshot, alert, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.

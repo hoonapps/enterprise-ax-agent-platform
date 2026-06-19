@@ -13,6 +13,7 @@ from apps.api.core.idempotency import (
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
+    AgentRunPreviewResponse,
     AgentRunSummaryResponse,
     AgentRunTimelineItemResponse,
     RunAgentRequest,
@@ -97,6 +98,43 @@ def run_agent(
         response=response,
     )
     return response
+
+
+@router.post("/agents/runs/preview", response_model=AgentRunPreviewResponse)
+def preview_agent_run(
+    request: RunAgentRequest,
+    container: ContainerDep,
+    auth: AgentRunAuth,
+) -> AgentRunPreviewResponse:
+    require_tenant_access(auth, request.tenant_id)
+    preview = container.run_agent.preview(
+        tenant_id=request.tenant_id,
+        scenario=request.scenario,
+        message=request.message,
+        actor_scopes=request.actor_scopes,
+    )
+    return AgentRunPreviewResponse(
+        tenant_id=preview.tenant_id,
+        scenario=preview.scenario,
+        query_type=preview.query_type.value,
+        redacted_query=preview.redacted_query,
+        redaction_count=preview.redaction_count,
+        retrieval_strategy=preview.retrieval_strategy,
+        top_k=preview.top_k,
+        policy=PolicyResponse(
+            allowed=preview.policy_decision.allowed,
+            decision=preview.policy_decision.decision,
+            reason=preview.policy_decision.reason,
+            redactions=preview.policy_decision.redactions,
+        ),
+        quota_allowed=preview.quota_allowed,
+        quota_remaining=preview.quota_remaining,
+        tool_name=preview.tool_name,
+        tool_action_type=preview.tool_action_type.value if preview.tool_action_type else None,
+        tool_risk_level=preview.tool_risk_level,
+        tool_description=preview.tool_description,
+        generated_at=preview.generated_at,
+    )
 
 
 @router.get("/agents/runs", response_model=list[AgentRunSummaryResponse])

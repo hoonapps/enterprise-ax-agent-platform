@@ -374,6 +374,25 @@ class AgentRunTimelineItem:
 
 
 @dataclass(frozen=True)
+class AgentRunPreview:
+    tenant_id: str
+    scenario: str
+    query_type: QueryType
+    redacted_query: str
+    redaction_count: int
+    retrieval_strategy: str
+    top_k: int
+    policy_decision: PolicyDecision
+    quota_allowed: bool
+    quota_remaining: int
+    tool_name: str | None = None
+    tool_action_type: ToolActionType | None = None
+    tool_risk_level: str | None = None
+    tool_description: str | None = None
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AuditEvent:
     tenant_id: str
     actor_type: str

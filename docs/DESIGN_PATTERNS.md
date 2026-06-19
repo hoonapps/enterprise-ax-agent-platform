@@ -217,6 +217,9 @@ RunAgentUseCase
 이 구조는 API, MCP, evaluation 등 여러 진입점이 같은 실행 정책을 공유하게 만든다.
 운영 화면은 `/v1/operations/usage` read model을 읽어 guard와 동일한 기준의 월간 사용률을 표시한다.
 
+`POST /v1/agents/runs/preview`는 같은 guard와 policy를 호출하지만, run 저장이나 audit append를 하지
+않는다. 실행 전 검토 API와 실제 실행 API가 정책 컴포넌트를 공유하도록 만든다.
+
 ## 14. Backend-Served Operator Console
 
 운영 콘솔은 제품의 핵심 쓰기 흐름과 분리된 얇은 UI 경계다.

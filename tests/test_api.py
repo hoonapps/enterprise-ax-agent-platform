@@ -224,6 +224,39 @@ def test_health_and_agent_flow():
     assert body["tool_executions"] == []
 
 
+def test_agent_run_preview_does_not_persist_run_or_audit_event():
+    client = TestClient(create_app())
+    tenant_id = "run-preview"
+
+    response = client.post(
+        "/v1/agents/runs/preview",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "운영 보고서 생성 workflow를 실행해줘. 연락처는 010-1234-5678",
+            "actor_scopes": ["workflow:request"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["query_type"] == "action"
+    assert body["redaction_count"] == 1
+    assert "[REDACTED_PHONE]" in body["redacted_query"]
+    assert body["retrieval_strategy"] == "action-grounding"
+    assert body["quota_allowed"] is True
+    assert body["tool_name"] == "workflow.request-change"
+    assert body["tool_action_type"] == "write"
+    assert body["tool_risk_level"] == "high"
+
+    runs = client.get(f"/v1/agents/runs?tenant_id={tenant_id}")
+    events = client.get(f"/v1/audit/events?tenant_id={tenant_id}")
+    assert runs.status_code == 200
+    assert events.status_code == 200
+    assert runs.json() == []
+    assert events.json() == []
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"
@@ -984,6 +1017,8 @@ def test_operator_dashboard_serves_backend_console():
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "Enterprise AX Agent Operations" in response.text
+    assert "/v1/agents/runs/preview" in response.text
+    assert "preview-result" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text

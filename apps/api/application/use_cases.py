@@ -25,6 +25,7 @@ from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
     AgentRun,
+    AgentRunPreview,
     AgentRunTimelineItem,
     ApprovalRequest,
     ApprovalStatus,
@@ -301,6 +302,47 @@ class RunAgentUseCase:
         self._create_approval_requests(run)
         self._audit_agent_run(run, latency_ms=elapsed_ms)
         return run
+
+    def preview(
+        self,
+        *,
+        tenant_id: str,
+        scenario: str,
+        message: str,
+        actor_scopes: list[str] | None = None,
+    ) -> AgentRunPreview:
+        redacted, redactions = self.redaction_policy.redact(message)
+        query_type = self.classifier.classify(redacted)
+        usage = self._current_month_usage(tenant_id)
+        quota_remaining = max(self.monthly_agent_run_quota - usage, 0)
+        plan = self.planner.plan(query_type, self.default_top_k)
+        decision = self.agent_policy.evaluate(
+            query_type=query_type,
+            message=redacted,
+            redactions=redactions,
+        )
+        tool_request = (
+            self._build_tool_request(message=redacted, actor_scopes=actor_scopes or [])
+            if plan.allow_tools
+            else None
+        )
+
+        return AgentRunPreview(
+            tenant_id=tenant_id,
+            scenario=scenario,
+            query_type=query_type,
+            redacted_query=redacted,
+            redaction_count=redactions,
+            retrieval_strategy=plan.strategy,
+            top_k=plan.top_k,
+            policy_decision=decision,
+            quota_allowed=quota_remaining > 0,
+            quota_remaining=quota_remaining,
+            tool_name=tool_request.name if tool_request else None,
+            tool_action_type=tool_request.action_type if tool_request else None,
+            tool_risk_level=tool_request.risk_level if tool_request else None,
+            tool_description=tool_request.description if tool_request else None,
+        )
 
     def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None:
         return self.runs.get(tenant_id=tenant_id, run_id=str(run_id))

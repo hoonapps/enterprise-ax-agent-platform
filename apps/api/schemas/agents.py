@@ -35,6 +35,24 @@ class RunAgentResponse(BaseModel):
     tool_executions: list[ToolExecutionResponse]
 
 
+class AgentRunPreviewResponse(BaseModel):
+    tenant_id: str
+    scenario: str
+    query_type: str
+    redacted_query: str
+    redaction_count: int
+    retrieval_strategy: str
+    top_k: int
+    policy: PolicyResponse
+    quota_allowed: bool
+    quota_remaining: int
+    tool_name: str | None
+    tool_action_type: str | None
+    tool_risk_level: str | None
+    tool_description: str | None
+    generated_at: datetime
+
+
 class AgentRunSummaryResponse(BaseModel):
     run_id: UUID
     tenant_id: str

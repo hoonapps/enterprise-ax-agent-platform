@@ -97,13 +97,27 @@ _DASHBOARD_HTML = """<!doctype html>
       color: var(--muted);
     }
 
-    .field input {
+    .field input,
+    .field textarea {
       height: 38px;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 0 10px;
       background: var(--surface);
       color: var(--text);
+    }
+
+    .field textarea {
+      min-height: 76px;
+      padding: 9px 10px;
+      resize: vertical;
+      line-height: 1.45;
+      font: inherit;
+    }
+
+    .field.full {
+      min-width: 0;
+      width: 100%;
     }
 
     .refresh {
@@ -579,6 +593,25 @@ _DASHBOARD_HTML = """<!doctype html>
 
         <section class="panel">
           <header>
+            <h2>Agent Run Preview</h2>
+            <span class="meta">dry-run plan</span>
+          </header>
+          <div class="panel-body">
+            <form class="stack" id="preview-form">
+              <div class="field full">
+                <label for="preview-message">Message</label>
+                <textarea id="preview-message" name="message">
+운영 보고서 생성 workflow를 실행해줘.
+                </textarea>
+              </div>
+              <button class="refresh" id="preview-submit" type="submit">Preview</button>
+            </form>
+            <pre class="json" id="preview-result">{}</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Tool Decision</h2>
             <span class="meta">runtime decision count</span>
           </header>
@@ -693,6 +726,10 @@ _DASHBOARD_HTML = """<!doctype html>
       eventLimit: document.querySelector("#event-limit"),
       auditRequestId: document.querySelector("#audit-request-id"),
       apiKey: document.querySelector("#api-key"),
+      previewForm: document.querySelector("#preview-form"),
+      previewMessage: document.querySelector("#preview-message"),
+      previewSubmit: document.querySelector("#preview-submit"),
+      previewResult: document.querySelector("#preview-result"),
       loadState: document.querySelector("#load-state"),
       generatedAt: document.querySelector("#generated-at"),
       documents: document.querySelector("#metric-documents"),
@@ -1070,6 +1107,29 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function previewAgentRun() {
+      const tenantId = els.tenant.value || "default";
+      const message = els.previewMessage.value.trim();
+      if (!message) {
+        els.previewResult.textContent = JSON.stringify({ error: "message is empty" }, null, 2);
+        return;
+      }
+      els.previewSubmit.disabled = true;
+      try {
+        const preview = await postJson("/v1/agents/runs/preview", {
+          tenant_id: tenantId,
+          scenario: "operations",
+          message,
+          actor_scopes: ["records:read", "workflow:request"]
+        });
+        els.previewResult.textContent = JSON.stringify(preview, null, 2);
+      } catch (error) {
+        els.previewResult.textContent = JSON.stringify({ error: error.message }, null, 2);
+      } finally {
+        els.previewSubmit.disabled = false;
+      }
+    }
+
     async function loadAgentTimeline(runId) {
       if (!runId) {
         renderAgentTimeline([]);
@@ -1166,6 +1226,11 @@ _DASHBOARD_HTML = """<!doctype html>
     els.controls.addEventListener("submit", (event) => {
       event.preventDefault();
       refreshDashboard();
+    });
+
+    els.previewForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      previewAgentRun();
     });
 
     els.approvalList.addEventListener("click", (event) => {
