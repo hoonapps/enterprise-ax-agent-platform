@@ -91,6 +91,7 @@
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
+- 모든 HTTP 응답은 request id와 처리 시간 헤더를 반환한다.
 - webhook delivery outbox, lease 기반 batch dispatcher, dead-letter 재시도로 외부 workflow 전송을
   통제할 수 있다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.

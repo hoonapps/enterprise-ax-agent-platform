@@ -1,7 +1,7 @@
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
@@ -50,6 +50,26 @@ def _clear_runtime_caches() -> None:
     get_settings.cache_clear()
     get_container.cache_clear()
     parse_api_key_credentials.cache_clear()
+
+
+def test_request_context_headers_echo_request_id():
+    client = TestClient(create_app())
+
+    response = client.get("/health", headers={"X-Request-ID": "request-123"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "request-123"
+    assert float(response.headers["X-Process-Time-Ms"]) >= 0
+
+
+def test_request_context_headers_generate_request_id():
+    client = TestClient(create_app())
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    UUID(response.headers["X-Request-ID"])
+    assert float(response.headers["X-Process-Time-Ms"]) >= 0
 
 
 def test_health_and_agent_flow():

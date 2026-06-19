@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from apps.api.core.observability import RequestContextMiddleware
 from apps.api.routers import (
     agents,
     approvals,
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
         ),
         version="0.1.0",
     )
+    app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(dashboard.router)
     app.include_router(documents.router)
