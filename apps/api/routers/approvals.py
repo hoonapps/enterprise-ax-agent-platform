@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.domain.models import ApprovalRequest
-from apps.api.schemas.approvals import ApprovalResponse, ApproveRequest
+from apps.api.schemas.approvals import ApprovalResponse, ApproveRequest, RejectApprovalRequest
 
 router = APIRouter(prefix="/v1/approvals", tags=["approvals"])
 ContainerDep = Annotated[AppContainer, Depends(get_container)]
@@ -32,6 +32,23 @@ def approve_request(
         tenant_id=request.tenant_id,
         approval_id=approval_id,
         approved_by=request.approved_by,
+    )
+    if approval is None:
+        raise HTTPException(status_code=404, detail="승인 요청을 찾을 수 없습니다.")
+    return _to_response(approval)
+
+
+@router.post("/{approval_id}/reject", response_model=ApprovalResponse)
+def reject_request(
+    approval_id: UUID,
+    request: RejectApprovalRequest,
+    container: ContainerDep,
+) -> ApprovalResponse:
+    approval = container.approval.reject(
+        tenant_id=request.tenant_id,
+        approval_id=approval_id,
+        rejected_by=request.rejected_by,
+        reason=request.reason,
     )
     if approval is None:
         raise HTTPException(status_code=404, detail="승인 요청을 찾을 수 없습니다.")

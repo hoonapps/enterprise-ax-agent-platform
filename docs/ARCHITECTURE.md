@@ -69,7 +69,7 @@ FastAPI
     |       +--> 문서 메타데이터 저장
     |
     +--> 검색/평가/감사 조회 API
-    +--> 승인 요청 조회/실행 API
+    +--> 승인 요청 조회/승인/반려 API
     +--> MCP-compatible tool boundary
             |
             +--> tools/list
@@ -144,6 +144,7 @@ Postgres 전환 시 Row Level Security로 확장할 수 있다.
 쓰기 API는 `Idempotency-Key`를 받을 수 있는 구조로 설계한다.  
 Agent 실행, 문서 적재, 업무 tool call은 재시도될 수 있으므로 중복 실행 방지가 필요하다.
 승인 replay는 이미 `executed` 상태인 요청을 다시 실행하지 않고 기존 replay 결과를 반환한다.
+반려된 요청은 `rejected` 상태로 닫히며 이후 승인 요청이 들어와도 replay하지 않는다.
 
 ### 감사 가능성
 
@@ -154,6 +155,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 어떤 정책 검사를 통과했는가
 - 어떤 tool call이 허용/거부되었는가
 - 어떤 tool call이 승인 대기 상태로 전환되었는가
+- 어떤 승인 요청이 실행 또는 반려되었는가
 - 실행 결과와 신뢰도는 무엇인가
 
 ### 보수적 기본값

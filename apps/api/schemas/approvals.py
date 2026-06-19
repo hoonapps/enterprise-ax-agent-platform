@@ -22,3 +22,9 @@ class ApprovalResponse(BaseModel):
 class ApproveRequest(BaseModel):
     tenant_id: str = "default"
     approved_by: str = Field(..., min_length=1)
+
+
+class RejectApprovalRequest(BaseModel):
+    tenant_id: str = "default"
+    rejected_by: str = Field(..., min_length=1)
+    reason: str = Field(..., min_length=2, max_length=500)

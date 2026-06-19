@@ -24,6 +24,7 @@ GET  /v1/tools
 POST /mcp
 GET  /v1/approvals/pending
 POST /v1/approvals/{approval_id}/approve
+POST /v1/approvals/{approval_id}/reject
 ```
 
 ## Agent 실행 요청
@@ -191,6 +192,20 @@ Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
 }
 ```
 
+반려 후에는 같은 리소스가 `rejected` 상태로 바뀌고 replay를 실행하지 않는다.
+
+```json
+{
+  "status": "rejected",
+  "approved_by": "operator-02",
+  "replay_result": {
+    "decision": "rejected",
+    "rejected_by": "operator-02",
+    "reason": "요청 근거가 부족하여 실행하지 않습니다."
+  }
+}
+```
+
 ## 헤더
 
 | 헤더 | 목적 |
@@ -207,5 +222,5 @@ Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
 - tool execution을 응답에 포함해 외부 시스템 실행 경계를 확인할 수 있게 한다.
 - tool catalog를 API로 노출해 required scope와 risk level을 확인할 수 있게 한다.
 - MCP 경유 tool call도 동일한 audit/approval 흐름으로 처리한다.
-- 승인 요청은 별도 리소스로 다뤄 pending, executed 상태 전이를 추적한다.
+- 승인 요청은 별도 리소스로 다뤄 pending, executed, rejected 상태 전이를 추적한다.
 - 평가 API를 별도 축으로 두어 Agent 품질을 회귀 테스트할 수 있게 한다.

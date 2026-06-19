@@ -102,6 +102,59 @@ def test_api_returns_tool_execution_for_action_request():
     assert replay_again.json()["replay_result"] == approved_body["replay_result"]
 
 
+def test_api_rejects_pending_approval_without_replay():
+    client = TestClient(create_app())
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "업무 실행 정책",
+            "content": "외부 상태를 변경하는 업무 실행은 승인 또는 반려 기록을 남겨야 한다.",
+            "source_uri": "test://approval-reject-policy",
+        },
+    )
+
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": "default",
+            "scenario": "operations",
+            "message": "정책 문서를 근거로 보고서 생성 요청을 처리해줘",
+        },
+    )
+    assert run.status_code == 200
+
+    pending = client.get("/v1/approvals/pending?tenant_id=default")
+    approval_id = pending.json()[0]["id"]
+
+    rejected = client.post(
+        f"/v1/approvals/{approval_id}/reject",
+        json={
+            "tenant_id": "default",
+            "rejected_by": "operator-02",
+            "reason": "요청 근거가 부족하여 실행하지 않습니다.",
+        },
+    )
+    assert rejected.status_code == 200
+    rejected_body = rejected.json()
+    assert rejected_body["status"] == "rejected"
+    assert rejected_body["approved_by"] == "operator-02"
+    assert rejected_body["replay_result"]["decision"] == "rejected"
+
+    pending_after = client.get("/v1/approvals/pending?tenant_id=default")
+    assert pending_after.status_code == 200
+    assert pending_after.json() == []
+
+    approve_after_reject = client.post(
+        f"/v1/approvals/{approval_id}/approve",
+        json={"tenant_id": "default", "approved_by": "operator-01"},
+    )
+    assert approve_after_reject.status_code == 200
+    assert approve_after_reject.json()["status"] == "rejected"
+    assert approve_after_reject.json()["replay_result"] == rejected_body["replay_result"]
+
+
 def test_mcp_tool_boundary_lists_and_calls_tools():
     client = TestClient(create_app())
 

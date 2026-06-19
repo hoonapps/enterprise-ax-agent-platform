@@ -97,6 +97,7 @@ Agent 시스템은 나중에 왜 그런 답을 했는지 설명할 수 있어야
 - `document.ingested`
 - `retrieval.executed`
 - `agent.answer.generated`
+- `approval.rejected`
 - 이후 확장: `tool.allowed`, `tool.denied`, `policy.redaction.applied`
 
 이벤트는 나중에 Langfuse, OpenTelemetry, SIEM, 관리자 대시보드로 보낼 수 있다.

@@ -654,3 +654,48 @@ class ApprovalUseCase:
             )
         )
         return saved
+
+    def reject(
+        self,
+        *,
+        tenant_id: str,
+        approval_id: UUID,
+        rejected_by: str,
+        reason: str,
+    ) -> ApprovalRequest | None:
+        approval = self.approvals.get(tenant_id=tenant_id, approval_id=str(approval_id))
+        if approval is None:
+            return None
+
+        if approval.status != ApprovalStatus.PENDING:
+            return approval
+
+        updated = replace(
+            approval,
+            status=ApprovalStatus.REJECTED,
+            approved_by=rejected_by,
+            replay_result={
+                "decision": "rejected",
+                "rejected_by": rejected_by,
+                "reason": reason,
+            },
+            updated_at=datetime.now(UTC),
+        )
+        saved = self.approvals.save(updated)
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="user",
+                actor_id=rejected_by,
+                event_type="approval.rejected",
+                resource_type="approval_request",
+                resource_id=saved.id,
+                payload={
+                    "agent_run_id": str(saved.agent_run_id),
+                    "tool_execution_id": str(saved.tool_execution_id),
+                    "tool_name": saved.tool_name,
+                    "reason": reason,
+                },
+            )
+        )
+        return saved
