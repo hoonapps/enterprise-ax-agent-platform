@@ -19,6 +19,9 @@ from apps.api.domain.models import (
     ToolExecution,
     ToolGatewayResult,
     ToolRequest,
+    WebhookDelivery,
+    WebhookDeliveryStatus,
+    WebhookSubscription,
 )
 
 
@@ -94,3 +97,28 @@ class IdempotencyRepositoryPort(Protocol):
     def get(self, tenant_id: str, key: str) -> IdempotencyRecord | None: ...
 
     def save(self, record: IdempotencyRecord) -> IdempotencyRecord: ...
+
+
+class WebhookSubscriptionRepositoryPort(Protocol):
+    def save(self, subscription: WebhookSubscription) -> WebhookSubscription: ...
+
+    def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]: ...
+
+    def list_enabled_for_event(
+        self,
+        tenant_id: str,
+        event_type: str,
+    ) -> list[WebhookSubscription]: ...
+
+
+class WebhookDeliveryRepositoryPort(Protocol):
+    def save(self, delivery: WebhookDelivery) -> WebhookDelivery: ...
+
+    def list_deliveries(
+        self,
+        tenant_id: str,
+        status: WebhookDeliveryStatus | None = None,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]: ...
+
+    def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None: ...

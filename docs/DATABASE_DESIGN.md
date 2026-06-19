@@ -15,6 +15,7 @@ Postgres + Vector DB 조합을 전제로 설계했다.
 - Agent 실행은 요청/상태/답변/신뢰도/trace를 가진 업무 레코드로 저장한다.
 - Tool call은 프롬프트 로그 안에 숨기지 않고 별도 테이블로 남긴다.
 - 감사 이벤트는 append-only로 관리한다.
+- 외부 workflow 전송은 webhook delivery outbox로 분리한다.
 - 평가 결과는 Agent 실행과 분리해 회귀 테스트에 사용할 수 있게 한다.
 - 멱등 key는 요청 hash와 응답 payload를 저장해 재시도 안전성을 보장한다.
 
@@ -45,6 +46,10 @@ tenants
   |     +-- evaluation_cases
   |
   +-- audit_events
+  |
+  +-- webhook_subscriptions
+  |
+  +-- webhook_deliveries
   |
   +-- idempotency_keys
 ```
@@ -224,6 +229,41 @@ Tool call을 별도 테이블로 둔 이유:
 
 감사 로그는 운영자와 보안 담당자가 Agent 실행을 재구성하기 위한 핵심 데이터다.
 
+### `webhook_subscriptions`
+
+감사 이벤트를 외부 workflow로 전달하기 위한 구독 설정이다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK |
+| `name` | text | subscription 이름 |
+| `target_url` | text | 전송 대상 URL |
+| `event_types` | text[] | 구독 이벤트 목록, `*` 지원 |
+| `secret` | text | 서명용 secret |
+| `enabled` | boolean | 활성 여부 |
+| `created_at` | timestamptz | 생성 시각 |
+
+### `webhook_deliveries`
+
+감사 이벤트별 외부 전송 대기열이다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK |
+| `subscription_id` | uuid | webhook subscription FK |
+| `event_id` | uuid | audit event FK |
+| `event_type` | text | 이벤트 타입 |
+| `target_url` | text | 전송 대상 URL snapshot |
+| `payload` | jsonb | 전송 payload |
+| `status` | text | pending, delivered, failed |
+| `attempt_count` | int | 전송 시도 횟수 |
+| `next_attempt_at` | timestamptz | 다음 재시도 시각 |
+| `last_error` | text | 마지막 실패 원인 |
+| `created_at` | timestamptz | 생성 시각 |
+| `delivered_at` | timestamptz | 성공 시각 |
+
 ### `approval_requests`
 
 승인이 필요한 tool call을 운영자가 처리할 수 있는 리소스로 승격한 테이블이다.
@@ -297,6 +337,7 @@ RDB와 Vector DB의 책임을 분리한다.
 | Agent 실행 | 180~365일 |
 | Tool call | 365일 또는 컴플라이언스 기준 |
 | 감사 이벤트 | 1~3년 |
+| Webhook delivery | 운영 재처리 기간 기준 |
 | 평가 결과 | 회귀 분석을 위해 장기 보관 |
 
 ## 확장 전략

@@ -302,3 +302,38 @@ class AuditEvent:
     resource_id: UUID | None = None
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+class WebhookDeliveryStatus(StrEnum):
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class WebhookSubscription:
+    tenant_id: str
+    name: str
+    target_url: str
+    event_types: list[str]
+    secret: str | None = None
+    enabled: bool = True
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class WebhookDelivery:
+    tenant_id: str
+    subscription_id: UUID
+    event_id: UUID
+    event_type: str
+    target_url: str
+    payload: dict[str, Any]
+    status: WebhookDeliveryStatus = WebhookDeliveryStatus.PENDING
+    attempt_count: int = 0
+    next_attempt_at: datetime | None = None
+    last_error: str | None = None
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    delivered_at: datetime | None = None

@@ -17,6 +17,9 @@ from apps.api.domain.models import (
     OntologyEdge,
     OntologyGraph,
     OntologyNode,
+    WebhookDelivery,
+    WebhookDeliveryStatus,
+    WebhookSubscription,
 )
 
 
@@ -225,3 +228,61 @@ class InMemoryIdempotencyRepository:
         with self._lock:
             self._records[record.tenant_id][record.key] = record
         return record
+
+
+class InMemoryWebhookSubscriptionRepository:
+    def __init__(self) -> None:
+        self._subscriptions: dict[str, dict[UUID, WebhookSubscription]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def save(self, subscription: WebhookSubscription) -> WebhookSubscription:
+        with self._lock:
+            self._subscriptions[subscription.tenant_id][subscription.id] = subscription
+        return subscription
+
+    def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]:
+        with self._lock:
+            subscriptions = list(self._subscriptions[tenant_id].values())
+        return sorted(subscriptions, key=lambda item: item.created_at, reverse=True)
+
+    def list_enabled_for_event(
+        self,
+        tenant_id: str,
+        event_type: str,
+    ) -> list[WebhookSubscription]:
+        return [
+            subscription
+            for subscription in self.list_subscriptions(tenant_id)
+            if subscription.enabled
+            and ("*" in subscription.event_types or event_type in subscription.event_types)
+        ]
+
+
+class InMemoryWebhookDeliveryRepository:
+    def __init__(self) -> None:
+        self._deliveries: dict[str, dict[UUID, WebhookDelivery]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def save(self, delivery: WebhookDelivery) -> WebhookDelivery:
+        with self._lock:
+            self._deliveries[delivery.tenant_id][delivery.id] = delivery
+        return delivery
+
+    def list_deliveries(
+        self,
+        tenant_id: str,
+        status: WebhookDeliveryStatus | None = None,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        with self._lock:
+            deliveries = list(self._deliveries[tenant_id].values())
+        if status is not None:
+            deliveries = [delivery for delivery in deliveries if delivery.status == status]
+        return sorted(deliveries, key=lambda item: item.created_at, reverse=True)[:limit]
+
+    def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
+        with self._lock:
+            try:
+                return self._deliveries[tenant_id].get(UUID(delivery_id))
+            except ValueError:
+                return None

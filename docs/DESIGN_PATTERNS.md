@@ -287,3 +287,23 @@ Document
 - Ontology graph는 문서, 분류, metadata, concept 관계를 조회 가능하게 만든다.
 - Extractor는 현재 결정론적 규칙 기반이지만, 나중에 LLM entity extraction으로 교체할 수 있다.
 - Repository는 메모리/Postgres 구현을 제공하고, 이후 Neo4j 같은 graph backend로 확장할 수 있다.
+
+## 17. Webhook Outbox
+
+감사 이벤트와 외부 workflow 전송은 분리한다.
+
+```text
+AuditEvent
+  -> OutboxAuditLog
+  -> AuditLogPort.append
+  -> WebhookSubscription match
+  -> WebhookDelivery(status=pending)
+  -> dispatcher worker
+```
+
+이 패턴은 외부 시스템 장애가 Agent 실행 경로에 전파되는 것을 막는다.
+
+- audit event는 source of truth로 먼저 저장한다.
+- subscription은 어떤 event type을 외부 workflow로 보낼지 정의한다.
+- delivery는 pending/delivered/failed 상태를 가진 재처리 가능한 작업 단위다.
+- 실제 HTTP 전송은 API 프로세스가 아니라 별도 worker로 분리할 수 있다.

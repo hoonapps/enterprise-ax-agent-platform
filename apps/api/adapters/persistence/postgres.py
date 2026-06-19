@@ -31,6 +31,9 @@ from apps.api.domain.models import (
     ToolDecision,
     ToolExecution,
     TraceStep,
+    WebhookDelivery,
+    WebhookDeliveryStatus,
+    WebhookSubscription,
 )
 
 
@@ -529,6 +532,178 @@ class PostgresAuditLog(PostgresBase):
             )
             for row in rows
         ]
+
+
+class PostgresWebhookSubscriptionRepository(PostgresBase):
+    def save(self, subscription: WebhookSubscription) -> WebhookSubscription:
+        tenant_pk = self._tenant_pk(subscription.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute(
+                """
+                insert into webhook_subscriptions (
+                  id, tenant_id, name, target_url, event_types,
+                  secret, enabled, created_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do update set
+                  name = excluded.name,
+                  target_url = excluded.target_url,
+                  event_types = excluded.event_types,
+                  secret = excluded.secret,
+                  enabled = excluded.enabled
+                """,
+                (
+                    subscription.id,
+                    tenant_pk,
+                    subscription.name,
+                    subscription.target_url,
+                    subscription.event_types,
+                    subscription.secret,
+                    subscription.enabled,
+                    subscription.created_at,
+                ),
+            )
+        return subscription
+
+    def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                """
+                select s.*, t.slug as tenant_slug
+                from webhook_subscriptions s
+                join tenants t on t.id = s.tenant_id
+                where t.slug = %s
+                order by s.created_at desc
+                """,
+                (tenant_id,),
+            ).fetchall()
+        return [self._row_to_subscription(row) for row in rows]
+
+    def list_enabled_for_event(
+        self,
+        tenant_id: str,
+        event_type: str,
+    ) -> list[WebhookSubscription]:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                """
+                select s.*, t.slug as tenant_slug
+                from webhook_subscriptions s
+                join tenants t on t.id = s.tenant_id
+                where t.slug = %s
+                  and s.enabled = true
+                  and (%s = any(s.event_types) or '*' = any(s.event_types))
+                order by s.created_at desc
+                """,
+                (tenant_id, event_type),
+            ).fetchall()
+        return [self._row_to_subscription(row) for row in rows]
+
+    def _row_to_subscription(self, row: dict[str, Any]) -> WebhookSubscription:
+        return WebhookSubscription(
+            id=cast(UUID, row["id"]),
+            tenant_id=cast(str, row["tenant_slug"]),
+            name=cast(str, row["name"]),
+            target_url=cast(str, row["target_url"]),
+            event_types=[str(item) for item in cast(list[Any], row["event_types"])],
+            secret=cast(str | None, row["secret"]),
+            enabled=bool(row["enabled"]),
+            created_at=row["created_at"],
+        )
+
+
+class PostgresWebhookDeliveryRepository(PostgresBase):
+    def save(self, delivery: WebhookDelivery) -> WebhookDelivery:
+        tenant_pk = self._tenant_pk(delivery.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute(
+                """
+                insert into webhook_deliveries (
+                  id, tenant_id, subscription_id, event_id, event_type, target_url,
+                  payload, status, attempt_count, next_attempt_at, last_error,
+                  created_at, delivered_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do update set
+                  status = excluded.status,
+                  attempt_count = excluded.attempt_count,
+                  next_attempt_at = excluded.next_attempt_at,
+                  last_error = excluded.last_error,
+                  delivered_at = excluded.delivered_at
+                """,
+                (
+                    delivery.id,
+                    tenant_pk,
+                    delivery.subscription_id,
+                    delivery.event_id,
+                    delivery.event_type,
+                    delivery.target_url,
+                    Jsonb(delivery.payload),
+                    delivery.status.value,
+                    delivery.attempt_count,
+                    delivery.next_attempt_at,
+                    delivery.last_error,
+                    delivery.created_at,
+                    delivery.delivered_at,
+                ),
+            )
+        return delivery
+
+    def list_deliveries(
+        self,
+        tenant_id: str,
+        status: WebhookDeliveryStatus | None = None,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        filters = ["t.slug = %s"]
+        params: list[Any] = [tenant_id]
+        if status is not None:
+            filters.append("d.status = %s")
+            params.append(status.value)
+        params.append(limit)
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                f"""
+                select d.*, t.slug as tenant_slug
+                from webhook_deliveries d
+                join tenants t on t.id = d.tenant_id
+                where {" and ".join(filters)}
+                order by d.created_at desc
+                limit %s
+                """,
+                params,
+            ).fetchall()
+        return [self._row_to_delivery(row) for row in rows]
+
+    def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            row = conn.execute(
+                """
+                select d.*, t.slug as tenant_slug
+                from webhook_deliveries d
+                join tenants t on t.id = d.tenant_id
+                where t.slug = %s and d.id = %s
+                """,
+                (tenant_id, UUID(delivery_id)),
+            ).fetchone()
+        return self._row_to_delivery(row) if row else None
+
+    def _row_to_delivery(self, row: dict[str, Any]) -> WebhookDelivery:
+        return WebhookDelivery(
+            id=cast(UUID, row["id"]),
+            tenant_id=cast(str, row["tenant_slug"]),
+            subscription_id=cast(UUID, row["subscription_id"]),
+            event_id=cast(UUID, row["event_id"]),
+            event_type=cast(str, row["event_type"]),
+            target_url=cast(str, row["target_url"]),
+            payload=cast(dict[str, Any], row["payload"]),
+            status=WebhookDeliveryStatus(cast(str, row["status"])),
+            attempt_count=int(row["attempt_count"]),
+            next_attempt_at=row["next_attempt_at"],
+            last_error=cast(str | None, row["last_error"]),
+            created_at=row["created_at"],
+            delivered_at=row["delivered_at"],
+        )
 
 
 class PostgresApprovalRepository(PostgresBase):

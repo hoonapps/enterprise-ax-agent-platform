@@ -12,7 +12,10 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryEvaluationRepository,
     InMemoryIdempotencyRepository,
     InMemoryOntologyRepository,
+    InMemoryWebhookDeliveryRepository,
+    InMemoryWebhookSubscriptionRepository,
 )
+from apps.api.adapters.persistence.outbox import OutboxAuditLog
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
     PostgresApprovalRepository,
@@ -21,6 +24,8 @@ from apps.api.adapters.persistence.postgres import (
     PostgresEvaluationRepository,
     PostgresIdempotencyRepository,
     PostgresOntologyRepository,
+    PostgresWebhookDeliveryRepository,
+    PostgresWebhookSubscriptionRepository,
 )
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
 from apps.api.adapters.vector.qdrant import QdrantVectorSearch
@@ -36,6 +41,8 @@ from apps.api.application.ports import (
     IdempotencyRepositoryPort,
     OntologyRepositoryPort,
     VectorSearchPort,
+    WebhookDeliveryRepositoryPort,
+    WebhookSubscriptionRepositoryPort,
 )
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
@@ -58,29 +65,44 @@ class AppContainer:
         self.settings = settings
         self.documents: DocumentRepositoryPort
         self.audit_log: AuditLogPort
+        self.base_audit_log: AuditLogPort
         self.runs: AgentRunRepositoryPort
         self.approvals: ApprovalRepositoryPort
         self.evaluations: EvaluationRepositoryPort
         self.idempotency: IdempotencyRepositoryPort
         self.ontology: OntologyRepositoryPort
+        self.webhook_subscriptions: WebhookSubscriptionRepositoryPort
+        self.webhook_deliveries: WebhookDeliveryRepositoryPort
         self.vector_search: VectorSearchPort
 
         if settings.storage_backend == "postgres":
             self.documents = PostgresDocumentRepository(settings.postgres_dsn)
-            self.audit_log = PostgresAuditLog(settings.postgres_dsn)
+            self.base_audit_log = PostgresAuditLog(settings.postgres_dsn)
             self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
             self.approvals = PostgresApprovalRepository(settings.postgres_dsn)
             self.evaluations = PostgresEvaluationRepository(settings.postgres_dsn)
             self.idempotency = PostgresIdempotencyRepository(settings.postgres_dsn)
             self.ontology = PostgresOntologyRepository(settings.postgres_dsn)
+            self.webhook_subscriptions = PostgresWebhookSubscriptionRepository(
+                settings.postgres_dsn
+            )
+            self.webhook_deliveries = PostgresWebhookDeliveryRepository(settings.postgres_dsn)
         else:
             self.documents = InMemoryDocumentRepository()
-            self.audit_log = InMemoryAuditLog()
+            self.base_audit_log = InMemoryAuditLog()
             self.runs = InMemoryAgentRunRepository()
             self.approvals = InMemoryApprovalRepository()
             self.evaluations = InMemoryEvaluationRepository()
             self.idempotency = InMemoryIdempotencyRepository()
             self.ontology = InMemoryOntologyRepository()
+            self.webhook_subscriptions = InMemoryWebhookSubscriptionRepository()
+            self.webhook_deliveries = InMemoryWebhookDeliveryRepository()
+
+        self.audit_log = OutboxAuditLog(
+            inner=self.base_audit_log,
+            subscriptions=self.webhook_subscriptions,
+            deliveries=self.webhook_deliveries,
+        )
 
         if settings.vector_backend == "qdrant":
             self.vector_search = QdrantVectorSearch(

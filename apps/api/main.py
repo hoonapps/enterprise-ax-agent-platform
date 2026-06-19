@@ -12,6 +12,7 @@ from apps.api.routers import (
     ontology,
     operations,
     tools,
+    webhooks,
 )
 
 
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(operations.router)
     app.include_router(approvals.router)
     app.include_router(tools.router)
+    app.include_router(webhooks.router)
     app.include_router(mcp.router)
     app.include_router(audit.router)
     return app

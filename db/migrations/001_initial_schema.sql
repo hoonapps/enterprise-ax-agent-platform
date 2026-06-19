@@ -221,6 +221,42 @@ create index ix_audit_events_type_created
 create index ix_audit_events_resource
   on audit_events (tenant_id, resource_type, resource_id);
 
+create table webhook_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id),
+  name text not null,
+  target_url text not null,
+  event_types text[] not null default '{}',
+  secret text,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index ix_webhook_subscriptions_tenant_enabled
+  on webhook_subscriptions (tenant_id, enabled);
+
+create table webhook_deliveries (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id),
+  subscription_id uuid not null references webhook_subscriptions(id) on delete cascade,
+  event_id uuid not null references audit_events(id) on delete cascade,
+  event_type text not null,
+  target_url text not null,
+  payload jsonb not null default '{}'::jsonb,
+  status text not null,
+  attempt_count int not null default 0,
+  next_attempt_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  delivered_at timestamptz
+);
+
+create index ix_webhook_deliveries_status
+  on webhook_deliveries (tenant_id, status, created_at desc);
+
+create index ix_webhook_deliveries_subscription
+  on webhook_deliveries (tenant_id, subscription_id, created_at desc);
+
 create table idempotency_keys (
   tenant_id uuid not null references tenants(id),
   key text not null,

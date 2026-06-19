@@ -79,6 +79,7 @@ FastAPI
     |       +--> evaluation.completed 감사 이벤트 기록
     |       +--> AuditEvent JSONL/CSV export
     |       +--> OperationsSummary 집계
+    |       +--> Webhook delivery outbox 조회
     +--> 승인 요청 조회/승인/반려 API
     +--> Operator Dashboard
     |       |
@@ -223,6 +224,22 @@ GET /v1/audit/export
 
 export는 조회 API와 같은 AuditLogPort를 사용한다.
 따라서 메모리 모드와 Postgres 모드가 같은 필터 규칙을 따른다.
+
+## Webhook Outbox 흐름
+
+```text
+Use Case
+  -> AuditLogPort.append(event)
+  -> OutboxAuditLog
+     -> inner AuditLogPort.append(event)
+     -> matching WebhookSubscription 조회
+     -> WebhookDelivery pending 생성
+  -> external worker가 delivery 전송
+  -> delivered / failed 상태 기록
+```
+
+감사 이벤트 저장과 외부 workflow 전송을 분리한다.
+따라서 n8n, Slack, 내부 workflow endpoint가 느리거나 실패해도 Agent 실행은 delivery outbox 생성까지만 수행한다.
 
 ## Operations Summary 흐름
 

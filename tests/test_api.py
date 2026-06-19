@@ -637,3 +637,49 @@ def test_document_ingest_updates_ontology_graph():
     assert {"classified_as", "mentions", "has_metadata"} <= relations
     labels = {node["label"] for node in body["nodes"]}
     assert "Agentic RAG 온톨로지 운영 모델" in labels
+
+
+def test_webhook_subscription_creates_audit_delivery_outbox():
+    client = TestClient(create_app())
+
+    subscription = client.post(
+        "/v1/webhooks/subscriptions",
+        json={
+            "tenant_id": "default",
+            "name": "document-ingest-outbox",
+            "target_url": "https://workflow.internal/hooks/documents",
+            "event_types": ["document.ingested"],
+        },
+    )
+    assert subscription.status_code == 200
+    subscription_body = subscription.json()
+    assert subscription_body["event_types"] == ["document.ingested"]
+
+    ingest = client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "Webhook outbox 문서",
+            "content": "문서 적재 감사 이벤트는 webhook delivery outbox에 pending 상태로 쌓인다.",
+            "source_uri": "test://webhook-outbox",
+        },
+    )
+    assert ingest.status_code == 200
+
+    deliveries = client.get("/v1/webhooks/deliveries?tenant_id=default&status=pending")
+
+    assert deliveries.status_code == 200
+    body = deliveries.json()
+    assert len(body) == 1
+    assert body[0]["subscription_id"] == subscription_body["id"]
+    assert body[0]["event_type"] == "document.ingested"
+    assert body[0]["status"] == "pending"
+    assert body[0]["payload"]["payload"]["title"] == "Webhook outbox 문서"
+
+    delivered = client.post(
+        f"/v1/webhooks/deliveries/{body[0]['id']}/mark-delivered",
+        json={"tenant_id": "default"},
+    )
+    assert delivered.status_code == 200
+    assert delivered.json()["status"] == "delivered"
+    assert delivered.json()["attempt_count"] == 1
