@@ -8,12 +8,14 @@ from uuid import UUID
 
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
+from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
     ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
     EvaluationRepositoryPort,
+    OntologyRepositoryPort,
     ToolRegistryPort,
     ToolRuntimePort,
     VectorSearchPort,
@@ -51,16 +53,22 @@ class IngestDocumentUseCase:
         vector_search: VectorSearchPort,
         audit_log: AuditLogPort,
         chunker: TextChunker,
+        ontology: OntologyRepositoryPort,
+        ontology_extractor: OntologyExtractor,
     ) -> None:
         self.documents = documents
         self.vector_search = vector_search
         self.audit_log = audit_log
         self.chunker = chunker
+        self.ontology = ontology
+        self.ontology_extractor = ontology_extractor
 
     def execute(self, document: Document, actor_id: str = "system") -> tuple[Document, int]:
         chunks = self.chunker.split(document)
         saved = self.documents.save_document(document, chunks)
         self.vector_search.upsert(chunks)
+        extracted = self.ontology_extractor.extract(saved)
+        self.ontology.upsert(extracted.nodes, extracted.edges)
         self.audit_log.append(
             AuditEvent(
                 tenant_id=document.tenant_id,
@@ -74,6 +82,8 @@ class IngestDocumentUseCase:
                     "source_type": saved.source_type,
                     "chunk_count": len(chunks),
                     "classification": saved.classification.value,
+                    "ontology_node_count": len(extracted.nodes),
+                    "ontology_edge_count": len(extracted.edges),
                 },
             )
         )

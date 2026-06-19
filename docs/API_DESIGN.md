@@ -33,6 +33,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
 | `operations:read` | `GET /v1/operations/summary` |
+| `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
 | `evaluations:read` | `GET /v1/evaluations/runs/{evaluation_run_id}` |
 | `evaluations:write` | `POST /v1/evaluations/runs` |
@@ -54,6 +55,8 @@ POST /v1/knowledge/search
 
 POST /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
+
+GET  /v1/ontology/graph
 
 GET  /v1/audit/events
 GET  /v1/audit/export
@@ -295,6 +298,45 @@ GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
 
 ```text
 GET /v1/operations/summary?tenant_id=default&event_limit=500
+```
+
+## Ontology Graph
+
+문서 적재 시 제목, 본문, metadata에서 concept node와 relation edge를 결정론적으로 추출한다.
+조회 API는 tenant별 graph read model을 반환한다.
+
+```text
+GET /v1/ontology/graph?tenant_id=default&limit=200
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "nodes": [
+    {
+      "node_key": "concept:agentic-rag",
+      "label": "agentic rag",
+      "node_type": "concept",
+      "source_document_id": "018f...",
+      "evidence_count": 3,
+      "metadata": {
+        "source_uri": "manual://agentic-rag"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_key": "document:018f...",
+      "target_key": "concept:agentic-rag",
+      "relation": "mentions",
+      "evidence_count": 3,
+      "metadata": {}
+    }
+  ],
+  "generated_at": "2026-06-19T00:00:00Z"
+}
 ```
 
 ## Operator Dashboard

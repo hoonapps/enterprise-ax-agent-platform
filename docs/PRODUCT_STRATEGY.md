@@ -5,6 +5,7 @@
 목표는 단순 질의응답이 아니다.
 
 - 업무 문서를 안전하게 검색한다.
+- 문서에서 업무 개념과 관계를 추출해 ontology graph로 제공한다.
 - 질문 유형에 따라 RAG 전략을 바꾼다.
 - 외부 시스템 실행 전 정책을 검사한다.
 - API 호출 권한과 Agent tool 실행 권한을 분리한다.
@@ -57,13 +58,14 @@
 9. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
 10. 반려된 승인 요청은 닫힌 상태로 유지하고 이후 replay하지 않는다.
 11. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
-12. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
-13. 답변 품질은 evaluation dataset으로 반복 측정한다.
-14. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
-15. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
-16. 운영 요약은 audit event와 업무 원장에서 계산한다.
-17. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
-18. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
+12. Ontology graph는 검색 인덱스가 아니라 업무 개념 탐색용 read model이다.
+13. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
+14. 답변 품질은 evaluation dataset으로 반복 측정한다.
+15. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
+16. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
+17. 운영 요약은 audit event와 업무 원장에서 계산한다.
+18. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+19. 운영 화면은 API read model의 소비자로 두고 상태 변경 책임을 갖지 않는다.
 
 ## 확장 축
 
@@ -74,7 +76,7 @@
 | Tool Runtime | tool schema registry, scope check, MCP-compatible JSON-RPC, Tool Gateway |
 | Governance | API key auth, tenant guard, RBAC, PII redaction, audit export |
 | LLMOps | evaluation dataset, regression test, cost/latency metrics |
-| Domain Intelligence | ontology, knowledge graph, multimodal document ingestion |
+| Domain Intelligence | ontology graph API, knowledge graph, multimodal document ingestion |
 
 ## 제품 성공 기준
 
@@ -90,4 +92,5 @@
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
+- 문서에서 추출된 ontology graph로 업무 개념과 관계를 조회할 수 있다.
 - 외부 LLM이나 Vector DB 장애 시에도 실패 경계가 명확하다.

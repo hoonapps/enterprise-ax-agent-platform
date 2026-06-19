@@ -598,3 +598,42 @@ def test_idempotency_key_replays_agent_run_response():
         headers=headers,
     )
     assert conflict.status_code == 409
+
+
+def test_document_ingest_updates_ontology_graph():
+    client = TestClient(create_app())
+
+    ingest = client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "Agentic RAG 온톨로지 운영 모델",
+            "content": (
+                "Agentic RAG 플랫폼은 문서 검색, 정책 감사, 승인 워크플로우, "
+                "Knowledge Graph를 연결한다. 운영자는 감사 이벤트와 tool 실행 이력을 추적한다."
+            ),
+            "source_uri": "test://ontology-agentic-rag",
+            "metadata": {
+                "domain": "operations",
+                "system": ["approval", "audit"],
+            },
+        },
+    )
+    assert ingest.status_code == 200
+
+    graph = client.get("/v1/ontology/graph?tenant_id=default")
+
+    assert graph.status_code == 200
+    body = graph.json()
+    assert body["tenant_id"] == "default"
+    assert body["nodes"]
+    assert body["edges"]
+    node_types = {node["node_type"] for node in body["nodes"]}
+    assert "document" in node_types
+    assert "classification" in node_types
+    assert "concept" in node_types
+    assert "metadata:domain" in node_types
+    relations = {edge["relation"] for edge in body["edges"]}
+    assert {"classified_as", "mentions", "has_metadata"} <= relations
+    labels = {node["label"] for node in body["nodes"]}
+    assert "Agentic RAG 온톨로지 운영 모델" in labels

@@ -269,3 +269,21 @@ HTTP Request
 
 승인 replay 멱등성과는 책임이 다르다. `Idempotency-Key`는 HTTP write API 재시도 중복을 막고,
 approval replay는 승인 이후 외부 tool 실행 중복을 막는다.
+
+## 16. Ontology Read Model
+
+문서 적재 use case는 검색 청크와 별도로 ontology graph read model을 업데이트한다.
+
+```text
+Document
+  -> TextChunker -> VectorSearchPort
+  -> OntologyExtractor -> OntologyRepositoryPort
+  -> GET /v1/ontology/graph
+```
+
+이 패턴의 목적은 RAG 검색 인덱스와 업무 개념 탐색 모델을 분리하는 것이다.
+
+- Vector DB는 유사도 검색을 담당한다.
+- Ontology graph는 문서, 분류, metadata, concept 관계를 조회 가능하게 만든다.
+- Extractor는 현재 결정론적 규칙 기반이지만, 나중에 LLM entity extraction으로 교체할 수 있다.
+- Repository는 메모리/Postgres 구현을 제공하고, 이후 Neo4j 같은 graph backend로 확장할 수 있다.

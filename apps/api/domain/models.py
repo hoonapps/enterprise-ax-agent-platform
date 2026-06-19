@@ -85,6 +85,39 @@ class DocumentChunk:
 
 
 @dataclass(frozen=True)
+class OntologyNode:
+    tenant_id: str
+    node_key: str
+    label: str
+    node_type: str
+    source_document_id: UUID | None = None
+    evidence_count: int = 1
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class OntologyEdge:
+    tenant_id: str
+    source_key: str
+    target_key: str
+    relation: str
+    evidence_count: int = 1
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class OntologyGraph:
+    tenant_id: str
+    nodes: list[OntologyNode]
+    edges: list[OntologyEdge]
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class Citation:
     document_id: UUID
     chunk_id: UUID

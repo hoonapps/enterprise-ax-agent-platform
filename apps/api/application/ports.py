@@ -11,6 +11,9 @@ from apps.api.domain.models import (
     EvaluationCase,
     EvaluationRun,
     IdempotencyRecord,
+    OntologyEdge,
+    OntologyGraph,
+    OntologyNode,
     RetrievalResult,
     ToolDefinition,
     ToolExecution,
@@ -23,6 +26,12 @@ class DocumentRepositoryPort(Protocol):
     def save_document(self, document: Document, chunks: list[DocumentChunk]) -> Document: ...
 
     def list_documents(self, tenant_id: str) -> list[Document]: ...
+
+
+class OntologyRepositoryPort(Protocol):
+    def upsert(self, nodes: list[OntologyNode], edges: list[OntologyEdge]) -> None: ...
+
+    def get_graph(self, tenant_id: str, limit: int = 200) -> OntologyGraph: ...
 
 
 class VectorSearchPort(Protocol):

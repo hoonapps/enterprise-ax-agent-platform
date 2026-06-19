@@ -14,6 +14,9 @@ from apps.api.domain.models import (
     EvaluationCase,
     EvaluationRun,
     IdempotencyRecord,
+    OntologyEdge,
+    OntologyGraph,
+    OntologyNode,
 )
 
 
@@ -36,6 +39,65 @@ class InMemoryDocumentRepository:
     def list_chunks(self, tenant_id: str) -> list[DocumentChunk]:
         with self._lock:
             return list(self._chunks[tenant_id])
+
+
+class InMemoryOntologyRepository:
+    def __init__(self) -> None:
+        self._nodes: dict[str, dict[str, OntologyNode]] = defaultdict(dict)
+        self._edges: dict[str, dict[tuple[str, str, str], OntologyEdge]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def upsert(self, nodes: list[OntologyNode], edges: list[OntologyEdge]) -> None:
+        with self._lock:
+            for node in nodes:
+                existing_node = self._nodes[node.tenant_id].get(node.node_key)
+                if existing_node is None:
+                    self._nodes[node.tenant_id][node.node_key] = node
+                    continue
+                self._nodes[node.tenant_id][node.node_key] = OntologyNode(
+                    tenant_id=existing_node.tenant_id,
+                    node_key=existing_node.node_key,
+                    label=existing_node.label,
+                    node_type=existing_node.node_type,
+                    source_document_id=existing_node.source_document_id,
+                    evidence_count=existing_node.evidence_count + node.evidence_count,
+                    metadata={**existing_node.metadata, **node.metadata},
+                    created_at=existing_node.created_at,
+                    updated_at=node.updated_at,
+                )
+            for edge in edges:
+                edge_key = (edge.source_key, edge.target_key, edge.relation)
+                existing_edge = self._edges[edge.tenant_id].get(edge_key)
+                if existing_edge is None:
+                    self._edges[edge.tenant_id][edge_key] = edge
+                    continue
+                self._edges[edge.tenant_id][edge_key] = OntologyEdge(
+                    tenant_id=existing_edge.tenant_id,
+                    source_key=existing_edge.source_key,
+                    target_key=existing_edge.target_key,
+                    relation=existing_edge.relation,
+                    evidence_count=existing_edge.evidence_count + edge.evidence_count,
+                    metadata={**existing_edge.metadata, **edge.metadata},
+                    created_at=existing_edge.created_at,
+                    updated_at=edge.updated_at,
+                )
+
+    def get_graph(self, tenant_id: str, limit: int = 200) -> OntologyGraph:
+        with self._lock:
+            nodes = sorted(
+                self._nodes[tenant_id].values(),
+                key=lambda node: (-node.evidence_count, node.node_key),
+            )[:limit]
+            node_keys = {node.node_key for node in nodes}
+            edges = [
+                edge
+                for edge in sorted(
+                    self._edges[tenant_id].values(),
+                    key=lambda edge: (-edge.evidence_count, edge.source_key, edge.target_key),
+                )
+                if edge.source_key in node_keys and edge.target_key in node_keys
+            ][:limit]
+        return OntologyGraph(tenant_id=tenant_id, nodes=nodes, edges=edges)
 
 
 class InMemoryAgentRunRepository:

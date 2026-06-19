@@ -68,6 +68,7 @@ FastAPI
     |       +--> 문서 정규화
     |       +--> 청크 분리
     |       +--> 임베딩/벡터 저장
+    |       +--> Ontology graph 추출/저장
     |       +--> 문서 메타데이터 저장
     |
     +--> 검색/평가/감사/운영 조회 API
@@ -150,6 +151,8 @@ POST /v1/documents/ingest
   -> 청크 분리
   -> chunk metadata 구성
   -> 벡터 저장소 upsert
+  -> OntologyExtractor로 concept/metadata/relation 추출
+  -> OntologyRepositoryPort upsert
   -> 문서/청크 메타데이터 저장
   -> 감사 이벤트 기록
 ```
@@ -158,7 +161,25 @@ POST /v1/documents/ingest
 
 - 원본 문서는 업무/컴플라이언스 단위다.
 - 청크는 검색/임베딩 단위다.
+- ontology graph는 운영자가 업무 개념과 문서 관계를 탐색하기 위한 read model이다.
 - 벡터 DB는 파생 데이터이며, 원본 메타데이터의 source of truth는 RDB다.
+
+## Ontology Graph 흐름
+
+```text
+Document
+  -> OntologyExtractor
+     -> document node
+     -> classification node
+     -> metadata node
+     -> concept node
+     -> mentions / classified_as / has_metadata / co_occurs_with edge
+  -> OntologyRepositoryPort
+  -> GET /v1/ontology/graph
+```
+
+현재 extractor는 외부 LLM 없이 동작하는 결정론적 규칙 기반 구현이다.
+이 경계 덕분에 나중에 LLM 기반 entity extraction이나 Neo4j adapter로 교체해도 API 계약은 유지된다.
 
 ## Evaluation 실행 흐름
 

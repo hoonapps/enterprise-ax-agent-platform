@@ -11,6 +11,7 @@ Postgres + Vector DB 조합을 전제로 설계했다.
 
 - 모든 업무 데이터는 `tenant_id`로 격리한다.
 - 원본 문서와 검색 청크를 분리한다.
+- 문서에서 추출한 업무 개념은 ontology graph read model로 분리한다.
 - Agent 실행은 요청/상태/답변/신뢰도/trace를 가진 업무 레코드로 저장한다.
 - Tool call은 프롬프트 로그 안에 숨기지 않고 별도 테이블로 남긴다.
 - 감사 이벤트는 append-only로 관리한다.
@@ -27,6 +28,10 @@ tenants
   +-- documents
   |     |
   |     +-- document_chunks
+  |
+  +-- ontology_nodes
+  |
+  +-- ontology_edges
   |
   +-- agent_runs
   |     |
@@ -97,6 +102,41 @@ RAG 검색 단위다.
 
 `embedding_ref`만 저장하고 실제 벡터는 Vector DB에 둔다.  
 임베딩 모델을 바꾸면 RDB 청크를 기준으로 벡터 인덱스를 재생성할 수 있다.
+
+### `ontology_nodes`
+
+문서에서 추출한 업무 개념, 문서, 분류, metadata 값을 graph node로 저장한다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `tenant_id` | uuid | FK |
+| `node_key` | text | tenant 내 고유 node key |
+| `label` | text | 표시 이름 |
+| `node_type` | text | document, concept, classification, metadata:* |
+| `source_document_id` | uuid | 최초 근거 문서 |
+| `evidence_count` | int | 등장/근거 누적 횟수 |
+| `metadata` | jsonb | source_uri 등 확장 정보 |
+| `created_at` | timestamptz | 생성 시각 |
+| `updated_at` | timestamptz | 수정 시각 |
+
+Primary key는 `(tenant_id, node_key)`다.
+
+### `ontology_edges`
+
+node 사이의 관계를 저장한다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `tenant_id` | uuid | FK |
+| `source_key` | text | 출발 node key |
+| `target_key` | text | 도착 node key |
+| `relation` | text | classified_as, mentions, has_metadata, co_occurs_with |
+| `evidence_count` | int | 관계 근거 누적 횟수 |
+| `metadata` | jsonb | 확장 정보 |
+| `created_at` | timestamptz | 생성 시각 |
+| `updated_at` | timestamptz | 수정 시각 |
+
+Primary key는 `(tenant_id, source_key, target_key, relation)`다.
 
 ### `agent_runs`
 

@@ -7,10 +7,12 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryApprovalRepository,
     InMemoryAuditLog,
     InMemoryDocumentRepository,
+    InMemoryOntologyRepository,
 )
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
+from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import IngestDocumentUseCase, RunAgentUseCase
@@ -38,6 +40,8 @@ def build_use_cases():
         vector_search=vector,
         audit_log=audit,
         chunker=TextChunker(max_chars=300, overlap=40),
+        ontology=InMemoryOntologyRepository(),
+        ontology_extractor=OntologyExtractor(),
     )
     agent = RunAgentUseCase(
         vector_search=vector,

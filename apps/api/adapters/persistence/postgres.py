@@ -21,6 +21,9 @@ from apps.api.domain.models import (
     EvaluationRun,
     EvaluationStatus,
     IdempotencyRecord,
+    OntologyEdge,
+    OntologyGraph,
+    OntologyNode,
     PolicyDecision,
     QueryType,
     RunStatus,
@@ -135,6 +138,125 @@ class PostgresDocumentRepository(PostgresBase):
             )
             for row in rows
         ]
+
+
+class PostgresOntologyRepository(PostgresBase):
+    def upsert(self, nodes: list[OntologyNode], edges: list[OntologyEdge]) -> None:
+        if not nodes and not edges:
+            return
+        tenant_id = (nodes[0].tenant_id if nodes else edges[0].tenant_id)
+        tenant_pk = self._tenant_pk(tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            for node in nodes:
+                conn.execute(
+                    """
+                    insert into ontology_nodes (
+                      tenant_id, node_key, label, node_type, source_document_id,
+                      evidence_count, metadata, created_at, updated_at
+                    )
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    on conflict (tenant_id, node_key) do update set
+                      evidence_count = ontology_nodes.evidence_count + excluded.evidence_count,
+                      metadata = ontology_nodes.metadata || excluded.metadata,
+                      updated_at = excluded.updated_at
+                    """,
+                    (
+                        tenant_pk,
+                        node.node_key,
+                        node.label,
+                        node.node_type,
+                        node.source_document_id,
+                        node.evidence_count,
+                        Jsonb(node.metadata),
+                        node.created_at,
+                        node.updated_at,
+                    ),
+                )
+            for edge in edges:
+                conn.execute(
+                    """
+                    insert into ontology_edges (
+                      tenant_id, source_key, target_key, relation,
+                      evidence_count, metadata, created_at, updated_at
+                    )
+                    values (%s, %s, %s, %s, %s, %s, %s, %s)
+                    on conflict (tenant_id, source_key, target_key, relation) do update set
+                      evidence_count = ontology_edges.evidence_count + excluded.evidence_count,
+                      metadata = ontology_edges.metadata || excluded.metadata,
+                      updated_at = excluded.updated_at
+                    """,
+                    (
+                        tenant_pk,
+                        edge.source_key,
+                        edge.target_key,
+                        edge.relation,
+                        edge.evidence_count,
+                        Jsonb(edge.metadata),
+                        edge.created_at,
+                        edge.updated_at,
+                    ),
+                )
+
+    def get_graph(self, tenant_id: str, limit: int = 200) -> OntologyGraph:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            node_rows = conn.execute(
+                """
+                select n.*, t.slug as tenant_slug
+                from ontology_nodes n
+                join tenants t on t.id = n.tenant_id
+                where t.slug = %s
+                order by n.evidence_count desc, n.node_key asc
+                limit %s
+                """,
+                (tenant_id, limit),
+            ).fetchall()
+            node_keys = [row["node_key"] for row in node_rows]
+            if node_keys:
+                edge_rows = conn.execute(
+                    """
+                    select e.*, t.slug as tenant_slug
+                    from ontology_edges e
+                    join tenants t on t.id = e.tenant_id
+                    where t.slug = %s
+                      and e.source_key = any(%s)
+                      and e.target_key = any(%s)
+                    order by e.evidence_count desc, e.source_key asc, e.target_key asc
+                    limit %s
+                    """,
+                    (tenant_id, node_keys, node_keys, limit),
+                ).fetchall()
+            else:
+                edge_rows = []
+        return OntologyGraph(
+            tenant_id=tenant_id,
+            nodes=[self._row_to_node(row) for row in node_rows],
+            edges=[self._row_to_edge(row) for row in edge_rows],
+        )
+
+    def _row_to_node(self, row: dict[str, Any]) -> OntologyNode:
+        return OntologyNode(
+            tenant_id=cast(str, row["tenant_slug"]),
+            node_key=cast(str, row["node_key"]),
+            label=cast(str, row["label"]),
+            node_type=cast(str, row["node_type"]),
+            source_document_id=cast(UUID | None, row["source_document_id"]),
+            evidence_count=int(row["evidence_count"]),
+            metadata=cast(dict[str, Any], row["metadata"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def _row_to_edge(self, row: dict[str, Any]) -> OntologyEdge:
+        return OntologyEdge(
+            tenant_id=cast(str, row["tenant_slug"]),
+            source_key=cast(str, row["source_key"]),
+            target_key=cast(str, row["target_key"]),
+            relation=cast(str, row["relation"]),
+            evidence_count=int(row["evidence_count"]),
+            metadata=cast(dict[str, Any], row["metadata"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
 
 
 class PostgresAgentRunRepository(PostgresBase):

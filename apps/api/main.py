@@ -9,6 +9,7 @@ from apps.api.routers import (
     evaluations,
     health,
     mcp,
+    ontology,
     operations,
     tools,
 )
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(agents.router)
     app.include_router(evaluations.router)
+    app.include_router(ontology.router)
     app.include_router(operations.router)
     app.include_router(approvals.router)
     app.include_router(tools.router)

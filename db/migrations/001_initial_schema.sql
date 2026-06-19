@@ -54,6 +54,37 @@ create table document_chunks (
 create index ix_document_chunks_embedding
   on document_chunks (tenant_id, embedding_ref);
 
+create table ontology_nodes (
+  tenant_id uuid not null references tenants(id),
+  node_key text not null,
+  label text not null,
+  node_type text not null,
+  source_document_id uuid references documents(id) on delete set null,
+  evidence_count int not null default 1,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, node_key)
+);
+
+create index ix_ontology_nodes_type
+  on ontology_nodes (tenant_id, node_type, evidence_count desc);
+
+create table ontology_edges (
+  tenant_id uuid not null references tenants(id),
+  source_key text not null,
+  target_key text not null,
+  relation text not null,
+  evidence_count int not null default 1,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tenant_id, source_key, target_key, relation)
+);
+
+create index ix_ontology_edges_relation
+  on ontology_edges (tenant_id, relation, evidence_count desc);
+
 create table agent_runs (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id),

@@ -11,6 +11,7 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryDocumentRepository,
     InMemoryEvaluationRepository,
     InMemoryIdempotencyRepository,
+    InMemoryOntologyRepository,
 )
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
@@ -19,11 +20,13 @@ from apps.api.adapters.persistence.postgres import (
     PostgresDocumentRepository,
     PostgresEvaluationRepository,
     PostgresIdempotencyRepository,
+    PostgresOntologyRepository,
 )
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
 from apps.api.adapters.vector.qdrant import QdrantVectorSearch
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
+from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
     ApprovalRepositoryPort,
@@ -31,6 +34,7 @@ from apps.api.application.ports import (
     DocumentRepositoryPort,
     EvaluationRepositoryPort,
     IdempotencyRepositoryPort,
+    OntologyRepositoryPort,
     VectorSearchPort,
 )
 from apps.api.application.query_classifier import QueryClassifier
@@ -58,6 +62,7 @@ class AppContainer:
         self.approvals: ApprovalRepositoryPort
         self.evaluations: EvaluationRepositoryPort
         self.idempotency: IdempotencyRepositoryPort
+        self.ontology: OntologyRepositoryPort
         self.vector_search: VectorSearchPort
 
         if settings.storage_backend == "postgres":
@@ -67,6 +72,7 @@ class AppContainer:
             self.approvals = PostgresApprovalRepository(settings.postgres_dsn)
             self.evaluations = PostgresEvaluationRepository(settings.postgres_dsn)
             self.idempotency = PostgresIdempotencyRepository(settings.postgres_dsn)
+            self.ontology = PostgresOntologyRepository(settings.postgres_dsn)
         else:
             self.documents = InMemoryDocumentRepository()
             self.audit_log = InMemoryAuditLog()
@@ -74,6 +80,7 @@ class AppContainer:
             self.approvals = InMemoryApprovalRepository()
             self.evaluations = InMemoryEvaluationRepository()
             self.idempotency = InMemoryIdempotencyRepository()
+            self.ontology = InMemoryOntologyRepository()
 
         if settings.vector_backend == "qdrant":
             self.vector_search = QdrantVectorSearch(
@@ -85,6 +92,7 @@ class AppContainer:
             self.vector_search = LocalKeywordVectorSearch()
 
         self.chunker = TextChunker()
+        self.ontology_extractor = OntologyExtractor()
         self.classifier = QueryClassifier()
         self.planner = RetrievalPlanner()
         self.redaction_policy = RedactionPolicy()
@@ -104,6 +112,8 @@ class AppContainer:
             vector_search=self.vector_search,
             audit_log=self.audit_log,
             chunker=self.chunker,
+            ontology=self.ontology,
+            ontology_extractor=self.ontology_extractor,
         )
         self.search_knowledge = SearchKnowledgeUseCase(
             vector_search=self.vector_search,
