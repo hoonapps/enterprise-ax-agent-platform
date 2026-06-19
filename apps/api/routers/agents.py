@@ -10,7 +10,7 @@ from apps.api.core.idempotency import (
     request_payload_hash,
     save_idempotent_response,
 )
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
     RunAgentRequest,
@@ -39,6 +39,7 @@ def search_knowledge(
     container: ContainerDep,
     auth: KnowledgeReadAuth,
 ) -> SearchKnowledgeResponse:
+    require_tenant_access(auth, request.tenant_id)
     results = container.search_knowledge.execute(
         tenant_id=request.tenant_id,
         query=request.query,
@@ -66,6 +67,7 @@ def run_agent(
     auth: AgentRunAuth,
     idempotency_key: IdempotencyKeyHeader = None,
 ) -> RunAgentResponse:
+    require_tenant_access(auth, request.tenant_id)
     request_hash = request_payload_hash(request)
     replayed = replay_idempotent_response(
         repository=container.idempotency,
@@ -102,6 +104,7 @@ def get_agent_run(
     auth: AgentReadAuth,
     tenant_id: str = "default",
 ) -> RunAgentResponse:
+    require_tenant_access(auth, tenant_id)
     run = container.run_agent.get_run(tenant_id=tenant_id, run_id=run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")

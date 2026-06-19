@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from apps.api.core.container import AppContainer, get_container
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AuditEvent
 from apps.api.schemas.common import AuditEventResponse
 
@@ -25,6 +25,7 @@ def list_audit_events(
     event_type: str | None = None,
     resource_type: str | None = None,
 ) -> list[AuditEventResponse]:
+    require_tenant_access(auth, tenant_id)
     events = container.audit_log.list_events(
         tenant_id=tenant_id,
         limit=limit,
@@ -44,6 +45,7 @@ def export_audit_events(
     resource_type: str | None = None,
     format: str = "jsonl",
 ) -> Response:
+    require_tenant_access(auth, tenant_id)
     events = container.audit_log.list_events(
         tenant_id=tenant_id,
         limit=limit,

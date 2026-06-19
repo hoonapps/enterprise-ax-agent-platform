@@ -171,14 +171,17 @@ AUTH_ENABLED=false
 
 ```env
 AUTH_ENABLED=true
-API_KEY_CREDENTIALS=local-dev-key:operator-01:documents:read|documents:write|knowledge:read|agents:read|agents:run|approvals:read|approvals:write|audit:read|operations:read|tools:read|evaluations:read|evaluations:write|mcp:use
+API_KEY_CREDENTIALS=local-dev-key:operator-01:documents:read|documents:write|knowledge:read|agents:read|agents:run|approvals:read|approvals:write|audit:read|operations:read|tools:read|evaluations:read|evaluations:write|mcp:use@default
 ```
 
 형식:
 
 ```text
-key:actor_id:scope|scope;another-key:actor_id:scope|scope
+key:actor_id:scope|scope[@tenant|tenant];another-key:actor_id:scope|scope[@tenant]
 ```
+
+tenant 목록을 생략하면 모든 tenant 접근을 허용합니다. 운영형 설정에서는 key마다 접근 가능한 tenant를
+명시하는 것을 권장합니다.
 
 호출 시 `X-API-Key` 헤더를 보냅니다.
 

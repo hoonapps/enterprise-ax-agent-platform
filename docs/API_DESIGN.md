@@ -14,11 +14,13 @@ X-API-Key: local-dev-key
 `API_KEY_CREDENTIALS`는 다음 형식이다.
 
 ```text
-key:actor_id:scope|scope;another-key:actor_id:scope|scope
+key:actor_id:scope|scope[@tenant|tenant];another-key:actor_id:scope|scope[@tenant]
 ```
 
 HTTP API scope는 endpoint 접근 권한이고, Agent request의 `actor_scopes`는 tool runtime 실행 권한이다.
 두 경계를 분리해 API 호출 권한과 Agent의 외부 시스템 실행 권한을 따로 통제한다.
+tenant 목록을 지정하면 해당 key는 지정된 tenant의 데이터에만 접근할 수 있다.
+tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 
 | Scope | Endpoint |
 | --- | --- |

@@ -6,7 +6,7 @@ from typing import Annotated, Any, cast
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import ToolActionType, ToolDecision, ToolDefinition, ToolExecution
 from apps.api.schemas.mcp import McpJsonRpcRequest
 
@@ -46,7 +46,7 @@ def handle_mcp(
         )
 
     if request.method == "tools/call":
-        return _handle_tool_call(request=request, container=container)
+        return _handle_tool_call(request=request, container=container, auth=auth)
 
     return _error(request.id, -32601, "Method not found", request.method)
 
@@ -55,6 +55,7 @@ def _handle_tool_call(
     *,
     request: McpJsonRpcRequest,
     container: AppContainer,
+    auth: AuthPrincipal,
 ) -> dict[str, Any]:
     tool_name = request.params.get("name")
     if not isinstance(tool_name, str) or not tool_name:
@@ -66,6 +67,7 @@ def _handle_tool_call(
     arguments = cast(dict[str, Any], raw_arguments)
 
     tenant_id = _string_param(request.params, "tenant_id", "default")
+    require_tenant_access(auth, tenant_id)
     actor_id = _string_param(request.params, "actor_id", "mcp-client")
     actor_scopes = _string_list_param(request.params, "actor_scopes")
 

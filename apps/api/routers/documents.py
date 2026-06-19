@@ -9,7 +9,7 @@ from apps.api.core.idempotency import (
     request_payload_hash,
     save_idempotent_response,
 )
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import Classification, Document
 from apps.api.schemas.documents import (
     DocumentResponse,
@@ -30,6 +30,7 @@ def ingest_document(
     auth: DocumentWriteAuth,
     idempotency_key: IdempotencyKeyHeader = None,
 ) -> IngestDocumentResponse:
+    require_tenant_access(auth, request.tenant_id)
     request_hash = request_payload_hash(request)
     replayed = replay_idempotent_response(
         repository=container.idempotency,
@@ -74,6 +75,7 @@ def list_documents(
     auth: DocumentReadAuth,
     tenant_id: str = "default",
 ) -> list[DocumentResponse]:
+    require_tenant_access(auth, tenant_id)
     return [
         DocumentResponse(
             id=document.id,

@@ -242,6 +242,16 @@ GET /dashboard
 모든 핵심 데이터는 `tenant_id`를 가진다. MVP는 `default` 테넌트로 실행하지만,
 Postgres 전환 시 Row Level Security로 확장할 수 있다.
 
+API key credential은 선택적으로 tenant 목록을 가질 수 있다.
+
+```text
+key:actor_id:scope|scope@tenant-a|tenant-b
+```
+
+요청의 `tenant_id`가 principal의 허용 tenant 목록에 없으면 `403 Forbidden`을 반환한다.
+tenant 목록을 생략한 key는 모든 tenant에 접근할 수 있어 로컬 호환성을 유지하지만,
+운영형 설정에서는 tenant를 명시하는 것을 권장한다.
+
 ### 멱등성
 
 재시도 가능한 쓰기 API는 `Idempotency-Key`를 지원한다.

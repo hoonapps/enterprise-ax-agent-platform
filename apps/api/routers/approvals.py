@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.core.container import AppContainer, get_container
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import ApprovalRequest
 from apps.api.schemas.approvals import ApprovalResponse, ApproveRequest, RejectApprovalRequest
 
@@ -20,6 +20,7 @@ def list_pending_approvals(
     auth: ApprovalReadAuth,
     tenant_id: str = "default",
 ) -> list[ApprovalResponse]:
+    require_tenant_access(auth, tenant_id)
     return [
         _to_response(approval)
         for approval in container.approval.list_pending(tenant_id=tenant_id)
@@ -33,6 +34,7 @@ def approve_request(
     container: ContainerDep,
     auth: ApprovalWriteAuth,
 ) -> ApprovalResponse:
+    require_tenant_access(auth, request.tenant_id)
     approval = container.approval.approve(
         tenant_id=request.tenant_id,
         approval_id=approval_id,
@@ -50,6 +52,7 @@ def reject_request(
     container: ContainerDep,
     auth: ApprovalWriteAuth,
 ) -> ApprovalResponse:
+    require_tenant_access(auth, request.tenant_id)
     approval = container.approval.reject(
         tenant_id=request.tenant_id,
         approval_id=approval_id,

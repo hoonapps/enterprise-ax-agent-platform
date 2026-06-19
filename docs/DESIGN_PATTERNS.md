@@ -226,8 +226,9 @@ HTTP API 접근 권한은 Agent tool 실행 권한과 분리한다.
 
 ```text
 X-API-Key
-  -> AuthPrincipal(actor_id, scopes)
+  -> AuthPrincipal(actor_id, scopes, tenant_ids)
   -> require_scopes("operations:read")
+  -> require_tenant_access("default")
   -> Router
   -> Use Case
 ```
@@ -235,6 +236,7 @@ X-API-Key
 이 패턴의 목적은 두 가지다.
 
 - endpoint를 호출할 수 있는 주체를 제한한다.
+- key가 접근할 수 있는 tenant를 제한한다.
 - Agent가 tool을 실행할 수 있는지는 tool runtime에서 별도로 판단한다.
 
 예를 들어 `agents:run` scope가 있는 API key는 Agent 실행 endpoint를 호출할 수 있다.
@@ -242,6 +244,7 @@ X-API-Key
 
 기본 로컬 모드는 `AUTH_ENABLED=false`로 둔다. 외부 DB 없이 빠르게 실행해도 되지만,
 운영형 로컬 환경에서는 `AUTH_ENABLED=true`와 `API_KEY_CREDENTIALS`로 같은 API를 보호할 수 있다.
+credential의 `@tenant-a|tenant-b` suffix로 허용 tenant를 지정할 수 있다.
 
 ## 15. Idempotency Repository
 

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import OperationsSummary
 from apps.api.schemas.operations import OperationsSummaryResponse
 
@@ -19,6 +19,7 @@ def get_operations_summary(
     tenant_id: str = "default",
     event_limit: int = 500,
 ) -> OperationsSummaryResponse:
+    require_tenant_access(auth, tenant_id)
     summary = container.operations_summary.execute(
         tenant_id=tenant_id,
         event_limit=event_limit,

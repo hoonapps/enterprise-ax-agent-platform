@@ -10,7 +10,7 @@ from apps.api.core.idempotency import (
     request_payload_hash,
     save_idempotent_response,
 )
-from apps.api.core.security import AuthPrincipal, require_scopes
+from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import EvaluationCase, EvaluationRun
 from apps.api.schemas.evaluations import (
     EvaluationCaseResponse,
@@ -31,6 +31,7 @@ def run_evaluation(
     auth: EvaluationWriteAuth,
     idempotency_key: IdempotencyKeyHeader = None,
 ) -> EvaluationRunResponse:
+    require_tenant_access(auth, request.tenant_id)
     request_hash = request_payload_hash(request)
     replayed = replay_idempotent_response(
         repository=container.idempotency,
@@ -75,6 +76,7 @@ def get_evaluation_run(
     auth: EvaluationReadAuth,
     tenant_id: str = "default",
 ) -> EvaluationRunResponse:
+    require_tenant_access(auth, tenant_id)
     run = container.evaluate_agent.get(
         tenant_id=tenant_id,
         evaluation_run_id=evaluation_run_id,

@@ -476,6 +476,63 @@ def test_api_key_auth_can_protect_operational_apis(monkeypatch):
     _clear_runtime_caches()
 
 
+def test_api_key_auth_restricts_tenant_access(monkeypatch):
+    with monkeypatch.context() as scoped:
+        scoped.setenv("AUTH_ENABLED", "true")
+        scoped.setenv(
+            "API_KEY_CREDENTIALS",
+            "tenant-a-key:operator-a:operations:read|documents:write|mcp:use@tenant-a",
+        )
+        _clear_runtime_caches()
+        client = TestClient(create_app())
+        headers = {"X-API-Key": "tenant-a-key"}
+
+        allowed_summary = client.get(
+            "/v1/operations/summary?tenant_id=tenant-a",
+            headers=headers,
+        )
+        assert allowed_summary.status_code == 200
+
+        denied_summary = client.get(
+            "/v1/operations/summary?tenant_id=tenant-b",
+            headers=headers,
+        )
+        assert denied_summary.status_code == 403
+        assert denied_summary.json()["detail"]["tenant_id"] == "tenant-b"
+
+        allowed_ingest = client.post(
+            "/v1/documents/ingest",
+            headers=headers,
+            json={
+                "tenant_id": "tenant-a",
+                "title": "Tenant A 문서",
+                "content": "Tenant 제한 key는 허용된 tenant의 문서만 적재할 수 있다.",
+                "source_uri": "test://tenant-a",
+            },
+        )
+        assert allowed_ingest.status_code == 200
+
+        denied_mcp = client.post(
+            "/mcp",
+            headers=headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": "tenant-denied",
+                "method": "tools/call",
+                "params": {
+                    "tenant_id": "tenant-b",
+                    "actor_id": "operator-a",
+                    "actor_scopes": ["records:read"],
+                    "name": "internal-records.lookup",
+                    "arguments": {"query": "tenant b 조회"},
+                },
+            },
+        )
+        assert denied_mcp.status_code == 403
+
+    _clear_runtime_caches()
+
+
 def test_idempotency_key_replays_document_ingest_response():
     client = TestClient(create_app())
     request = {
