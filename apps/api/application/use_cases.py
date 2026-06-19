@@ -34,6 +34,7 @@ from apps.api.domain.models import (
     EvaluationRun,
     EvaluationStatus,
     OperationsAlert,
+    OperationsIncidentSnapshot,
     OperationsSlo,
     OperationsSummary,
     OperationsUsage,
@@ -1315,6 +1316,129 @@ class OperationsAlertUseCase:
             actual_value=round(actual_value, 3),
             threshold=round(threshold, 3),
         )
+
+
+class OperationsIncidentSnapshotUseCase:
+    def __init__(
+        self,
+        *,
+        operations_summary: OperationsSummaryUseCase,
+        operations_usage: OperationsUsageUseCase,
+        operations_slo: OperationsSloUseCase,
+        operations_alerts: OperationsAlertUseCase,
+    ) -> None:
+        self.operations_summary = operations_summary
+        self.operations_usage = operations_usage
+        self.operations_slo = operations_slo
+        self.operations_alerts = operations_alerts
+
+    def execute(self, *, tenant_id: str, event_limit: int = 500) -> OperationsIncidentSnapshot:
+        summary = self.operations_summary.execute(tenant_id=tenant_id, event_limit=event_limit)
+        usage = self.operations_usage.execute(tenant_id=tenant_id)
+        slo = self.operations_slo.execute(tenant_id=tenant_id, event_limit=event_limit)
+        alerts = self.operations_alerts.execute(tenant_id=tenant_id, event_limit=event_limit)
+        severity = self._severity(alerts=alerts, slo=slo)
+        signals = self._signals(summary=summary, usage=usage, slo=slo, alerts=alerts)
+        suspected_causes = self._suspected_causes(summary=summary, usage=usage, slo=slo)
+        recommended_actions = self._recommended_actions(
+            summary=summary,
+            usage=usage,
+            slo=slo,
+            alerts=alerts,
+        )
+        status = "open" if severity != "none" else "clear"
+
+        return OperationsIncidentSnapshot(
+            tenant_id=tenant_id,
+            severity=severity,
+            status=status,
+            summary=self._summary(severity=severity, alert_count=len(alerts), slo=slo),
+            active_alert_count=len(alerts),
+            signals=signals,
+            suspected_causes=suspected_causes,
+            recommended_actions=recommended_actions,
+        )
+
+    def _severity(self, *, alerts: list[OperationsAlert], slo: OperationsSlo) -> str:
+        if slo.status == "breached" or any(alert.severity == "critical" for alert in alerts):
+            return "critical"
+        if slo.status == "watch" or any(alert.severity == "warning" for alert in alerts):
+            return "warning"
+        return "none"
+
+    def _signals(
+        self,
+        *,
+        summary: OperationsSummary,
+        usage: OperationsUsage,
+        slo: OperationsSlo,
+        alerts: list[OperationsAlert],
+    ) -> list[str]:
+        signals = [
+            (
+                f"SLO {slo.status}: success_rate={slo.success_rate}, "
+                f"p95_latency_ms={slo.p95_latency_ms}"
+            ),
+            f"usage_ratio={usage.usage_ratio}, remaining_runs={usage.agent_runs_remaining}",
+            f"pending_approvals={summary.pending_approval_count}",
+        ]
+        signals.extend(f"{alert.code}:{alert.severity}" for alert in alerts)
+        return signals
+
+    def _suspected_causes(
+        self,
+        *,
+        summary: OperationsSummary,
+        usage: OperationsUsage,
+        slo: OperationsSlo,
+    ) -> list[str]:
+        causes: list[str] = []
+        if slo.p95_latency_ms > slo.latency_target_ms:
+            causes.append("Agent 실행 지연 시간이 목표치를 초과했습니다.")
+        if slo.success_rate < slo.success_rate_target:
+            causes.append("Agent 성공률이 목표치보다 낮습니다.")
+        if slo.blocked_rate >= 0.2:
+            causes.append("정책 차단 또는 승인 필요 요청 비율이 높습니다.")
+        if usage.exceeded:
+            causes.append("월간 Agent 실행 quota가 소진되었습니다.")
+        if summary.pending_approval_count > 0:
+            causes.append("승인 대기 queue가 운영 처리 지연을 만들 수 있습니다.")
+        if summary.gateway_fallback_count > 0:
+            causes.append("외부 tool gateway fallback이 발생했습니다.")
+        return causes or ["현재 주요 원인 후보가 없습니다."]
+
+    def _recommended_actions(
+        self,
+        *,
+        summary: OperationsSummary,
+        usage: OperationsUsage,
+        slo: OperationsSlo,
+        alerts: list[OperationsAlert],
+    ) -> list[str]:
+        actions: list[str] = []
+        alert_codes = {alert.code for alert in alerts}
+        if "agent_latency_high" in alert_codes or slo.p95_latency_ms > slo.latency_target_ms:
+            actions.append("최근 Agent run timeline에서 지연 단계와 tool 호출 시간을 확인합니다.")
+        if "pending_approval_backlog" in alert_codes or summary.pending_approval_count > 0:
+            actions.append("승인 대기 요청을 처리하거나 승인 정책 기준을 재검토합니다.")
+        if "monthly_agent_run_quota" in alert_codes or usage.exceeded:
+            actions.append("월간 실행 quota를 증설하거나 자동 실행 대상 시나리오를 줄입니다.")
+        if "tool_gateway_fallback" in alert_codes or summary.gateway_fallback_count > 0:
+            actions.append("tool gateway fallback 원인과 외부 시스템 응답 상태를 확인합니다.")
+        if "evaluation_pass_rate_low" in alert_codes:
+            actions.append(
+                "최근 evaluation 실패 케이스를 확인하고 retrieval 전략 또는 지식 문서를 보강합니다."
+            )
+        if not actions:
+            actions.append("현재는 관찰 상태를 유지하고 다음 evaluation 결과를 확인합니다.")
+        return actions
+
+    def _summary(self, *, severity: str, alert_count: int, slo: OperationsSlo) -> str:
+        if severity == "critical":
+            return f"SLO가 {slo.status} 상태이며 활성 alert {alert_count}건이 있습니다."
+        if severity == "warning":
+            return f"운영 지표가 watch 상태이며 활성 alert {alert_count}건이 있습니다."
+        return "현재 활성 incident 신호가 없습니다."
 
 
 class ApprovalUseCase:

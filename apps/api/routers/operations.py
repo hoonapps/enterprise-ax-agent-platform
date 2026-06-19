@@ -6,6 +6,7 @@ from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import (
     OperationsAlert,
+    OperationsIncidentSnapshot,
     OperationsSlo,
     OperationsSummary,
     OperationsUsage,
@@ -13,6 +14,7 @@ from apps.api.domain.models import (
 )
 from apps.api.schemas.operations import (
     OperationsAlertResponse,
+    OperationsIncidentSnapshotResponse,
     OperationsSloResponse,
     OperationsSummaryResponse,
     OperationsUsageResponse,
@@ -69,6 +71,21 @@ def get_operations_slo(
         success_rate_target=success_rate_target,
     )
     return _slo_to_response(slo)
+
+
+@router.get("/incidents/snapshot", response_model=OperationsIncidentSnapshotResponse)
+def get_operations_incident_snapshot(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+    tenant_id: str = "default",
+    event_limit: int = 500,
+) -> OperationsIncidentSnapshotResponse:
+    require_tenant_access(auth, tenant_id)
+    snapshot = container.operations_incident_snapshot.execute(
+        tenant_id=tenant_id,
+        event_limit=event_limit,
+    )
+    return _incident_snapshot_to_response(snapshot)
 
 
 @router.get("/alerts", response_model=list[OperationsAlertResponse])
@@ -164,6 +181,22 @@ def _slo_to_response(slo: OperationsSlo) -> OperationsSloResponse:
         error_budget_remaining=slo.error_budget_remaining,
         status=slo.status,
         generated_at=slo.generated_at,
+    )
+
+
+def _incident_snapshot_to_response(
+    snapshot: OperationsIncidentSnapshot,
+) -> OperationsIncidentSnapshotResponse:
+    return OperationsIncidentSnapshotResponse(
+        tenant_id=snapshot.tenant_id,
+        severity=snapshot.severity,
+        status=snapshot.status,
+        summary=snapshot.summary,
+        active_alert_count=snapshot.active_alert_count,
+        signals=snapshot.signals,
+        suspected_causes=snapshot.suspected_causes,
+        recommended_actions=snapshot.recommended_actions,
+        generated_at=snapshot.generated_at,
     )
 
 

@@ -569,6 +569,16 @@ _DASHBOARD_HTML = """<!doctype html>
 
         <section class="panel">
           <header>
+            <h2>Incident Snapshot</h2>
+            <span class="meta">root signals · actions</span>
+          </header>
+          <div class="panel-body">
+            <div id="incident-snapshot"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Tool Decision</h2>
             <span class="meta">runtime decision count</span>
           </header>
@@ -694,6 +704,7 @@ _DASHBOARD_HTML = """<!doctype html>
       usage: document.querySelector("#metric-usage"),
       slo: document.querySelector("#metric-slo"),
       operationsAlerts: document.querySelector("#operations-alerts"),
+      incidentSnapshot: document.querySelector("#incident-snapshot"),
       toolDecisions: document.querySelector("#tool-decisions"),
       agentRuns: document.querySelector("#agent-runs"),
       agentTimeline: document.querySelector("#agent-run-timeline"),
@@ -776,6 +787,37 @@ _DASHBOARD_HTML = """<!doctype html>
           </div>
         </div>
       `).join("");
+    }
+
+    function renderIncidentSnapshot(snapshot) {
+      const causes = snapshot.suspected_causes || [];
+      const actions = snapshot.recommended_actions || [];
+      els.incidentSnapshot.innerHTML = `
+        <div class="alert-item">
+          <div class="alert-line">
+            <span class="alert-message">${escapeHtml(snapshot.summary)}</span>
+            <span class="badge ${badgeClass(snapshot.severity)}">
+              ${escapeHtml(snapshot.severity)}
+            </span>
+          </div>
+          <div class="alert-metric">
+            ${escapeHtml(snapshot.status)}
+            · alerts ${formatNumber(snapshot.active_alert_count)}
+          </div>
+        </div>
+        <div class="timeline-list">
+          ${causes.slice(0, 3).map((cause) => `
+            <div class="timeline-item">
+              <div class="timeline-title">${escapeHtml(cause)}</div>
+            </div>
+          `).join("")}
+          ${actions.slice(0, 3).map((action) => `
+            <div class="timeline-item">
+              <div class="timeline-detail">${escapeHtml(action)}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
     }
 
     function renderBars(target, counts) {
@@ -1054,10 +1096,23 @@ _DASHBOARD_HTML = """<!doctype html>
       els.loadState.textContent = "데이터를 불러오는 중입니다.";
 
       try {
-        const [summary, usage, slo, alerts, runs, approvals, events, tools] = await Promise.all([
+        const [
+          summary,
+          usage,
+          slo,
+          incident,
+          alerts,
+          runs,
+          approvals,
+          events,
+          tools
+        ] = await Promise.all([
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/operations/usage?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/slo?tenant_id=${tenantId}&event_limit=${eventLimit}`),
+          fetchJson(
+            `/v1/operations/incidents/snapshot?tenant_id=${tenantId}&event_limit=${eventLimit}`
+          ),
           fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
@@ -1087,6 +1142,7 @@ _DASHBOARD_HTML = """<!doctype html>
           selectedRunId = runs.length ? runs[0].run_id : "";
         }
         renderOperationsAlerts(alerts);
+        renderIncidentSnapshot(incident);
         renderAgentRuns(runs);
         await loadAgentTimeline(selectedRunId);
         renderBars(els.toolDecisions, summary.tool_decision_counts);

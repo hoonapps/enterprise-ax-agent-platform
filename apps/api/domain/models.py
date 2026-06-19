@@ -304,6 +304,19 @@ class OperationsSlo:
 
 
 @dataclass(frozen=True)
+class OperationsIncidentSnapshot:
+    tenant_id: str
+    severity: str
+    status: str
+    summary: str
+    active_alert_count: int
+    signals: list[str] = field(default_factory=list)
+    suspected_causes: list[str] = field(default_factory=list)
+    recommended_actions: list[str] = field(default_factory=list)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class RetentionPruneResult:
     tenant_id: str
     dry_run: bool

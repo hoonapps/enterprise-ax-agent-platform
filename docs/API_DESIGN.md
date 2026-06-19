@@ -32,7 +32,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
-| `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/alerts` |
+| `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/usage`, `GET /v1/operations/slo`, `GET /v1/operations/incidents/snapshot`, `GET /v1/operations/alerts` |
 | `operations:write` | `POST /v1/operations/retention/prune` |
 | `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
@@ -68,6 +68,7 @@ GET  /v1/audit/export
 
 GET  /v1/operations/summary
 GET  /v1/operations/alerts
+GET  /v1/operations/incidents/snapshot
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
@@ -541,6 +542,7 @@ GET /dashboard
 | `GET /v1/operations/summary` | 상단 지표, tool decision, evaluation metrics |
 | `GET /v1/operations/usage` | 월간 Agent 실행 quota 사용률 |
 | `GET /v1/operations/slo` | 성공률, blocked 비율, p95 latency, error budget |
+| `GET /v1/operations/incidents/snapshot` | incident severity, 원인 후보, 권장 조치 |
 | `GET /v1/operations/alerts` | 임계치 기반 운영 alert |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |

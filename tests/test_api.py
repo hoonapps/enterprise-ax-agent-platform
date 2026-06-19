@@ -774,6 +774,37 @@ def test_operations_slo_calculates_runtime_service_objectives():
     assert body["status"] == "breached"
 
 
+def test_operations_incident_snapshot_combines_alerts_slo_and_actions():
+    client = TestClient(create_app())
+    container = get_container()
+    tenant_id = "incident-snapshot"
+
+    container.base_audit_log.append(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_type="agent",
+            actor_id="test",
+            event_type="agent.answer.generated",
+            resource_type="agent_run",
+            payload={
+                "latency_ms": 5200,
+                "confidence": 0.22,
+                "status": "blocked",
+            },
+        )
+    )
+
+    response = client.get(f"/v1/operations/incidents/snapshot?tenant_id={tenant_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["severity"] == "critical"
+    assert body["status"] == "open"
+    assert body["active_alert_count"] >= 1
+    assert any("성공률" in cause for cause in body["suspected_causes"])
+    assert any("timeline" in action for action in body["recommended_actions"])
+
+
 def test_operations_alerts_detect_runtime_threshold_breaches():
     client = TestClient(create_app())
     container = get_container()
@@ -956,12 +987,14 @@ def test_operator_dashboard_serves_backend_console():
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text
+    assert "/v1/operations/incidents/snapshot" in response.text
     assert "/v1/operations/alerts" in response.text
     assert "/v1/agents/runs" in response.text
     assert "/timeline" in response.text
     assert "agent-run-timeline" in response.text
     assert "metric-usage" in response.text
     assert "metric-slo" in response.text
+    assert "incident-snapshot" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

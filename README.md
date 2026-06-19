@@ -130,6 +130,7 @@ GET  /v1/audit/export
 GET  /v1/operations/summary
 GET  /v1/operations/usage
 GET  /v1/operations/slo
+GET  /v1/operations/incidents/snapshot
 GET  /v1/operations/alerts
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
@@ -757,6 +758,18 @@ curl "http://127.0.0.1:8000/v1/operations/slo?tenant_id=default&event_limit=500"
 기본 목표는 success rate `0.95`, p95 latency `3000ms`입니다. 목표값은 query parameter로 조정할 수
 있으며, dashboard는 같은 read model을 읽어 `healthy`, `watch`, `breached` 상태를 표시합니다.
 
+## Incident Snapshot
+
+Incident snapshot API는 summary, usage, SLO, alert 신호를 한 번에 묶어 원인 후보와 권장 조치를
+반환합니다.
+
+```bash
+curl "http://127.0.0.1:8000/v1/operations/incidents/snapshot?tenant_id=default"
+```
+
+운영자는 이 응답으로 어떤 지표가 문제인지, 어떤 run timeline이나 승인 queue를 먼저 봐야 하는지
+빠르게 판단할 수 있습니다.
+
 ## Operations Alerts
 
 운영 alert API는 summary 지표를 임계치와 비교해 즉시 확인해야 할 상태만 반환합니다.
@@ -808,6 +821,7 @@ GET /dashboard
 - `/v1/operations/summary`
 - `/v1/operations/usage`
 - `/v1/operations/slo`
+- `/v1/operations/incidents/snapshot`
 - `/v1/operations/alerts`
 - `/v1/agents/runs`
 - `/v1/agents/runs/{run_id}/timeline`
@@ -815,10 +829,10 @@ GET /dashboard
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, 최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, 승인 대기, 평균 지연시간,
-operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를 표시합니다. UI는 업무
-운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며, 승인/반려 버튼은
-기존 approval API를 호출합니다.
+화면은 Agent 실행 수, 최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot,
+승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를
+표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
+승인/반려 버튼은 기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
 생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.

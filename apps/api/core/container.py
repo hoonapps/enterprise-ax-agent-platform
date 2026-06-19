@@ -53,6 +53,7 @@ from apps.api.application.use_cases import (
     EvaluateAgentUseCase,
     IngestDocumentUseCase,
     OperationsAlertUseCase,
+    OperationsIncidentSnapshotUseCase,
     OperationsSloUseCase,
     OperationsSummaryUseCase,
     OperationsUsageUseCase,
@@ -206,6 +207,12 @@ class AppContainer:
         self.operations_alerts = OperationsAlertUseCase(
             operations_summary=self.operations_summary,
             operations_usage=self.operations_usage,
+        )
+        self.operations_incident_snapshot = OperationsIncidentSnapshotUseCase(
+            operations_summary=self.operations_summary,
+            operations_usage=self.operations_usage,
+            operations_slo=self.operations_slo,
+            operations_alerts=self.operations_alerts,
         )
         self.retention_prune = RetentionPruneUseCase(
             audit_log=self.audit_log,

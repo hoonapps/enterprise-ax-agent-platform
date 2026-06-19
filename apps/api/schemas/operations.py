@@ -50,6 +50,18 @@ class OperationsSloResponse(BaseModel):
     generated_at: datetime
 
 
+class OperationsIncidentSnapshotResponse(BaseModel):
+    tenant_id: str
+    severity: str
+    status: str
+    summary: str
+    active_alert_count: int
+    signals: list[str]
+    suspected_causes: list[str]
+    recommended_actions: list[str]
+    generated_at: datetime
+
+
 class OperationsAlertResponse(BaseModel):
     tenant_id: str
     code: str
