@@ -33,6 +33,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
 | `operations:read` | `GET /v1/operations/summary` |
+| `operations:write` | `POST /v1/operations/retention/prune` |
 | `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
 | `webhooks:read` | `GET /v1/webhooks/subscriptions`, `GET /v1/webhooks/deliveries` |
@@ -64,6 +65,7 @@ GET  /v1/audit/events
 GET  /v1/audit/export
 
 GET  /v1/operations/summary
+POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
@@ -331,6 +333,43 @@ GET /v1/audit/export?tenant_id=default&request_id=local-trace-001&format=jsonl
 ```text
 GET /v1/operations/summary?tenant_id=default&event_limit=500
 ```
+
+## Retention Prune
+
+```text
+POST /v1/operations/retention/prune
+```
+
+요청:
+
+```json
+{
+  "tenant_id": "default",
+  "audit_older_than_days": 90,
+  "webhook_older_than_days": 30,
+  "dry_run": true
+}
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "dry_run": true,
+  "audit_cutoff": "2026-03-21T00:00:00Z",
+  "webhook_cutoff": "2026-05-20T00:00:00Z",
+  "audit_events_matched": 1200,
+  "webhook_deliveries_matched": 88,
+  "audit_events_deleted": 0,
+  "webhook_deliveries_deleted": 0,
+  "generated_at": "2026-06-19T00:00:00Z"
+}
+```
+
+기본 동작은 `dry_run=true`다. 실제 삭제가 필요한 경우에만 `dry_run=false`를 명시한다.
+Webhook delivery는 `delivered`, `dead_letter` 상태만 삭제 대상이다. 실행 결과는
+`retention.pruned` audit event로 기록된다.
 
 ## Ontology Graph
 

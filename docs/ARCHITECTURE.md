@@ -291,6 +291,19 @@ GET /dashboard
 운영 화면은 API read model의 소비자로 두고, 승인 실행/반려 같은 변경은 명시적인 API 경계를 호출한다.
 request id 필터도 화면 내부 상태로 별도 저장하지 않고 audit event 조회 API의 query parameter로 전달한다.
 
+## Retention Prune 흐름
+
+```text
+POST /v1/operations/retention/prune
+  -> dry_run이면 삭제 대상 count만 반환
+  -> dry_run=false이면 terminal webhook delivery 삭제
+  -> 오래된 audit event 삭제
+  -> retention.pruned audit event 기록
+```
+
+보관 정책은 운영 API에서 시작하지만 실제 삭제 규칙은 persistence adapter가 책임진다.
+Postgres adapter는 재시도 가능한 webhook delivery가 연결된 audit event를 삭제하지 않는다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시

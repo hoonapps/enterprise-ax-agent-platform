@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from apps.api.application.ports import (
     AuditLogPort,
     WebhookDeliveryRepositoryPort,
@@ -62,3 +64,9 @@ class OutboxAuditLog:
             resource_type=resource_type,
             request_id=request_id,
         )
+
+    def count_events_before(self, tenant_id: str, before: datetime) -> int:
+        return self.inner.count_events_before(tenant_id, before)
+
+    def delete_events_before(self, tenant_id: str, before: datetime) -> int:
+        return self.inner.delete_events_before(tenant_id, before)

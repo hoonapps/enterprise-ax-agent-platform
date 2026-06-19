@@ -97,6 +97,8 @@
 - 오류 응답은 기존 detail 계약을 유지하면서 request id를 포함한다.
 - webhook delivery outbox, lease 기반 batch dispatcher, dead-letter 재시도로 외부 workflow 전송을
   통제할 수 있다.
+- retention prune은 dry-run으로 삭제 대상을 먼저 계산하고, terminal webhook delivery와 오래된 audit
+  event를 보관 정책에 맞춰 정리한다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.

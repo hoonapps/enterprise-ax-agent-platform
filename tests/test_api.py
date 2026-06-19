@@ -14,6 +14,7 @@ from apps.api.core.config import get_settings
 from apps.api.core.container import get_container
 from apps.api.core.security import parse_api_key_credentials
 from apps.api.domain.models import (
+    AuditEvent,
     WebhookDelivery,
     WebhookDeliveryStatus,
     WebhookHttpResult,
@@ -582,6 +583,101 @@ def test_operations_summary_aggregates_runtime_signals():
     assert body["latest_evaluation_metrics"]["case_count"] == 1
 
 
+def test_retention_prune_supports_dry_run_and_terminal_cleanup():
+    client = TestClient(create_app())
+    container = get_container()
+    tenant_id = "retention-test"
+    now = datetime.now(UTC)
+    old_event = AuditEvent(
+        tenant_id=tenant_id,
+        actor_type="system",
+        actor_id="test",
+        event_type="retention.old",
+        resource_type="retention",
+        payload={"state": "old"},
+        created_at=now - timedelta(days=120),
+    )
+    fresh_event = AuditEvent(
+        tenant_id=tenant_id,
+        actor_type="system",
+        actor_id="test",
+        event_type="retention.fresh",
+        resource_type="retention",
+        payload={"state": "fresh"},
+        created_at=now,
+    )
+    delivered = WebhookDelivery(
+        tenant_id=tenant_id,
+        subscription_id=uuid4(),
+        event_id=old_event.id,
+        event_type=old_event.event_type,
+        target_url="https://example.com/webhook",
+        payload={"id": str(old_event.id)},
+        status=WebhookDeliveryStatus.DELIVERED,
+        created_at=now - timedelta(days=40),
+        delivered_at=now - timedelta(days=39),
+    )
+    pending = WebhookDelivery(
+        tenant_id=tenant_id,
+        subscription_id=uuid4(),
+        event_id=fresh_event.id,
+        event_type=fresh_event.event_type,
+        target_url="https://example.com/webhook",
+        payload={"id": str(fresh_event.id)},
+        status=WebhookDeliveryStatus.PENDING,
+        created_at=now - timedelta(days=40),
+    )
+    container.base_audit_log.append(old_event)
+    container.base_audit_log.append(fresh_event)
+    container.webhook_deliveries.save(delivered)
+    container.webhook_deliveries.save(pending)
+
+    dry_run = client.post(
+        "/v1/operations/retention/prune",
+        json={
+            "tenant_id": tenant_id,
+            "audit_older_than_days": 90,
+            "webhook_older_than_days": 30,
+        },
+    )
+
+    assert dry_run.status_code == 200
+    dry_body = dry_run.json()
+    assert dry_body["dry_run"] is True
+    assert dry_body["audit_events_matched"] == 1
+    assert dry_body["webhook_deliveries_matched"] == 1
+    assert dry_body["audit_events_deleted"] == 0
+    assert dry_body["webhook_deliveries_deleted"] == 0
+    assert container.base_audit_log.count_events_before(
+        tenant_id,
+        now - timedelta(days=90),
+    ) == 1
+
+    executed = client.post(
+        "/v1/operations/retention/prune",
+        json={
+            "tenant_id": tenant_id,
+            "audit_older_than_days": 90,
+            "webhook_older_than_days": 30,
+            "dry_run": False,
+        },
+    )
+
+    assert executed.status_code == 200
+    executed_body = executed.json()
+    assert executed_body["dry_run"] is False
+    assert executed_body["audit_events_deleted"] == 1
+    assert executed_body["webhook_deliveries_deleted"] == 1
+    assert container.webhook_deliveries.get(tenant_id, str(delivered.id)) is None
+    assert container.webhook_deliveries.get(tenant_id, str(pending.id)) is not None
+
+    remaining_events = container.base_audit_log.list_events(tenant_id=tenant_id, limit=10)
+    event_types = {event.event_type for event in remaining_events}
+    assert "retention.old" not in event_types
+    assert "retention.fresh" in event_types
+    assert "retention.pruned" in event_types
+
+
 def test_operator_dashboard_serves_backend_console():
     client = TestClient(create_app())
 
@@ -638,6 +734,35 @@ def test_api_key_auth_can_protect_operational_apis(monkeypatch):
         )
         assert forbidden.status_code == 403
         assert forbidden.json()["detail"]["missing_scopes"] == ["documents:write"]
+
+    _clear_runtime_caches()
+
+
+def test_api_key_auth_requires_operations_write_for_retention(monkeypatch):
+    with monkeypatch.context() as scoped:
+        scoped.setenv("AUTH_ENABLED", "true")
+        scoped.setenv(
+            "API_KEY_CREDENTIALS",
+            "read-key:operator-01:operations:read;write-key:operator-02:operations:write",
+        )
+        _clear_runtime_caches()
+        client = TestClient(create_app())
+
+        denied = client.post(
+            "/v1/operations/retention/prune",
+            headers={"X-API-Key": "read-key"},
+            json={"tenant_id": "default"},
+        )
+        allowed = client.post(
+            "/v1/operations/retention/prune",
+            headers={"X-API-Key": "write-key"},
+            json={"tenant_id": "default"},
+        )
+
+        assert denied.status_code == 403
+        assert denied.json()["detail"]["missing_scopes"] == ["operations:write"]
+        assert allowed.status_code == 200
+        assert allowed.json()["dry_run"] is True
 
     _clear_runtime_caches()
 

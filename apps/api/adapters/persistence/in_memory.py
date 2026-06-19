@@ -150,6 +150,18 @@ class InMemoryAuditLog:
             events = [event for event in events if event.payload.get("request_id") == request_id]
         return events[:limit]
 
+    def count_events_before(self, tenant_id: str, before: datetime) -> int:
+        with self._lock:
+            return sum(1 for event in self._events[tenant_id] if event.created_at < before)
+
+    def delete_events_before(self, tenant_id: str, before: datetime) -> int:
+        with self._lock:
+            events = self._events[tenant_id]
+            retained = [event for event in events if event.created_at >= before]
+            deleted = len(events) - len(retained)
+            self._events[tenant_id] = retained
+        return deleted
+
 
 class InMemoryApprovalRepository:
     def __init__(self) -> None:
@@ -345,6 +357,26 @@ class InMemoryWebhookDeliveryRepository:
             except ValueError:
                 return None
 
+    def count_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        with self._lock:
+            return sum(
+                1
+                for delivery in self._deliveries[tenant_id].values()
+                if _is_terminal_delivery(delivery) and delivery.created_at < before
+            )
+
+    def delete_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        with self._lock:
+            deliveries = self._deliveries[tenant_id]
+            deletable_ids = [
+                delivery_id
+                for delivery_id, delivery in deliveries.items()
+                if _is_terminal_delivery(delivery) and delivery.created_at < before
+            ]
+            for delivery_id in deletable_ids:
+                del deliveries[delivery_id]
+        return len(deletable_ids)
+
 
 def _is_dispatchable_delivery(*, delivery: WebhookDelivery, now: datetime) -> bool:
     if delivery.status == WebhookDeliveryStatus.PENDING:
@@ -352,3 +384,10 @@ def _is_dispatchable_delivery(*, delivery: WebhookDelivery, now: datetime) -> bo
     if delivery.status in {WebhookDeliveryStatus.FAILED, WebhookDeliveryStatus.DISPATCHING}:
         return delivery.next_attempt_at is None or delivery.next_attempt_at <= now
     return False
+
+
+def _is_terminal_delivery(delivery: WebhookDelivery) -> bool:
+    return delivery.status in {
+        WebhookDeliveryStatus.DELIVERED,
+        WebhookDeliveryStatus.DEAD_LETTER,
+    }

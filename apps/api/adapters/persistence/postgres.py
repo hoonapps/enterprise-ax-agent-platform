@@ -538,6 +538,58 @@ class PostgresAuditLog(PostgresBase):
             for row in rows
         ]
 
+    def count_events_before(self, tenant_id: str, before: datetime) -> int:
+        with psycopg.connect(self.dsn) as conn:
+            row = conn.execute(
+                """
+                select count(*)
+                from audit_events e
+                join tenants t on t.id = e.tenant_id
+                where t.slug = %s
+                  and e.created_at < %s
+                  and not exists (
+                    select 1
+                    from webhook_deliveries d
+                    where d.event_id = e.id
+                      and d.status in (%s, %s, %s)
+                  )
+                """,
+                (
+                    tenant_id,
+                    before,
+                    WebhookDeliveryStatus.PENDING.value,
+                    WebhookDeliveryStatus.DISPATCHING.value,
+                    WebhookDeliveryStatus.FAILED.value,
+                ),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def delete_events_before(self, tenant_id: str, before: datetime) -> int:
+        with psycopg.connect(self.dsn) as conn:
+            cursor = conn.execute(
+                """
+                delete from audit_events e
+                using tenants t
+                where t.id = e.tenant_id
+                  and t.slug = %s
+                  and e.created_at < %s
+                  and not exists (
+                    select 1
+                    from webhook_deliveries d
+                    where d.event_id = e.id
+                      and d.status in (%s, %s, %s)
+                  )
+                """,
+                (
+                    tenant_id,
+                    before,
+                    WebhookDeliveryStatus.PENDING.value,
+                    WebhookDeliveryStatus.DISPATCHING.value,
+                    WebhookDeliveryStatus.FAILED.value,
+                ),
+            )
+        return cursor.rowcount if cursor.rowcount is not None else 0
+
 
 class PostgresWebhookSubscriptionRepository(PostgresBase):
     def save(self, subscription: WebhookSubscription) -> WebhookSubscription:
@@ -791,6 +843,46 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
                 (tenant_id, UUID(delivery_id)),
             ).fetchone()
         return self._row_to_delivery(row) if row else None
+
+    def count_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        with psycopg.connect(self.dsn) as conn:
+            row = conn.execute(
+                """
+                select count(*)
+                from webhook_deliveries d
+                join tenants t on t.id = d.tenant_id
+                where t.slug = %s
+                  and d.created_at < %s
+                  and d.status in (%s, %s)
+                """,
+                (
+                    tenant_id,
+                    before,
+                    WebhookDeliveryStatus.DELIVERED.value,
+                    WebhookDeliveryStatus.DEAD_LETTER.value,
+                ),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def delete_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        with psycopg.connect(self.dsn) as conn:
+            cursor = conn.execute(
+                """
+                delete from webhook_deliveries d
+                using tenants t
+                where t.id = d.tenant_id
+                  and t.slug = %s
+                  and d.created_at < %s
+                  and d.status in (%s, %s)
+                """,
+                (
+                    tenant_id,
+                    before,
+                    WebhookDeliveryStatus.DELIVERED.value,
+                    WebhookDeliveryStatus.DEAD_LETTER.value,
+                ),
+            )
+        return cursor.rowcount if cursor.rowcount is not None else 0
 
     def _row_to_delivery(self, row: dict[str, Any]) -> WebhookDelivery:
         return WebhookDelivery(

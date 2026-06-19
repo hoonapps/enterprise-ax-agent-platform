@@ -272,6 +272,19 @@ class OperationsSummary:
 
 
 @dataclass(frozen=True)
+class RetentionPruneResult:
+    tenant_id: str
+    dry_run: bool
+    audit_cutoff: datetime
+    webhook_cutoff: datetime
+    audit_events_matched: int
+    webhook_deliveries_matched: int
+    audit_events_deleted: int
+    webhook_deliveries_deleted: int
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentRun:
     tenant_id: str
     scenario: str

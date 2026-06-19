@@ -348,6 +348,10 @@ RDB와 Vector DB의 책임을 분리한다.
 | Webhook delivery | 운영 재처리 기간 기준 |
 | 평가 결과 | 회귀 분석을 위해 장기 보관 |
 
+`POST /v1/operations/retention/prune`은 보관 정책 실행 전 `dry_run`으로 대상 건수를 계산한다.
+Webhook delivery는 `delivered`, `dead_letter` 상태만 삭제하고, Postgres adapter는 아직 처리 가능한
+delivery가 연결된 audit event를 삭제하지 않는다.
+
 ## 확장 전략
 
 1. MVP: 메모리 저장소 + SQL schema 문서화

@@ -126,6 +126,7 @@ GET  /v1/audit/events
 GET  /v1/audit/export
 
 GET  /v1/operations/summary
+POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
@@ -187,7 +188,7 @@ AUTH_ENABLED=false
 
 ```env
 AUTH_ENABLED=true
-API_KEY_CREDENTIALS=local-dev-key:operator-01:documents:read|documents:write|knowledge:read|agents:read|agents:run|approvals:read|approvals:write|audit:read|operations:read|ontology:read|tools:read|webhooks:read|webhooks:write|evaluations:read|evaluations:write|mcp:use@default
+API_KEY_CREDENTIALS=local-dev-key:operator-01:documents:read|documents:write|knowledge:read|agents:read|agents:run|approvals:read|approvals:write|audit:read|operations:read|operations:write|ontology:read|tools:read|webhooks:read|webhooks:write|evaluations:read|evaluations:write|mcp:use@default
 ```
 
 형식:
@@ -220,7 +221,7 @@ HTTP API scope와 Agent tool scope는 분리되어 있습니다.
 | `agents:read` / `agents:run` | Agent 실행 조회/생성 |
 | `approvals:read` / `approvals:write` | 승인 조회/승인/반려 |
 | `audit:read` | 감사 이벤트 조회/export |
-| `operations:read` | 운영 요약 |
+| `operations:read` / `operations:write` | 운영 요약, 보관 정책 실행 |
 | `ontology:read` | ontology graph 조회 |
 | `tools:read` | tool catalog |
 | `webhooks:read` / `webhooks:write` | webhook subscription/outbox |
@@ -709,6 +710,25 @@ curl "http://127.0.0.1:8000/v1/operations/summary?tenant_id=default"
 - approval 상태별 count
 - gateway fallback count
 - 최신 evaluation metrics
+
+## Retention Prune
+
+운영 데이터가 장기간 쌓이면 감사 이벤트와 webhook delivery outbox를 보관 정책에 맞춰 정리해야 합니다.
+기본값은 `dry_run=true`라서 실제 삭제 전에 대상 건수를 먼저 확인합니다.
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/operations/retention/prune \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "default",
+    "audit_older_than_days": 90,
+    "webhook_older_than_days": 30,
+    "dry_run": true
+  }'
+```
+
+실행하려면 `dry_run`을 `false`로 명시합니다. Webhook delivery는 `delivered`, `dead_letter` 상태만
+삭제 대상이며, Postgres 저장소에서는 아직 처리 가능한 delivery가 연결된 audit event를 삭제하지 않습니다.
 
 ## Operator Dashboard
 

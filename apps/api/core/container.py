@@ -53,6 +53,7 @@ from apps.api.application.use_cases import (
     EvaluateAgentUseCase,
     IngestDocumentUseCase,
     OperationsSummaryUseCase,
+    RetentionPruneUseCase,
     RunAgentUseCase,
     SearchKnowledgeUseCase,
     ToolCallUseCase,
@@ -190,6 +191,10 @@ class AppContainer:
             documents=self.documents,
             approvals=self.approvals,
             audit_log=self.audit_log,
+        )
+        self.retention_prune = RetentionPruneUseCase(
+            audit_log=self.audit_log,
+            webhook_deliveries=self.webhook_deliveries,
         )
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 from uuid import UUID
@@ -19,6 +19,7 @@ from apps.api.application.ports import (
     ToolRegistryPort,
     ToolRuntimePort,
     VectorSearchPort,
+    WebhookDeliveryRepositoryPort,
 )
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
@@ -34,6 +35,7 @@ from apps.api.domain.models import (
     OperationsSummary,
     PolicyDecision,
     QueryType,
+    RetentionPruneResult,
     RetrievalResult,
     RunStatus,
     ToolActionType,
@@ -829,6 +831,73 @@ class OperationsSummaryUseCase:
         if not values:
             return 0.0
         return round(sum(values) / len(values), 3)
+
+
+class RetentionPruneUseCase:
+    def __init__(
+        self,
+        *,
+        audit_log: AuditLogPort,
+        webhook_deliveries: WebhookDeliveryRepositoryPort,
+    ) -> None:
+        self.audit_log = audit_log
+        self.webhook_deliveries = webhook_deliveries
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        audit_older_than_days: int,
+        webhook_older_than_days: int,
+        dry_run: bool,
+        actor_id: str,
+        now: datetime | None = None,
+    ) -> RetentionPruneResult:
+        reference_time = now or datetime.now(UTC)
+        audit_cutoff = reference_time - timedelta(days=audit_older_than_days)
+        webhook_cutoff = reference_time - timedelta(days=webhook_older_than_days)
+
+        audit_count = self.audit_log.count_events_before(tenant_id, audit_cutoff)
+        webhook_count = self.webhook_deliveries.count_terminal_before(tenant_id, webhook_cutoff)
+
+        audit_deleted = 0
+        webhook_deleted = 0
+        if not dry_run:
+            webhook_deleted = self.webhook_deliveries.delete_terminal_before(
+                tenant_id,
+                webhook_cutoff,
+            )
+            audit_deleted = self.audit_log.delete_events_before(tenant_id, audit_cutoff)
+
+        result = RetentionPruneResult(
+            tenant_id=tenant_id,
+            dry_run=dry_run,
+            audit_cutoff=audit_cutoff,
+            webhook_cutoff=webhook_cutoff,
+            audit_events_matched=audit_count,
+            webhook_deliveries_matched=webhook_count,
+            audit_events_deleted=audit_deleted,
+            webhook_deliveries_deleted=webhook_deleted,
+        )
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="operator",
+                actor_id=actor_id,
+                event_type="retention.pruned",
+                resource_type="operations",
+                payload={
+                    "dry_run": dry_run,
+                    "audit_cutoff": audit_cutoff.isoformat(),
+                    "webhook_cutoff": webhook_cutoff.isoformat(),
+                    "audit_events_matched": audit_count,
+                    "webhook_deliveries_matched": webhook_count,
+                    "audit_events_deleted": audit_deleted,
+                    "webhook_deliveries_deleted": webhook_deleted,
+                },
+            )
+        )
+        return result
 
 
 class ApprovalUseCase:
