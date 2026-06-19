@@ -373,6 +373,35 @@ _DASHBOARD_HTML = """<!doctype html>
       gap: 8px;
     }
 
+    .dependency-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .dependency-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fbfcfd;
+    }
+
+    .dependency-name {
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .dependency-detail {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
     .alert-item {
       display: grid;
       gap: 6px;
@@ -603,6 +632,10 @@ _DASHBOARD_HTML = """<!doctype html>
         <div class="label">SLO 상태</div>
         <div class="value" id="metric-slo">-</div>
       </article>
+      <article class="metric">
+        <div class="label">Readiness</div>
+        <div class="value" id="metric-readiness">-</div>
+      </article>
     </section>
 
     <section class="panel-grid">
@@ -689,6 +722,16 @@ _DASHBOARD_HTML = """<!doctype html>
       </div>
 
       <div class="stack">
+        <section class="panel">
+          <header>
+            <h2>Dependency Readiness</h2>
+            <span class="meta">runtime dependencies</span>
+          </header>
+          <div class="panel-body">
+            <div class="dependency-list" id="dependency-readiness"></div>
+          </div>
+        </section>
+
         <section class="panel">
           <header>
             <h2>Recent Agent Runs</h2>
@@ -835,6 +878,8 @@ _DASHBOARD_HTML = """<!doctype html>
       fallbacks: document.querySelector("#metric-fallbacks"),
       usage: document.querySelector("#metric-usage"),
       slo: document.querySelector("#metric-slo"),
+      readiness: document.querySelector("#metric-readiness"),
+      dependencyReadiness: document.querySelector("#dependency-readiness"),
       operationsAlerts: document.querySelector("#operations-alerts"),
       incidentSnapshot: document.querySelector("#incident-snapshot"),
       feedbackSummary: document.querySelector("#feedback-summary"),
@@ -886,19 +931,63 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     function badgeClass(value) {
-      if (["allowed", "executed", "succeeded", "low", "read"].includes(value)) {
+      if (["allowed", "executed", "succeeded", "low", "read", "ready"].includes(value)) {
         return "ok";
       }
       if (
-        ["approval_required", "pending", "medium", "write", "warning", "blocked"]
+        [
+          "approval_required",
+          "pending",
+          "medium",
+          "write",
+          "warning",
+          "blocked",
+          "degraded"
+        ]
           .includes(value)
       ) {
         return "warn";
       }
-      if (["denied", "rejected", "failed", "high", "critical"].includes(value)) {
+      if (
+        ["denied", "rejected", "failed", "high", "critical", "unavailable"].includes(value)
+      ) {
         return "danger";
       }
       return "";
+    }
+
+    function renderReadiness(readiness) {
+      const dependencies = readiness.dependencies || [];
+      els.readiness.textContent = escapeHtml(readiness.status || "-");
+      els.readiness.title = [
+        `env ${readiness.environment || "-"}`,
+        `storage ${readiness.storage_backend || "-"}`,
+        `vector ${readiness.vector_backend || "-"}`
+      ].join(" · ");
+
+      if (!dependencies.length) {
+        els.dependencyReadiness.innerHTML = `
+          <div class="empty">dependency 상태가 없습니다.</div>
+        `;
+        return;
+      }
+
+      els.dependencyReadiness.innerHTML = dependencies.map((dependency) => {
+        const detail = Object.entries(dependency.detail || {})
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(" · ");
+        return `
+          <div class="dependency-item">
+            <span class="dependency-name">${escapeHtml(dependency.name)}</span>
+            <span class="badge ${badgeClass(dependency.status)}">
+              ${escapeHtml(dependency.status)}
+            </span>
+            <div class="dependency-detail">
+              ${formatNumber(dependency.latency_ms)}ms${detail ? ` · ${escapeHtml(detail)}` : ""}
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
     function renderOperationsAlerts(alerts) {
@@ -1185,6 +1274,14 @@ _DASHBOARD_HTML = """<!doctype html>
       return response.json();
     }
 
+    async function fetchReadiness() {
+      const response = await fetch("/v1/readiness", { headers: requestHeaders() });
+      if (!response.ok && response.status !== 503) {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
+
     async function postJson(url, payload) {
       const response = await fetch(url, {
         method: "POST",
@@ -1329,6 +1426,7 @@ _DASHBOARD_HTML = """<!doctype html>
 
       try {
         const [
+          readiness,
           summary,
           usage,
           slo,
@@ -1340,6 +1438,7 @@ _DASHBOARD_HTML = """<!doctype html>
           events,
           tools
         ] = await Promise.all([
+          fetchReadiness(),
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/operations/usage?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/slo?tenant_id=${tenantId}&event_limit=${eventLimit}`),
@@ -1372,6 +1471,7 @@ _DASHBOARD_HTML = """<!doctype html>
         ].join(" · ");
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
+        renderReadiness(readiness);
         if (!runs.some((run) => run.run_id === selectedRunId)) {
           selectedRunId = runs.length ? runs[0].run_id : "";
         }

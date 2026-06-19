@@ -1108,6 +1108,9 @@ def test_operator_dashboard_serves_backend_console():
     assert "/v1/operations/slo" in response.text
     assert "/v1/operations/incidents/snapshot" in response.text
     assert "/v1/operations/alerts" in response.text
+    assert "/v1/readiness" in response.text
+    assert "dependency-readiness" in response.text
+    assert "metric-readiness" in response.text
     assert "/v1/agents/runs" in response.text
     assert "/timeline" in response.text
     assert "agent-run-timeline" in response.text
