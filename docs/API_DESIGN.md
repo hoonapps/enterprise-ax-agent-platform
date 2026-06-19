@@ -539,6 +539,9 @@ GET /dashboard
 | API | 화면 사용처 |
 | --- | --- |
 | `GET /v1/operations/summary` | 상단 지표, tool decision, evaluation metrics |
+| `GET /v1/operations/alerts` | 임계치 기반 운영 alert |
+| `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
+| `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
 | `GET /v1/approvals/pending` | 승인 대기 queue |
 | `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |
 | `GET /v1/tools` | 등록된 tool catalog |

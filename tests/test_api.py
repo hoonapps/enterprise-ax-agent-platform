@@ -862,6 +862,8 @@ def test_operator_dashboard_serves_backend_console():
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/alerts" in response.text
     assert "/v1/agents/runs" in response.text
+    assert "/timeline" in response.text
+    assert "agent-run-timeline" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

@@ -154,6 +154,11 @@ _DASHBOARD_HTML = """<!doctype html>
       cursor: wait;
     }
 
+    .action-button.compact {
+      min-width: 34px;
+      padding: 0 7px;
+    }
+
     .statusbar {
       min-height: 30px;
       display: flex;
@@ -315,6 +320,10 @@ _DASHBOARD_HTML = """<!doctype html>
       border-bottom: 0;
     }
 
+    tr.selected-row td {
+      background: #f2fbfa;
+    }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -372,6 +381,39 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     .alert-metric {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .timeline-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .timeline-item {
+      display: grid;
+      gap: 5px;
+      border-left: 3px solid var(--accent);
+      background: #fbfcfd;
+      padding: 8px 10px;
+    }
+
+    .timeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .timeline-title {
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .timeline-detail {
       color: var(--muted);
       font-size: 12px;
       overflow-wrap: anywhere;
@@ -564,10 +606,21 @@ _DASHBOARD_HTML = """<!doctype html>
                   <th>Type</th>
                   <th>Query</th>
                   <th>Confidence</th>
+                  <th>Timeline</th>
                 </tr>
               </thead>
               <tbody id="agent-runs"></tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
+            <h2>Agent Run Timeline</h2>
+            <span class="meta">trace · tool · audit</span>
+          </header>
+          <div class="panel-body">
+            <div class="timeline-list" id="agent-run-timeline"></div>
           </div>
         </section>
 
@@ -633,11 +686,14 @@ _DASHBOARD_HTML = """<!doctype html>
       operationsAlerts: document.querySelector("#operations-alerts"),
       toolDecisions: document.querySelector("#tool-decisions"),
       agentRuns: document.querySelector("#agent-runs"),
+      agentTimeline: document.querySelector("#agent-run-timeline"),
       auditEvents: document.querySelector("#audit-events"),
       approvalList: document.querySelector("#approval-list"),
       toolCatalog: document.querySelector("#tool-catalog"),
       evaluationMetrics: document.querySelector("#evaluation-metrics")
     };
+    let selectedRunId = "";
+    let latestAgentRuns = [];
 
     function formatNumber(value) {
       return Number(value || 0).toLocaleString("ko-KR");
@@ -809,16 +865,17 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     function renderAgentRuns(runs) {
+      latestAgentRuns = runs;
       if (!runs.length) {
         els.agentRuns.innerHTML = `
           <tr>
-            <td colspan="5" class="empty">Agent 실행 이력이 없습니다.</td>
+            <td colspan="6" class="empty">Agent 실행 이력이 없습니다.</td>
           </tr>
         `;
         return;
       }
       els.agentRuns.innerHTML = runs.map((run) => `
-        <tr>
+        <tr class="${run.run_id === selectedRunId ? "selected-row" : ""}">
           <td>${formatTime(run.created_at)}</td>
           <td>
             <span class="badge ${badgeClass(run.status)}">
@@ -828,7 +885,38 @@ _DASHBOARD_HTML = """<!doctype html>
           <td>${escapeHtml(run.query_type)}</td>
           <td>${escapeHtml(run.redacted_query_preview)}</td>
           <td>${formatRatio(run.confidence)}</td>
+          <td>
+            <button
+              class="action-button compact"
+              type="button"
+              data-run-id="${escapeHtml(run.run_id)}"
+            >
+              보기
+            </button>
+          </td>
         </tr>
+      `).join("");
+    }
+
+    function renderAgentTimeline(items) {
+      if (!items.length) {
+        els.agentTimeline.innerHTML = `<div class="empty">선택된 실행 timeline이 없습니다.</div>`;
+        return;
+      }
+      els.agentTimeline.innerHTML = items.map((item) => `
+        <div class="timeline-item">
+          <div class="timeline-head">
+            <span class="timeline-title">${escapeHtml(item.title)}</span>
+            <span class="badge ${badgeClass(item.status)}">
+              ${escapeHtml(item.source)}
+            </span>
+          </div>
+          <div class="timeline-detail">
+            ${escapeHtml(item.event_type)}
+            · ${escapeHtml(item.status)}
+            · ${formatTime(item.occurred_at)}
+          </div>
+        </div>
       `).join("");
     }
 
@@ -930,6 +1018,24 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function loadAgentTimeline(runId) {
+      if (!runId) {
+        renderAgentTimeline([]);
+        return;
+      }
+      const tenantId = encodeURIComponent(els.tenant.value || "default");
+      try {
+        const timeline = await fetchJson(
+          `/v1/agents/runs/${encodeURIComponent(runId)}/timeline?tenant_id=${tenantId}`
+        );
+        renderAgentTimeline(timeline);
+      } catch (error) {
+        els.agentTimeline.innerHTML = `
+          <div class="empty">Timeline 조회 실패: ${escapeHtml(error.message)}</div>
+        `;
+      }
+    }
+
     async function refreshDashboard() {
       const tenantId = encodeURIComponent(els.tenant.value || "default");
       const eventLimit = encodeURIComponent(els.eventLimit.value || "500");
@@ -955,8 +1061,12 @@ _DASHBOARD_HTML = """<!doctype html>
         els.fallbacks.textContent = formatNumber(summary.gateway_fallback_count);
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
+        if (!runs.some((run) => run.run_id === selectedRunId)) {
+          selectedRunId = runs.length ? runs[0].run_id : "";
+        }
         renderOperationsAlerts(alerts);
         renderAgentRuns(runs);
+        await loadAgentTimeline(selectedRunId);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
         renderApprovals(approvals);
         renderTools(tools);
@@ -986,6 +1096,16 @@ _DASHBOARD_HTML = """<!doctype html>
         return;
       }
       decideApproval(button.dataset.approvalId, button.dataset.approvalAction);
+    });
+
+    els.agentRuns.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-run-id]");
+      if (!button) {
+        return;
+      }
+      selectedRunId = button.dataset.runId;
+      renderAgentRuns(latestAgentRuns);
+      loadAgentTimeline(selectedRunId);
     });
 
     refreshDashboard();
