@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline` |
 | `agents:run` | `POST /v1/agents/runs` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -59,6 +59,7 @@ POST /v1/knowledge/search
 POST /v1/agents/runs
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
+GET  /v1/agents/runs/{run_id}/timeline
 
 GET  /v1/ontology/graph
 
@@ -186,6 +187,47 @@ GET /v1/agents/runs?tenant_id=default&limit=50&status=succeeded
 
 목록 응답은 운영 추적용 summary다. 원문 query와 전체 답변은 내려보내지 않고, redaction이 적용된
 preview와 상태 지표만 반환한다.
+
+## Agent 실행 Timeline
+
+```text
+GET /v1/agents/runs/{run_id}/timeline?tenant_id=default&audit_event_limit=500
+```
+
+응답:
+
+```json
+[
+  {
+    "run_id": "018f...",
+    "source": "trace",
+    "event_type": "classify_query",
+    "status": "succeeded",
+    "title": "classify_query",
+    "detail": {
+      "query_type": "risk"
+    },
+    "sequence": 1,
+    "occurred_at": "2026-06-19T00:00:00Z"
+  },
+  {
+    "run_id": "018f...",
+    "source": "audit",
+    "event_type": "agent.answer.generated",
+    "status": "succeeded",
+    "title": "agent.answer.generated",
+    "detail": {
+      "actor_type": "agent",
+      "resource_type": "agent_run"
+    },
+    "sequence": 200,
+    "occurred_at": "2026-06-19T00:00:01Z"
+  }
+]
+```
+
+Timeline은 trace, tool execution, 관련 audit event를 하나의 sequence로 합친 read model이다.
+Audit event는 `resource_id`가 run id와 같거나 payload의 `agent_run_id`가 같은 항목만 포함한다.
 
 ## 오류 응답
 

@@ -279,6 +279,48 @@ def test_agent_run_history_lists_recent_runs_with_filters():
     assert scenario_only.json()[0]["scenario"] == "operations"
 
 
+def test_agent_run_timeline_combines_trace_tool_and_audit_events():
+    client = TestClient(create_app())
+    tenant_id = "run-timeline"
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": tenant_id,
+            "title": "Timeline 정책",
+            "content": (
+                "Agent timeline은 trace, tool execution, audit event를 "
+                "한 실행 단위로 묶어야 한다."
+            ),
+            "source_uri": "test://run-timeline",
+        },
+    )
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "정책 문서를 근거로 workflow 생성 실행을 처리해줘",
+        },
+    )
+    assert run.status_code == 200
+    run_id = run.json()["run_id"]
+
+    timeline = client.get(f"/v1/agents/runs/{run_id}/timeline?tenant_id={tenant_id}")
+
+    assert timeline.status_code == 200
+    body = timeline.json()
+    sources = {item["source"] for item in body}
+    event_types = {item["event_type"] for item in body}
+    assert {"trace", "tool", "audit"}.issubset(sources)
+    assert "tool_runtime" in event_types
+    assert "workflow.request-change" in event_types
+    assert "agent.answer.generated" in event_types
+    assert body == sorted(body, key=lambda item: item["sequence"])
+    audit_items = [item for item in body if item["source"] == "audit"]
+    assert audit_items[0]["detail"]["payload"]
+
+
 def test_api_returns_tool_execution_for_action_request():
     client = TestClient(create_app())
 

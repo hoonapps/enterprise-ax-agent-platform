@@ -14,6 +14,7 @@ from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
     AgentRunSummaryResponse,
+    AgentRunTimelineItemResponse,
     RunAgentRequest,
     RunAgentResponse,
     SearchKnowledgeRequest,
@@ -117,6 +118,37 @@ def list_agent_runs(
         query_type=query_type,
     )
     return [_to_summary_response(run) for run in runs]
+
+
+@router.get("/agents/runs/{run_id}/timeline", response_model=list[AgentRunTimelineItemResponse])
+def get_agent_run_timeline(
+    run_id: UUID,
+    container: ContainerDep,
+    auth: AgentReadAuth,
+    tenant_id: str = "default",
+    audit_event_limit: int = Query(default=500, ge=1, le=2000),
+) -> list[AgentRunTimelineItemResponse]:
+    require_tenant_access(auth, tenant_id)
+    timeline = container.run_agent.get_timeline(
+        tenant_id=tenant_id,
+        run_id=run_id,
+        audit_event_limit=audit_event_limit,
+    )
+    if timeline is None:
+        raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
+    return [
+        AgentRunTimelineItemResponse(
+            run_id=item.run_id,
+            source=item.source,
+            event_type=item.event_type,
+            status=item.status,
+            title=item.title,
+            detail=item.detail,
+            sequence=item.sequence,
+            occurred_at=item.occurred_at,
+        )
+        for item in timeline
+    ]
 
 
 @router.get("/agents/runs/{run_id}", response_model=RunAgentResponse)

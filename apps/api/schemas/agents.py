@@ -50,6 +50,17 @@ class AgentRunSummaryResponse(BaseModel):
     completed_at: datetime | None
 
 
+class AgentRunTimelineItemResponse(BaseModel):
+    run_id: UUID
+    source: str
+    event_type: str
+    status: str
+    title: str
+    detail: dict[str, Any]
+    sequence: int
+    occurred_at: datetime | None
+
+
 class SearchKnowledgeRequest(BaseModel):
     tenant_id: str = "default"
     query: str = Field(..., min_length=2)

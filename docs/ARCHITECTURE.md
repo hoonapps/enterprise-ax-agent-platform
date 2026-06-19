@@ -157,11 +157,19 @@ GET /v1/agents/runs
   -> tenant 접근 권한 확인
   -> scenario/status/query_type 필터 적용
   -> 최신 실행순 summary 반환
+
+GET /v1/agents/runs/{run_id}/timeline
+  -> AgentRun 단건 조회
+  -> trace step을 timeline item으로 변환
+  -> tool execution을 timeline item으로 변환
+  -> 관련 audit event를 timeline item으로 변환
+  -> sequence 기준으로 정렬해 반환
 ```
 
 실행 이력 목록은 상세 답변 API와 분리한다.
 운영 화면에서는 원문 query와 전체 답변 대신 `redacted_query_preview`, 상태, query type, confidence,
 trace/tool/citation 개수를 조회한다.
+Timeline은 단일 실행의 내부 진행과 외부 감사 이벤트를 한 응답에서 확인하는 drill-down read model이다.
 
 HTTP scope와 Agent tool scope는 다르다.
 

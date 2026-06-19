@@ -25,6 +25,7 @@ from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
     AgentRun,
+    AgentRunTimelineItem,
     ApprovalRequest,
     ApprovalStatus,
     AuditEvent,
@@ -280,6 +281,81 @@ class RunAgentUseCase:
             status=status,
             query_type=query_type,
         )
+
+    def get_timeline(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        audit_event_limit: int = 500,
+    ) -> list[AgentRunTimelineItem] | None:
+        run = self.get_run(tenant_id=tenant_id, run_id=run_id)
+        if run is None:
+            return None
+
+        items: list[AgentRunTimelineItem] = []
+        for index, step in enumerate(run.trace):
+            items.append(
+                AgentRunTimelineItem(
+                    run_id=run.id,
+                    source="trace",
+                    event_type=step.step,
+                    status=step.status,
+                    title=step.step,
+                    detail=step.detail,
+                    sequence=index,
+                    occurred_at=run.created_at,
+                )
+            )
+
+        for index, execution in enumerate(run.tool_executions):
+            items.append(
+                AgentRunTimelineItem(
+                    run_id=run.id,
+                    source="tool",
+                    event_type=execution.tool_name,
+                    status=execution.status,
+                    title=f"{execution.tool_name}:{execution.decision.value}",
+                    detail={
+                        "action_type": execution.action_type.value,
+                        "decision": execution.decision.value,
+                        "reason": execution.reason,
+                    },
+                    sequence=100 + index,
+                    occurred_at=run.completed_at or run.created_at,
+                )
+            )
+
+        audit_events = self.audit_log.list_events(
+            tenant_id=tenant_id,
+            limit=audit_event_limit,
+        )
+        relevant_events = [
+            event
+            for event in audit_events
+            if event.resource_id == run.id or event.payload.get("agent_run_id") == str(run.id)
+        ]
+        for index, event in enumerate(sorted(relevant_events, key=lambda item: item.created_at)):
+            items.append(
+                AgentRunTimelineItem(
+                    run_id=run.id,
+                    source="audit",
+                    event_type=event.event_type,
+                    status=str(event.payload.get("status", event.event_type)),
+                    title=event.event_type,
+                    detail={
+                        "actor_type": event.actor_type,
+                        "actor_id": event.actor_id,
+                        "resource_type": event.resource_type,
+                        "resource_id": str(event.resource_id) if event.resource_id else None,
+                        "payload": event.payload,
+                    },
+                    sequence=200 + index,
+                    occurred_at=event.created_at,
+                )
+            )
+
+        return sorted(items, key=lambda item: item.sequence)
 
     def _confidence(self, results: list[RetrievalResult]) -> float:
         if not results:

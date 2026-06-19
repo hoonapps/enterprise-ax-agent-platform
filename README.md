@@ -120,6 +120,7 @@ POST /v1/knowledge/search
 POST /v1/agents/runs
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
+GET  /v1/agents/runs/{run_id}/timeline
 
 GET  /v1/ontology/graph
 
@@ -354,6 +355,16 @@ curl "http://127.0.0.1:8000/v1/agents/runs?tenant_id=default&limit=20&status=suc
 
 목록 응답은 운영 추적용 summary입니다. 원문 query와 전체 답변 대신 `redacted_query_preview`,
 상태, query type, confidence, citation/tool/trace 개수를 반환합니다.
+
+Agent 실행 timeline:
+
+```bash
+curl "http://127.0.0.1:8000/v1/agents/runs/{run_id}/timeline?tenant_id=default"
+```
+
+Timeline은 단일 Agent 실행의 trace step, tool execution, 관련 audit event를 같은 sequence로 묶어
+반환합니다. 운영자는 실행 상세 답변을 열기 전에 어떤 단계에서 승인, 차단, fallback, 감사 이벤트가
+발생했는지 확인할 수 있습니다.
 
 위험 action 차단:
 

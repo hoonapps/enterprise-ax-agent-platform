@@ -317,6 +317,18 @@ class AgentRun:
 
 
 @dataclass(frozen=True)
+class AgentRunTimelineItem:
+    run_id: UUID
+    source: str
+    event_type: str
+    status: str
+    title: str
+    detail: dict[str, Any]
+    sequence: int
+    occurred_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class AuditEvent:
     tenant_id: str
     actor_type: str
