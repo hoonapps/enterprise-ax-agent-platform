@@ -73,6 +73,38 @@ def test_request_context_headers_generate_request_id():
     assert float(response.headers["X-Process-Time-Ms"]) >= 0
 
 
+def test_readiness_reports_dependency_checks():
+    client = TestClient(create_app())
+
+    response = client.get("/v1/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    dependency_names = {item["name"] for item in body["dependencies"]}
+    assert dependency_names == {"storage", "vector", "llm", "auth"}
+    assert {item["status"] for item in body["dependencies"]} == {"ready"}
+
+
+def test_readiness_returns_503_when_dependency_is_unavailable(monkeypatch):
+    monkeypatch.setenv("VECTOR_BACKEND", "qdrant")
+    monkeypatch.setenv("QDRANT_URL", "http://127.0.0.1:1")
+    _clear_runtime_caches()
+    try:
+        client = TestClient(create_app())
+
+        response = client.get("/v1/readiness")
+
+        assert response.status_code == 503
+        body = response.json()
+        assert body["status"] == "degraded"
+        vector = next(item for item in body["dependencies"] if item["name"] == "vector")
+        assert vector["status"] == "unavailable"
+        assert "error" in vector["detail"]
+    finally:
+        _clear_runtime_caches()
+
+
 def test_http_error_response_includes_request_id_without_changing_detail():
     client = TestClient(create_app())
     run_id = uuid4()

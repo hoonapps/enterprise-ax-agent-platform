@@ -367,6 +367,23 @@ POST /v1/operations/retention/prune
 보관 정책은 운영 API에서 시작하지만 실제 삭제 규칙은 persistence adapter가 책임진다.
 Postgres adapter는 재시도 가능한 webhook delivery가 연결된 audit event를 삭제하지 않는다.
 
+## Health와 Readiness
+
+```text
+GET /health
+  -> process liveness 확인
+
+GET /v1/readiness
+  -> storage backend 확인
+  -> vector backend 확인
+  -> llm/auth mode 보고
+  -> dependency 하나라도 unavailable이면 503 반환
+```
+
+readiness는 배포 제어와 운영 장애 판단을 위한 계약이다.
+local memory/vector 모드는 process 내부 adapter를 ready로 보고, Postgres/Qdrant 모드는 실제 연결을
+검사한다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시

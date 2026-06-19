@@ -94,6 +94,47 @@ POST /v1/approvals/{approval_id}/approve
 POST /v1/approvals/{approval_id}/reject
 ```
 
+## Readiness
+
+`GET /health`는 process liveness를 확인한다.
+`GET /v1/readiness`는 runtime dependency 상태를 확인한다.
+
+```json
+{
+  "status": "ready",
+  "environment": "local",
+  "llm_mode": "deterministic-local",
+  "storage_backend": "postgres",
+  "vector_backend": "qdrant",
+  "auth_mode": "api-key",
+  "dependencies": [
+    {
+      "name": "storage",
+      "status": "ready",
+      "latency_ms": 12,
+      "detail": {
+        "backend": "postgres",
+        "database": "ax_agent",
+        "user": "ax_agent_app"
+      }
+    },
+    {
+      "name": "vector",
+      "status": "ready",
+      "latency_ms": 8,
+      "detail": {
+        "backend": "qdrant",
+        "collection": "ax_agent_chunks",
+        "http_status": "200"
+      }
+    }
+  ]
+}
+```
+
+하나 이상의 dependency가 `unavailable`이면 response `status`는 `degraded`이고 HTTP status는 `503`이다.
+Qdrant check는 service endpoint를 확인하고, collection 이름은 configured target으로 보고한다.
+
 ## Agent 실행 요청
 
 ```json

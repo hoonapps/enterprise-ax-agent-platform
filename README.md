@@ -257,6 +257,39 @@ curl http://127.0.0.1:8000/health \
   -i
 ```
 
+Readiness는 app process만 보지 않고 storage/vector 의존성까지 확인합니다.
+
+```bash
+curl http://127.0.0.1:8000/v1/readiness
+```
+
+```json
+{
+  "status": "ready",
+  "environment": "local",
+  "llm_mode": "deterministic-local",
+  "storage_backend": "memory",
+  "vector_backend": "local",
+  "auth_mode": "disabled",
+  "dependencies": [
+    {
+      "name": "storage",
+      "status": "ready",
+      "latency_ms": 0,
+      "detail": { "backend": "memory" }
+    },
+    {
+      "name": "vector",
+      "status": "ready",
+      "latency_ms": 0,
+      "detail": { "backend": "local" }
+    }
+  ]
+}
+```
+
+의존성이 내려가면 `status`는 `degraded`가 되고 HTTP 503을 반환합니다.
+
 ## Idempotency
 
 재시도 가능한 쓰기 API는 `Idempotency-Key`를 지원합니다.
