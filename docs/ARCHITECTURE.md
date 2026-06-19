@@ -57,6 +57,7 @@ FastAPI
     |       +--> 문서 검색
     |       +--> 근거 기반 답변 생성
     |       +--> Tool Runtime 정책 결정
+    |       +--> Tool Schema / Scope 검사
     |       +--> 승인 요청 생성
     |       +--> 감사 이벤트 기록
     |
@@ -96,6 +97,7 @@ POST /v1/agents/runs
   -> 벡터 검색
   -> 근거 기반 답변 생성
   -> tool 실행 필요 시 Tool Runtime 호출
+  -> registry에서 tool schema와 required scope 확인
   -> approval_required tool은 승인 요청으로 승격
   -> 실행 이력 저장
   -> 감사 이벤트 기록

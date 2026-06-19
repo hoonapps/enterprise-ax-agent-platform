@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from apps.api.application.ports import ToolRegistryPort
 from apps.api.domain.models import (
     ApprovalRequest,
     ToolActionType,
@@ -15,11 +16,13 @@ from apps.api.domain.policies import ToolPolicy
 class LocalToolRuntime:
     """외부 시스템 대신 tool 실행 경계를 검증하는 로컬 runtime."""
 
-    def __init__(self, policy: ToolPolicy) -> None:
+    def __init__(self, *, policy: ToolPolicy, registry: ToolRegistryPort) -> None:
         self.policy = policy
+        self.registry = registry
 
     def execute(self, request: ToolRequest) -> ToolExecution:
-        decision, reason = self.policy.evaluate(request)
+        definition = self.registry.get(request.name)
+        decision, reason = self.policy.evaluate(request=request, definition=definition)
 
         if decision == ToolDecision.APPROVAL_REQUIRED:
             execution_id = uuid4()

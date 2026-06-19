@@ -111,7 +111,23 @@ External API Response -> Tool Adapter -> Normalized Tool Result -> Agent Context
 
 이 구조는 SaaS/API 자동화와 MCP 기반 내부 도구 연동을 동시에 수용한다.
 
-## 8. Fail-Safe Default
+## 8. Tool Registry
+
+Tool 실행은 문자열 이름만으로 처리하지 않는다. Registry에 등록된 tool만 실행 대상이 된다.
+
+Registry는 다음 정보를 가진다.
+
+- tool name
+- action type
+- required scope
+- risk level
+- input schema
+- output schema
+- enabled flag
+
+이 정보가 있어야 운영자가 어떤 tool이 어떤 권한으로 실행될 수 있는지 확인할 수 있다.
+
+## 9. Fail-Safe Default
 
 기업형 Agent는 실패해도 안전해야 한다.
 

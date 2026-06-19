@@ -1,3 +1,4 @@
+from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
@@ -21,6 +22,7 @@ def build_use_cases():
     audit = InMemoryAuditLog()
     runs = InMemoryAgentRunRepository()
     approvals = InMemoryApprovalRepository()
+    registry = LocalToolRegistry()
     ingest = IngestDocumentUseCase(
         documents=documents,
         vector_search=vector,
@@ -36,7 +38,7 @@ def build_use_cases():
         planner=RetrievalPlanner(),
         redaction_policy=RedactionPolicy(),
         agent_policy=AgentPolicy(),
-        tool_runtime=LocalToolRuntime(ToolPolicy()),
+        tool_runtime=LocalToolRuntime(policy=ToolPolicy(), registry=registry),
         synthesizer=GroundedAnswerSynthesizer(),
         default_top_k=4,
     )
@@ -56,7 +58,7 @@ def test_agent_returns_grounded_answer_with_citations():
 
     run = agent.execute(
         tenant_id="default",
-        scenario="samsung-sds",
+        scenario="operations",
         message="Agent 거버넌스 리스크를 정리해줘",
         user_id="tester",
     )
@@ -98,6 +100,7 @@ def test_action_query_records_tool_approval_decision():
         scenario="operations",
         message="보고서 생성 요청을 처리해줘",
         user_id="tester",
+        actor_scopes=["workflow:request"],
     )
 
     assert run.status == RunStatus.SUCCEEDED
@@ -108,3 +111,29 @@ def test_action_query_records_tool_approval_decision():
     events = audit.list_events("default", limit=20)
     assert any(event.event_type == "tool.approval_required" for event in events)
     assert approvals.list_pending("default")
+
+
+def test_action_query_without_required_scope_is_denied():
+    ingest, agent, audit, approvals = build_use_cases()
+    ingest.execute(
+        Document(
+            tenant_id="default",
+            title="업무 실행 정책",
+            content="외부 상태를 변경하는 업무 실행은 필요한 scope가 있어야 한다.",
+            source_uri="test://tool-scope",
+        )
+    )
+
+    run = agent.execute(
+        tenant_id="default",
+        scenario="operations",
+        message="보고서 생성 요청을 처리해줘",
+        user_id="tester",
+        actor_scopes=[],
+    )
+
+    assert run.tool_executions
+    assert run.tool_executions[0].decision == ToolDecision.DENIED
+    assert not approvals.list_pending("default")
+    events = audit.list_events("default", limit=20)
+    assert any(event.event_type == "tool.denied" for event in events)

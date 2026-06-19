@@ -9,6 +9,7 @@ from apps.api.domain.models import (
     Document,
     DocumentChunk,
     RetrievalResult,
+    ToolDefinition,
     ToolExecution,
     ToolRequest,
 )
@@ -42,6 +43,12 @@ class ToolRuntimePort(Protocol):
     def execute(self, request: ToolRequest) -> ToolExecution: ...
 
     def replay_approved(self, approval: ApprovalRequest) -> ToolExecution: ...
+
+
+class ToolRegistryPort(Protocol):
+    def list_tools(self) -> list[ToolDefinition]: ...
+
+    def get(self, name: str) -> ToolDefinition | None: ...
 
 
 class ApprovalRepositoryPort(Protocol):

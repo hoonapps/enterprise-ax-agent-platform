@@ -122,8 +122,21 @@ class ToolRequest:
     name: str
     action_type: ToolActionType
     input_payload: dict[str, Any]
+    actor_scopes: list[str] = field(default_factory=list)
     risk_level: str = "low"
     description: str = ""
+
+
+@dataclass(frozen=True)
+class ToolDefinition:
+    name: str
+    action_type: ToolActionType
+    required_scope: str
+    risk_level: str
+    description: str
+    input_schema: dict[str, Any] = field(default_factory=dict)
+    output_schema: dict[str, Any] = field(default_factory=dict)
+    enabled: bool = True
 
 
 @dataclass(frozen=True)

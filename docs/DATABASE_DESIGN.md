@@ -104,7 +104,7 @@ Agent 요청 1건을 나타낸다.
 | `id` | uuid | PK |
 | `tenant_id` | uuid | FK |
 | `user_id` | uuid | 요청자 |
-| `scenario` | text | `lg-cns`, `hyundai-autoever` 등 |
+| `scenario` | text | `operations`, `finance-ops` 등 |
 | `query` | text | 원본 요청 |
 | `redacted_query` | text | 마스킹된 요청 |
 | `query_type` | text | factual, summary, compare, action, risk |

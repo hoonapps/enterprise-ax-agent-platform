@@ -58,6 +58,7 @@ def run_agent(
         scenario=request.scenario,
         message=request.message,
         user_id=request.user_id,
+        actor_scopes=request.actor_scopes,
     )
     return _to_response(run)
 

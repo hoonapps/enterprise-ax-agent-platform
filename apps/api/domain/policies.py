@@ -7,6 +7,7 @@ from apps.api.domain.models import (
     QueryType,
     ToolActionType,
     ToolDecision,
+    ToolDefinition,
     ToolRequest,
 )
 
@@ -51,7 +52,27 @@ class AgentPolicy:
 
 
 class ToolPolicy:
-    def evaluate(self, request: ToolRequest) -> tuple[ToolDecision, str]:
+    def evaluate(
+        self,
+        *,
+        request: ToolRequest,
+        definition: ToolDefinition | None,
+    ) -> tuple[ToolDecision, str]:
+        if definition is None:
+            return ToolDecision.DENIED, "등록되지 않은 tool 요청입니다."
+
+        if not definition.enabled:
+            return ToolDecision.DENIED, "비활성화된 tool입니다."
+
+        if request.action_type != definition.action_type:
+            return ToolDecision.DENIED, "요청 action type이 tool schema와 일치하지 않습니다."
+
+        if definition.required_scope not in request.actor_scopes:
+            return (
+                ToolDecision.DENIED,
+                f"필요 scope가 없습니다: {definition.required_scope}",
+            )
+
         if request.action_type == ToolActionType.READ:
             return ToolDecision.ALLOWED, "조회성 도구는 정책 범위 안에서 즉시 실행할 수 있습니다."
 
@@ -59,7 +80,7 @@ class ToolPolicy:
             return ToolDecision.ALLOWED, "승인 요청 생성은 허용됩니다."
 
         if request.action_type == ToolActionType.WRITE:
-            if request.risk_level in {"medium", "high"}:
+            if definition.risk_level in {"medium", "high"}:
                 return (
                     ToolDecision.APPROVAL_REQUIRED,
                     "외부 상태를 변경하는 작업은 승인 대기 상태로 전환합니다.",

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from apps.api.adapters.agent.local_tool_registry import LocalToolRegistry
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
@@ -72,7 +73,11 @@ class AppContainer:
         self.redaction_policy = RedactionPolicy()
         self.agent_policy = AgentPolicy()
         self.tool_policy = ToolPolicy()
-        self.tool_runtime = LocalToolRuntime(self.tool_policy)
+        self.tool_registry = LocalToolRegistry()
+        self.tool_runtime = LocalToolRuntime(
+            policy=self.tool_policy,
+            registry=self.tool_registry,
+        )
         self.synthesizer = GroundedAnswerSynthesizer()
 
         self.ingest_document = IngestDocumentUseCase(

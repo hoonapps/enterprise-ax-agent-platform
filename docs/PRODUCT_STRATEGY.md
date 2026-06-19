@@ -8,6 +8,7 @@
 - 질문 유형에 따라 RAG 전략을 바꾼다.
 - 외부 시스템 실행 전 정책을 검사한다.
 - 조회성 tool과 쓰기성 tool의 실행 경계를 분리한다.
+- tool별 required scope와 risk level을 registry에서 관리한다.
 - 승인 대기 요청을 운영자가 재검토하고 replay할 수 있게 한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
@@ -39,9 +40,10 @@
 2. Tool 실행은 Agent의 추론과 분리한다.
 3. 모든 쓰기성 작업은 정책과 승인 경계를 지난다.
 4. 조회성 tool은 실행 가능하지만, 쓰기성 tool은 승인 대기 상태를 기본값으로 둔다.
-5. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
-6. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
-7. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+5. 등록되지 않은 tool이나 required scope가 없는 tool 요청은 실행하지 않는다.
+6. 승인 후 replay는 멱등적으로 처리해 중복 실행을 막는다.
+7. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
+8. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
 
 ## 확장 축
 
@@ -49,7 +51,7 @@
 | --- | --- |
 | Knowledge | Qdrant/pgvector, reranking, freshness check |
 | Workflow | n8n, Slack, approval queue |
-| Tool Runtime | MCP Streamable HTTP, tool schema, scope check |
+| Tool Runtime | tool schema registry, scope check, MCP Streamable HTTP |
 | Governance | RBAC, PII redaction, audit export |
 | LLMOps | fallback, timeout, retry, evaluation dataset |
 | Domain Intelligence | ontology, knowledge graph, multimodal document ingestion |

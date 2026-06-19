@@ -20,6 +20,7 @@ GET  /v1/agents/runs/{run_id}
 
 GET  /v1/audit/events
 
+GET  /v1/tools
 GET  /v1/approvals/pending
 POST /v1/approvals/{approval_id}/approve
 ```
@@ -32,6 +33,7 @@ POST /v1/approvals/{approval_id}/approve
   "user_id": "operator-01",
   "scenario": "operations",
   "message": "고객사의 AX 전환 리스크와 실행 순서를 정리해줘.",
+  "actor_scopes": ["records:read", "workflow:request"],
   "context": {
     "department": "digital-transformation",
     "risk_level": "medium"
@@ -113,6 +115,21 @@ POST /v1/approvals/{approval_id}/approve
 }
 ```
 
+## Tool Catalog 응답
+
+```json
+[
+  {
+    "name": "workflow.request-change",
+    "action_type": "write",
+    "required_scope": "workflow:request",
+    "risk_level": "high",
+    "description": "외부 상태 변경이 필요한 workflow 요청을 생성한다.",
+    "enabled": true
+  }
+]
+```
+
 승인 후에는 같은 리소스가 `executed` 상태로 바뀌고 replay 결과가 저장된다.
 
 ```json
@@ -141,5 +158,6 @@ POST /v1/approvals/{approval_id}/approve
 - citation을 응답에 포함해 RAG 답변을 검증 가능하게 만든다.
 - policy decision을 응답에 포함해 차단/승인 상태를 제품 상태로 다룬다.
 - tool execution을 응답에 포함해 외부 시스템 실행 경계를 확인할 수 있게 한다.
+- tool catalog를 API로 노출해 required scope와 risk level을 확인할 수 있게 한다.
 - 승인 요청은 별도 리소스로 다뤄 pending, executed 상태 전이를 추적한다.
 - 평가 API를 별도 축으로 두어 Agent 품질을 회귀 테스트할 수 있게 한다.

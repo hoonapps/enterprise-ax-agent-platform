@@ -127,6 +127,7 @@ class RunAgentUseCase:
         scenario: str,
         message: str,
         user_id: str | None,
+        actor_scopes: list[str] | None = None,
     ) -> AgentRun:
         started = perf_counter()
         trace: list[TraceStep] = []
@@ -203,6 +204,7 @@ class RunAgentUseCase:
             query_type=query_type,
             message=redacted,
             user_id=user_id,
+            actor_scopes=actor_scopes or [],
             trace=trace,
         )
 
@@ -255,6 +257,7 @@ class RunAgentUseCase:
         query_type: QueryType,
         message: str,
         user_id: str | None,
+        actor_scopes: list[str],
         trace: list[TraceStep],
     ) -> list[ToolExecution]:
         if query_type != QueryType.ACTION:
@@ -267,7 +270,7 @@ class RunAgentUseCase:
             )
             return []
 
-        request = self._build_tool_request(message)
+        request = self._build_tool_request(message=message, actor_scopes=actor_scopes)
         execution = self.tool_runtime.execute(request)
         trace.append(
             TraceStep(
@@ -336,13 +339,14 @@ class RunAgentUseCase:
                 )
             )
 
-    def _build_tool_request(self, message: str) -> ToolRequest:
+    def _build_tool_request(self, *, message: str, actor_scopes: list[str]) -> ToolRequest:
         lowered = message.lower()
         if any(keyword in lowered for keyword in ("조회", "확인", "search", "find", "get")):
             return ToolRequest(
                 name="internal-records.lookup",
                 action_type=ToolActionType.READ,
                 input_payload={"query": message},
+                actor_scopes=actor_scopes,
                 risk_level="low",
                 description="내부 업무 레코드 조회",
             )
@@ -351,6 +355,7 @@ class RunAgentUseCase:
             name="workflow.request-change",
             action_type=ToolActionType.WRITE,
             input_payload={"request": message},
+            actor_scopes=actor_scopes,
             risk_level="high",
             description="외부 상태 변경이 필요한 업무 요청",
         )

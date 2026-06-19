@@ -6,6 +6,13 @@ from apps.api.main import create_app
 def test_health_and_agent_flow():
     client = TestClient(create_app())
 
+    tools = client.get("/v1/tools")
+    assert tools.status_code == 200
+    assert {tool["name"] for tool in tools.json()} >= {
+        "internal-records.lookup",
+        "workflow.request-change",
+    }
+
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "ok"

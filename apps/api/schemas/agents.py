@@ -13,9 +13,10 @@ from apps.api.schemas.common import (
 
 class RunAgentRequest(BaseModel):
     tenant_id: str = "default"
-    user_id: str | None = "portfolio-reviewer"
-    scenario: str = Field(default="lg-cns", examples=["lg-cns", "sk-ax", "samsung-sds"])
+    user_id: str | None = "operator-01"
+    scenario: str = Field(default="operations", examples=["operations", "finance-ops"])
     message: str = Field(..., min_length=2)
+    actor_scopes: list[str] = Field(default_factory=lambda: ["records:read", "workflow:request"])
     context: dict[str, Any] = Field(default_factory=dict)
 
 
