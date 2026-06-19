@@ -4,6 +4,7 @@ from apps.api.routers import (
     agents,
     approvals,
     audit,
+    dashboard,
     documents,
     evaluations,
     health,
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.include_router(health.router)
+    app.include_router(dashboard.router)
     app.include_router(documents.router)
     app.include_router(agents.router)
     app.include_router(evaluations.router)

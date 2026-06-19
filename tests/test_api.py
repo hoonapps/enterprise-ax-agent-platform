@@ -407,3 +407,17 @@ def test_operations_summary_aggregates_runtime_signals():
     assert body["tool_decision_counts"]["approval_required"] >= 1
     assert body["approval_counts"]["requested"] >= 1
     assert body["latest_evaluation_metrics"]["case_count"] == 1
+
+
+def test_operator_dashboard_serves_backend_console():
+    client = TestClient(create_app())
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Enterprise AX Agent Operations" in response.text
+    assert "/v1/operations/summary" in response.text
+    assert "/v1/approvals/pending" in response.text
+    assert "/v1/audit/events" in response.text
+    assert "/v1/tools" in response.text

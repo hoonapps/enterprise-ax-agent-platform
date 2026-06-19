@@ -8,6 +8,7 @@ API는 LLM 구현 세부사항이 아니라 업무 기능을 노출한다.
 
 ```text
 GET  /health
+GET  /dashboard
 GET  /v1/readiness
 
 POST /v1/documents/ingest
@@ -259,6 +260,25 @@ GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
 ```text
 GET /v1/operations/summary?tenant_id=default&event_limit=500
 ```
+
+## Operator Dashboard
+
+```text
+GET /dashboard
+```
+
+운영 콘솔은 HTML 화면을 반환한다. 화면 자체는 별도 쓰기 동작을 갖지 않고,
+다음 API에서 데이터를 읽어 상태를 구성한다.
+
+| API | 화면 사용처 |
+| --- | --- |
+| `GET /v1/operations/summary` | 상단 지표, tool decision, evaluation metrics |
+| `GET /v1/approvals/pending` | 승인 대기 queue |
+| `GET /v1/audit/events` | 최근 감사 이벤트 |
+| `GET /v1/tools` | 등록된 tool catalog |
+
+이 구조에서 운영 화면은 API 계약의 소비자이며, 승인 실행이나 반려 같은 상태 변경은 기존 API를 통해
+명시적으로 처리한다.
 
 응답:
 

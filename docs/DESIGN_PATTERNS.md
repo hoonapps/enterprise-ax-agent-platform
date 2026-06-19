@@ -197,3 +197,24 @@ AuditLogPort
 
 이 방식은 dashboard가 필요한 데이터 계약을 빠르게 고정하면서도,
 나중에 Postgres materialized view나 metrics table로 교체할 여지를 남긴다.
+
+## 13. Backend-Served Operator Console
+
+운영 콘솔은 제품의 핵심 쓰기 흐름과 분리된 얇은 UI 경계다.
+
+```text
+GET /dashboard
+  -> HTML shell
+  -> browser fetch
+  -> /v1/operations/summary, /v1/approvals/pending, /v1/audit/events, /v1/tools
+```
+
+대시보드는 다음 원칙을 따른다.
+
+- 화면 전용 상태 저장소를 두지 않는다.
+- 운영 지표는 `OperationsSummaryUseCase`가 만든 read model을 사용한다.
+- 승인 실행/반려 같은 변경은 기존 API로 처리한다.
+- 화면은 Agent runtime의 내부 구현이 아니라 공개 API 계약에 의존한다.
+
+이 구조는 React 같은 별도 프론트엔드가 붙어도 유지된다. 기존 dashboard는 API 계약 검증용
+운영 콘솔로 남고, 더 복잡한 화면은 같은 read model 위에서 확장할 수 있다.
