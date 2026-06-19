@@ -15,7 +15,7 @@ x-api-environment: &api-environment
   WEBHOOK_LEASE_SECONDS: ${WEBHOOK_LEASE_SECONDS:-60}
   QDRANT_URL: ${CONTAINER_QDRANT_URL:-http://qdrant:6333}
   QDRANT_COLLECTION: ${QDRANT_COLLECTION:-ax_agent_chunks}
-  POSTGRES_DSN: ${CONTAINER_POSTGRES_DSN:-postgresql://ax_agent:ax_agent@postgres:5432/ax_agent}
+  POSTGRES_DSN: ${CONTAINER_POSTGRES_DSN:-postgresql://ax_agent_app:ax_agent_app@postgres:5432/ax_agent}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 

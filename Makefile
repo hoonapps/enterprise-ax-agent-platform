@@ -1,4 +1,4 @@
-.PHONY: install dev test lint typecheck regression dispatch-webhooks verify run
+.PHONY: install dev test lint typecheck regression dispatch-webhooks verify verify-tenant-rls run
 
 install:
 	python3 -m venv .venv
@@ -21,6 +21,9 @@ regression:
 
 dispatch-webhooks:
 	. .venv/bin/activate && python scripts/dispatch_webhooks.py --tenant-id $${TENANT_ID:-default} --limit $${LIMIT:-100}
+
+verify-tenant-rls:
+	. .venv/bin/activate && python scripts/verify_tenant_rls.py
 
 verify: lint typecheck test regression
 

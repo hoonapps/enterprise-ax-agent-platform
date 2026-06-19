@@ -298,10 +298,10 @@ docker compose up -d postgres qdrant
 ```env
 STORAGE_BACKEND=postgres
 VECTOR_BACKEND=qdrant
-POSTGRES_DSN=postgresql://ax_agent:ax_agent@localhost:5432/ax_agent
+POSTGRES_DSN=postgresql://ax_agent_app:ax_agent_app@localhost:5432/ax_agent
 QDRANT_URL=http://localhost:6333
 QDRANT_COLLECTION=ax_agent_chunks
-CONTAINER_POSTGRES_DSN=postgresql://ax_agent:ax_agent@postgres:5432/ax_agent
+CONTAINER_POSTGRES_DSN=postgresql://ax_agent_app:ax_agent_app@postgres:5432/ax_agent
 CONTAINER_QDRANT_URL=http://qdrant:6333
 ```
 
@@ -311,7 +311,16 @@ CONTAINER_QDRANT_URL=http://qdrant:6333
 make dev
 ```
 
-Postgres는 `db/migrations`의 초기 schema로 뜨고, Qdrant collection은 어댑터가 필요 시 생성합니다.
+Postgres는 `db/migrations`의 schema로 뜹니다. `ax_agent`는 schema owner이고, API와 worker는
+`ax_agent_app` runtime role로 접속합니다. tenant-owned table은 Row Level Security가 켜져 있으며,
+Postgres adapter는 요청 tenant를 `app.tenant_id` session setting으로 설정한 뒤 쿼리를 실행합니다.
+Qdrant collection은 어댑터가 필요 시 생성합니다.
+
+tenant RLS smoke test:
+
+```bash
+make verify-tenant-rls
+```
 
 API 컨테이너까지 함께 띄울 때는 환경변수로 backend mode를 지정합니다.
 

@@ -88,6 +88,8 @@ QdrantVectorSearch
 ```
 
 중요한 점은 “처음부터 특정 DB에 고정했는가”가 아니라 “저장소 교체 경계가 있는가”다.
+Postgres adapter는 runtime role로 접속하고 connection마다 `app.tenant_id`를 설정해 Row Level
+Security policy와 application-level tenant guard를 함께 적용한다.
 
 ## 6. Domain Event / Audit Event
 

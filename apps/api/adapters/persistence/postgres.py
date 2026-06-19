@@ -42,6 +42,9 @@ class PostgresBase:
     def __init__(self, dsn: str) -> None:
         self.dsn = dsn
 
+    def _set_tenant_context(self, conn: Any, tenant_pk: UUID) -> None:
+        conn.execute("select set_config('app.tenant_id', %s, true)", (str(tenant_pk),))
+
     def _tenant_pk(self, tenant_slug: str) -> UUID:
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
             row = conn.execute(
@@ -64,6 +67,7 @@ class PostgresDocumentRepository(PostgresBase):
         content_hash = hashlib.sha256(document.content.encode("utf-8")).hexdigest()
 
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into documents (
@@ -115,7 +119,9 @@ class PostgresDocumentRepository(PostgresBase):
         return document
 
     def list_documents(self, tenant_id: str) -> list[Document]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 select d.id, t.slug as tenant_id, d.title, d.source_type,
@@ -151,6 +157,7 @@ class PostgresOntologyRepository(PostgresBase):
         tenant_id = (nodes[0].tenant_id if nodes else edges[0].tenant_id)
         tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             for node in nodes:
                 conn.execute(
                     """
@@ -202,7 +209,9 @@ class PostgresOntologyRepository(PostgresBase):
                 )
 
     def get_graph(self, tenant_id: str, limit: int = 200) -> OntologyGraph:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             node_rows = conn.execute(
                 """
                 select n.*, t.slug as tenant_slug
@@ -295,6 +304,7 @@ class PostgresAgentRunRepository(PostgresBase):
         }
 
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into agent_runs (
@@ -357,7 +367,9 @@ class PostgresAgentRunRepository(PostgresBase):
         return run
 
     def get(self, tenant_id: str, run_id: str) -> AgentRun | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select r.*, t.slug as tenant_slug, m.content as answer, m.metadata
@@ -401,7 +413,9 @@ class PostgresAgentRunRepository(PostgresBase):
             params.append(query_type)
         params.append(limit)
 
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 f"""
                 select r.*, t.slug as tenant_slug, m.content as answer, m.metadata
@@ -424,7 +438,9 @@ class PostgresAgentRunRepository(PostgresBase):
         return [self._row_to_run(row) for row in rows]
 
     def count_runs_between(self, tenant_id: str, start: datetime, end: datetime) -> int:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select count(*)
@@ -529,6 +545,7 @@ class PostgresAuditLog(PostgresBase):
     def append(self, event: AuditEvent) -> None:
         tenant_pk = self._tenant_pk(event.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into audit_events (
@@ -571,7 +588,9 @@ class PostgresAuditLog(PostgresBase):
             params.append(request_id)
         params.append(limit)
 
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 f"""
                 select e.*, t.slug as tenant_slug
@@ -600,7 +619,9 @@ class PostgresAuditLog(PostgresBase):
         ]
 
     def count_events_before(self, tenant_id: str, before: datetime) -> int:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select count(*)
@@ -626,7 +647,9 @@ class PostgresAuditLog(PostgresBase):
         return int(row[0]) if row else 0
 
     def delete_events_before(self, tenant_id: str, before: datetime) -> int:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             cursor = conn.execute(
                 """
                 delete from audit_events e
@@ -656,6 +679,7 @@ class PostgresWebhookSubscriptionRepository(PostgresBase):
     def save(self, subscription: WebhookSubscription) -> WebhookSubscription:
         tenant_pk = self._tenant_pk(subscription.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into webhook_subscriptions (
@@ -684,7 +708,9 @@ class PostgresWebhookSubscriptionRepository(PostgresBase):
         return subscription
 
     def get(self, tenant_id: str, subscription_id: str) -> WebhookSubscription | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select s.*, t.slug as tenant_slug
@@ -697,7 +723,9 @@ class PostgresWebhookSubscriptionRepository(PostgresBase):
         return self._row_to_subscription(row) if row else None
 
     def list_subscriptions(self, tenant_id: str) -> list[WebhookSubscription]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 select s.*, t.slug as tenant_slug
@@ -715,7 +743,9 @@ class PostgresWebhookSubscriptionRepository(PostgresBase):
         tenant_id: str,
         event_type: str,
     ) -> list[WebhookSubscription]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 select s.*, t.slug as tenant_slug
@@ -747,6 +777,7 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
     def save(self, delivery: WebhookDelivery) -> WebhookDelivery:
         tenant_pk = self._tenant_pk(delivery.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into webhook_deliveries (
@@ -792,7 +823,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
             filters.append("d.status = %s")
             params.append(status.value)
         params.append(limit)
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 f"""
                 select d.*, t.slug as tenant_slug
@@ -812,7 +845,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
         now: datetime,
         limit: int = 100,
     ) -> list[WebhookDelivery]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 select d.*, t.slug as tenant_slug
@@ -847,7 +882,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
         lease_until: datetime,
         limit: int = 100,
     ) -> list[WebhookDelivery]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 with candidates as (
@@ -893,7 +930,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
         return [self._row_to_delivery(row) for row in rows]
 
     def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select d.*, t.slug as tenant_slug
@@ -906,7 +945,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
         return self._row_to_delivery(row) if row else None
 
     def count_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select count(*)
@@ -926,7 +967,9 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
         return int(row[0]) if row else 0
 
     def delete_terminal_before(self, tenant_id: str, before: datetime) -> int:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             cursor = conn.execute(
                 """
                 delete from webhook_deliveries d
@@ -967,6 +1010,7 @@ class PostgresApprovalRepository(PostgresBase):
     def save(self, approval: ApprovalRequest) -> ApprovalRequest:
         tenant_pk = self._tenant_pk(approval.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into approval_requests (
@@ -1004,7 +1048,9 @@ class PostgresApprovalRepository(PostgresBase):
         return self._list(tenant_id=tenant_id, status=ApprovalStatus.PENDING)
 
     def get(self, tenant_id: str, approval_id: str) -> ApprovalRequest | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select a.*, t.slug as tenant_slug
@@ -1017,7 +1063,9 @@ class PostgresApprovalRepository(PostgresBase):
         return self._row_to_approval(row) if row else None
 
     def _list(self, *, tenant_id: str, status: ApprovalStatus) -> list[ApprovalRequest]:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             rows = conn.execute(
                 """
                 select a.*, t.slug as tenant_slug
@@ -1053,6 +1101,7 @@ class PostgresEvaluationRepository(PostgresBase):
     def save(self, run: EvaluationRun, cases: list[EvaluationCase]) -> EvaluationRun:
         tenant_pk = self._tenant_pk(run.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into evaluation_runs (
@@ -1113,7 +1162,9 @@ class PostgresEvaluationRepository(PostgresBase):
         )
 
     def get(self, tenant_id: str, evaluation_run_id: str) -> EvaluationRun | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             run_row = conn.execute(
                 """
                 select r.*, t.slug as tenant_slug
@@ -1166,7 +1217,9 @@ class PostgresEvaluationRepository(PostgresBase):
 
 class PostgresIdempotencyRepository(PostgresBase):
     def get(self, tenant_id: str, key: str) -> IdempotencyRecord | None:
+        tenant_pk = self._tenant_pk(tenant_id)
         with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             row = conn.execute(
                 """
                 select i.*, t.slug as tenant_slug
@@ -1189,6 +1242,7 @@ class PostgresIdempotencyRepository(PostgresBase):
     def save(self, record: IdempotencyRecord) -> IdempotencyRecord:
         tenant_pk = self._tenant_pk(record.tenant_id)
         with psycopg.connect(self.dsn) as conn:
+            self._set_tenant_context(conn, tenant_pk)
             conn.execute(
                 """
                 insert into idempotency_keys (

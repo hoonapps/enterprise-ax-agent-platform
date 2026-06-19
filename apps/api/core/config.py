@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "ax_agent_chunks"
-    postgres_dsn: str = "postgresql://ax_agent:ax_agent@localhost:5432/ax_agent"
+    postgres_dsn: str = "postgresql://ax_agent_app:ax_agent_app@localhost:5432/ax_agent"
 
     @property
     def llm_mode(self) -> str:

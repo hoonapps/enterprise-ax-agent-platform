@@ -339,6 +339,25 @@ RDB와 Vector DB의 책임을 분리한다.
 | Postgres | 업무 원장, 메타데이터, 실행 이력, 감사 이벤트 |
 | Vector DB | 유사도 검색용 임베딩 인덱스 |
 
+## Tenant 격리
+
+Postgres schema owner와 API runtime role을 분리한다.
+
+| 역할 | 책임 |
+| --- | --- |
+| `ax_agent` | schema 생성, migration 실행 |
+| `ax_agent_app` | API/worker runtime 접속 |
+
+`db/migrations/002_tenant_rls.sql`은 tenant-owned table에 Row Level Security를 적용한다.
+runtime query는 `app.tenant_id` session setting과 row의 `tenant_id`가 일치할 때만 조회/쓰기 가능하다.
+Postgres adapter는 tenant slug를 내부 UUID로 변환한 뒤 connection별로 `app.tenant_id`를 설정한다.
+
+검증은 다음 명령으로 수행한다.
+
+```bash
+make verify-tenant-rls
+```
+
 ## 보관 정책
 
 | 데이터 | 권장 보관 |

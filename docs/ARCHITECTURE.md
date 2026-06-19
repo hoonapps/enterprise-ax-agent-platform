@@ -371,8 +371,11 @@ Postgres adapter는 재시도 가능한 webhook delivery가 연결된 audit even
 
 ### 멀티테넌시
 
-모든 핵심 데이터는 `tenant_id`를 가진다. MVP는 `default` 테넌트로 실행하지만,
-Postgres 전환 시 Row Level Security로 확장할 수 있다.
+모든 핵심 데이터는 `tenant_id`를 가진다. API 요청의 tenant slug는 Postgres 내부 tenant UUID로
+변환되고, Postgres adapter는 connection마다 `app.tenant_id` session setting을 지정한다.
+tenant-owned table은 Row Level Security policy로 이 값과 row의 `tenant_id`가 일치할 때만 접근된다.
+schema owner인 `ax_agent`와 runtime role인 `ax_agent_app`을 분리해 runtime query가 RLS를 우회하지
+않도록 한다.
 
 API key credential은 선택적으로 tenant 목록을 가질 수 있다.
 
