@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from time import perf_counter
 from uuid import UUID
@@ -8,6 +9,7 @@ from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
+    ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
     ToolRuntimePort,
@@ -17,12 +19,15 @@ from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
     AgentRun,
+    ApprovalRequest,
+    ApprovalStatus,
     AuditEvent,
     Document,
     QueryType,
     RetrievalResult,
     RunStatus,
     ToolActionType,
+    ToolDecision,
     ToolExecution,
     ToolRequest,
     TraceStep,
@@ -94,6 +99,7 @@ class RunAgentUseCase:
         vector_search: VectorSearchPort,
         audit_log: AuditLogPort,
         runs: AgentRunRepositoryPort,
+        approvals: ApprovalRepositoryPort,
         classifier: QueryClassifier,
         planner: RetrievalPlanner,
         redaction_policy: RedactionPolicy,
@@ -105,6 +111,7 @@ class RunAgentUseCase:
         self.vector_search = vector_search
         self.audit_log = audit_log
         self.runs = runs
+        self.approvals = approvals
         self.classifier = classifier
         self.planner = planner
         self.redaction_policy = redaction_policy
@@ -227,6 +234,7 @@ class RunAgentUseCase:
             completed_at=datetime.now(UTC),
         )
         self.runs.save(run)
+        self._create_approval_requests(run)
         self._audit_agent_run(run, latency_ms=elapsed_ms)
         return run
 
@@ -293,6 +301,41 @@ class RunAgentUseCase:
         )
         return [execution]
 
+    def _create_approval_requests(self, run: AgentRun) -> None:
+        for execution in run.tool_executions:
+            if execution.decision != ToolDecision.APPROVAL_REQUIRED:
+                continue
+
+            approval = ApprovalRequest(
+                id=execution.id,
+                tenant_id=run.tenant_id,
+                agent_run_id=run.id,
+                tool_execution_id=execution.id,
+                tool_name=execution.tool_name,
+                action_type=execution.action_type,
+                input_payload=execution.input_payload,
+                reason=execution.reason,
+                requested_by=run.user_id,
+            )
+            self.approvals.save(approval)
+            self.audit_log.append(
+                AuditEvent(
+                    tenant_id=run.tenant_id,
+                    actor_type="agent",
+                    actor_id=run.user_id or "system",
+                    event_type="approval.requested",
+                    resource_type="approval_request",
+                    resource_id=approval.id,
+                    payload={
+                        "agent_run_id": str(run.id),
+                        "tool_execution_id": str(execution.id),
+                        "tool_name": execution.tool_name,
+                        "action_type": execution.action_type.value,
+                        "reason": execution.reason,
+                    },
+                )
+            )
+
     def _build_tool_request(self, message: str) -> ToolRequest:
         lowered = message.lower()
         if any(keyword in lowered for keyword in ("조회", "확인", "search", "find", "get")):
@@ -341,3 +384,69 @@ class RunAgentUseCase:
                 },
             )
         )
+
+
+class ApprovalUseCase:
+    def __init__(
+        self,
+        *,
+        approvals: ApprovalRepositoryPort,
+        tool_runtime: ToolRuntimePort,
+        audit_log: AuditLogPort,
+    ) -> None:
+        self.approvals = approvals
+        self.tool_runtime = tool_runtime
+        self.audit_log = audit_log
+
+    def list_pending(self, *, tenant_id: str) -> list[ApprovalRequest]:
+        return self.approvals.list_pending(tenant_id)
+
+    def approve(
+        self,
+        *,
+        tenant_id: str,
+        approval_id: UUID,
+        approved_by: str,
+    ) -> ApprovalRequest | None:
+        approval = self.approvals.get(tenant_id=tenant_id, approval_id=str(approval_id))
+        if approval is None:
+            return None
+
+        if approval.status == ApprovalStatus.EXECUTED:
+            return approval
+
+        if approval.status != ApprovalStatus.PENDING:
+            return approval
+
+        replay = self.tool_runtime.replay_approved(approval)
+        updated = replace(
+            approval,
+            status=ApprovalStatus.EXECUTED,
+            approved_by=approved_by,
+            replay_result={
+                "tool_execution_id": str(replay.id),
+                "tool_name": replay.tool_name,
+                "decision": replay.decision.value,
+                "status": replay.status,
+                "output_payload": replay.output_payload,
+            },
+            updated_at=datetime.now(UTC),
+        )
+        saved = self.approvals.save(updated)
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="user",
+                actor_id=approved_by,
+                event_type="approval.executed",
+                resource_type="approval_request",
+                resource_id=saved.id,
+                payload={
+                    "agent_run_id": str(saved.agent_run_id),
+                    "tool_execution_id": str(saved.tool_execution_id),
+                    "tool_name": saved.tool_name,
+                    "replay_result": saved.replay_result,
+                },
+            )
+        )
+        return saved

@@ -4,6 +4,7 @@ from typing import Protocol
 
 from apps.api.domain.models import (
     AgentRun,
+    ApprovalRequest,
     AuditEvent,
     Document,
     DocumentChunk,
@@ -39,3 +40,13 @@ class AgentRunRepositoryPort(Protocol):
 
 class ToolRuntimePort(Protocol):
     def execute(self, request: ToolRequest) -> ToolExecution: ...
+
+    def replay_approved(self, approval: ApprovalRequest) -> ToolExecution: ...
+
+
+class ApprovalRepositoryPort(Protocol):
+    def save(self, approval: ApprovalRequest) -> ApprovalRequest: ...
+
+    def list_pending(self, tenant_id: str) -> list[ApprovalRequest]: ...
+
+    def get(self, tenant_id: str, approval_id: str) -> ApprovalRequest | None: ...

@@ -19,6 +19,9 @@ POST /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 
 GET  /v1/audit/events
+
+GET  /v1/approvals/pending
+POST /v1/approvals/{approval_id}/approve
 ```
 
 ## Agent 실행 요청
@@ -92,6 +95,38 @@ GET  /v1/audit/events
 }
 ```
 
+## 승인 요청 응답
+
+```json
+{
+  "id": "018f...",
+  "tenant_id": "default",
+  "agent_run_id": "018f...",
+  "tool_execution_id": "018f...",
+  "tool_name": "workflow.request-change",
+  "action_type": "write",
+  "status": "pending",
+  "reason": "외부 상태를 변경하는 작업은 승인 대기 상태로 전환합니다.",
+  "requested_by": "operator-01",
+  "approved_by": null,
+  "replay_result": {}
+}
+```
+
+승인 후에는 같은 리소스가 `executed` 상태로 바뀌고 replay 결과가 저장된다.
+
+```json
+{
+  "status": "executed",
+  "approved_by": "operator-02",
+  "replay_result": {
+    "tool_name": "workflow.request-change",
+    "decision": "allowed",
+    "status": "succeeded"
+  }
+}
+```
+
 ## 헤더
 
 | 헤더 | 목적 |
@@ -106,4 +141,5 @@ GET  /v1/audit/events
 - citation을 응답에 포함해 RAG 답변을 검증 가능하게 만든다.
 - policy decision을 응답에 포함해 차단/승인 상태를 제품 상태로 다룬다.
 - tool execution을 응답에 포함해 외부 시스템 실행 경계를 확인할 수 있게 한다.
+- 승인 요청은 별도 리소스로 다뤄 pending, executed 상태 전이를 추적한다.
 - 평가 API를 별도 축으로 두어 Agent 품질을 회귀 테스트할 수 있게 한다.

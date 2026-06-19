@@ -1,6 +1,7 @@
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
+    InMemoryApprovalRepository,
     InMemoryAuditLog,
     InMemoryDocumentRepository,
 )
@@ -19,6 +20,7 @@ def build_use_cases():
     vector = LocalKeywordVectorSearch()
     audit = InMemoryAuditLog()
     runs = InMemoryAgentRunRepository()
+    approvals = InMemoryApprovalRepository()
     ingest = IngestDocumentUseCase(
         documents=documents,
         vector_search=vector,
@@ -29,6 +31,7 @@ def build_use_cases():
         vector_search=vector,
         audit_log=audit,
         runs=runs,
+        approvals=approvals,
         classifier=QueryClassifier(),
         planner=RetrievalPlanner(),
         redaction_policy=RedactionPolicy(),
@@ -37,11 +40,11 @@ def build_use_cases():
         synthesizer=GroundedAnswerSynthesizer(),
         default_top_k=4,
     )
-    return ingest, agent, audit
+    return ingest, agent, audit, approvals
 
 
 def test_agent_returns_grounded_answer_with_citations():
-    ingest, agent, audit = build_use_cases()
+    ingest, agent, audit, _ = build_use_cases()
     ingest.execute(
         Document(
             tenant_id="default",
@@ -65,7 +68,7 @@ def test_agent_returns_grounded_answer_with_citations():
 
 
 def test_destructive_action_requires_approval():
-    _, agent, _ = build_use_cases()
+    _, agent, _, _ = build_use_cases()
 
     run = agent.execute(
         tenant_id="default",
@@ -80,7 +83,7 @@ def test_destructive_action_requires_approval():
 
 
 def test_action_query_records_tool_approval_decision():
-    ingest, agent, audit = build_use_cases()
+    ingest, agent, audit, approvals = build_use_cases()
     ingest.execute(
         Document(
             tenant_id="default",
@@ -104,3 +107,4 @@ def test_action_query_records_tool_approval_decision():
 
     events = audit.list_events("default", limit=20)
     assert any(event.event_type == "tool.approval_required" for event in events)
+    assert approvals.list_pending("default")

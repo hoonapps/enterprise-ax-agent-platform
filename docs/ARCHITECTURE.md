@@ -57,6 +57,7 @@ FastAPI
     |       +--> 문서 검색
     |       +--> 근거 기반 답변 생성
     |       +--> Tool Runtime 정책 결정
+    |       +--> 승인 요청 생성
     |       +--> 감사 이벤트 기록
     |
     +--> 문서 적재 유스케이스
@@ -67,6 +68,7 @@ FastAPI
     |       +--> 문서 메타데이터 저장
     |
     +--> 검색/평가/감사 조회 API
+    +--> 승인 요청 조회/실행 API
 ```
 
 ## 모듈 책임
@@ -94,6 +96,7 @@ POST /v1/agents/runs
   -> 벡터 검색
   -> 근거 기반 답변 생성
   -> tool 실행 필요 시 Tool Runtime 호출
+  -> approval_required tool은 승인 요청으로 승격
   -> 실행 이력 저장
   -> 감사 이벤트 기록
   -> 답변 + 출처 + trace 반환
@@ -131,6 +134,7 @@ Postgres 전환 시 Row Level Security로 확장할 수 있다.
 
 쓰기 API는 `Idempotency-Key`를 받을 수 있는 구조로 설계한다.  
 Agent 실행, 문서 적재, 업무 tool call은 재시도될 수 있으므로 중복 실행 방지가 필요하다.
+승인 replay는 이미 `executed` 상태인 요청을 다시 실행하지 않고 기존 replay 결과를 반환한다.
 
 ### 감사 가능성
 

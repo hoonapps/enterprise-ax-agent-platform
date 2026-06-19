@@ -70,3 +70,26 @@ def test_api_returns_tool_execution_for_action_request():
     body = run.json()
     assert body["tool_executions"]
     assert body["tool_executions"][0]["decision"] == "approval_required"
+
+    pending = client.get("/v1/approvals/pending?tenant_id=default")
+    assert pending.status_code == 200
+    approvals = pending.json()
+    assert approvals
+    assert approvals[0]["status"] == "pending"
+
+    approval_id = approvals[0]["id"]
+    approved = client.post(
+        f"/v1/approvals/{approval_id}/approve",
+        json={"tenant_id": "default", "approved_by": "operator-01"},
+    )
+    assert approved.status_code == 200
+    approved_body = approved.json()
+    assert approved_body["status"] == "executed"
+    assert approved_body["replay_result"]["status"] == "succeeded"
+
+    replay_again = client.post(
+        f"/v1/approvals/{approval_id}/approve",
+        json={"tenant_id": "default", "approved_by": "operator-01"},
+    )
+    assert replay_again.status_code == 200
+    assert replay_again.json()["replay_result"] == approved_body["replay_result"]

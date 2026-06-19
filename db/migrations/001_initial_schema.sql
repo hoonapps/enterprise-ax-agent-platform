@@ -113,6 +113,29 @@ create index ix_tool_calls_tool_created
 create index ix_tool_calls_policy
   on tool_calls (tenant_id, policy_decision);
 
+create table approval_requests (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references tenants(id),
+  agent_run_id uuid not null references agent_runs(id) on delete cascade,
+  tool_execution_id uuid not null,
+  tool_name text not null,
+  action_type text not null,
+  input_payload jsonb not null default '{}'::jsonb,
+  reason text not null,
+  status text not null,
+  requested_by text,
+  approved_by text,
+  replay_result jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index ix_approval_requests_pending
+  on approval_requests (tenant_id, status, created_at desc);
+
+create index ix_approval_requests_agent_run
+  on approval_requests (tenant_id, agent_run_id);
+
 create table agent_messages (
   id uuid primary key default uuid_generate_v4(),
   tenant_id uuid not null references tenants(id),

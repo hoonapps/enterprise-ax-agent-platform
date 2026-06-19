@@ -31,6 +31,7 @@ tenants
   |     |
   |     +-- retrieval_events
   |     +-- tool_calls
+  |     +-- approval_requests
   |     +-- agent_messages
   |
   +-- evaluation_runs
@@ -179,6 +180,27 @@ Tool call을 별도 테이블로 둔 이유:
 | `created_at` | timestamptz | 발생 시각 |
 
 감사 로그는 운영자와 보안 담당자가 Agent 실행을 재구성하기 위한 핵심 데이터다.
+
+### `approval_requests`
+
+승인이 필요한 tool call을 운영자가 처리할 수 있는 리소스로 승격한 테이블이다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK |
+| `agent_run_id` | uuid | Agent 실행 FK |
+| `tool_execution_id` | uuid | 원래 tool execution id |
+| `tool_name` | text | 실행 대상 tool |
+| `action_type` | text | read, write, approval |
+| `input_payload` | jsonb | 마스킹된 입력 |
+| `reason` | text | 승인 필요 사유 |
+| `status` | text | pending, executed, rejected |
+| `requested_by` | text | 요청자 |
+| `approved_by` | text | 승인자 |
+| `replay_result` | jsonb | 승인 후 replay 결과 |
+| `created_at` | timestamptz | 생성 시각 |
+| `updated_at` | timestamptz | 수정 시각 |
 
 ## Vector DB Payload
 

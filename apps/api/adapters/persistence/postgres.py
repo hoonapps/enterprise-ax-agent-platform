@@ -10,6 +10,8 @@ from psycopg.types.json import Jsonb
 
 from apps.api.domain.models import (
     AgentRun,
+    ApprovalRequest,
+    ApprovalStatus,
     AuditEvent,
     Citation,
     Classification,
@@ -385,3 +387,89 @@ class PostgresAuditLog(PostgresBase):
             )
             for row in rows
         ]
+
+
+class PostgresApprovalRepository(PostgresBase):
+    def save(self, approval: ApprovalRequest) -> ApprovalRequest:
+        tenant_pk = self._tenant_pk(approval.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute(
+                """
+                insert into approval_requests (
+                  id, tenant_id, agent_run_id, tool_execution_id, tool_name,
+                  action_type, input_payload, reason, status, requested_by,
+                  approved_by, replay_result, created_at, updated_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do update set
+                  status = excluded.status,
+                  approved_by = excluded.approved_by,
+                  replay_result = excluded.replay_result,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    approval.id,
+                    tenant_pk,
+                    approval.agent_run_id,
+                    approval.tool_execution_id,
+                    approval.tool_name,
+                    approval.action_type.value,
+                    Jsonb(approval.input_payload),
+                    approval.reason,
+                    approval.status.value,
+                    approval.requested_by,
+                    approval.approved_by,
+                    Jsonb(approval.replay_result),
+                    approval.created_at,
+                    approval.updated_at,
+                ),
+            )
+        return approval
+
+    def list_pending(self, tenant_id: str) -> list[ApprovalRequest]:
+        return self._list(tenant_id=tenant_id, status=ApprovalStatus.PENDING)
+
+    def get(self, tenant_id: str, approval_id: str) -> ApprovalRequest | None:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            row = conn.execute(
+                """
+                select a.*, t.slug as tenant_slug
+                from approval_requests a
+                join tenants t on t.id = a.tenant_id
+                where t.slug = %s and a.id = %s
+                """,
+                (tenant_id, UUID(approval_id)),
+            ).fetchone()
+        return self._row_to_approval(row) if row else None
+
+    def _list(self, *, tenant_id: str, status: ApprovalStatus) -> list[ApprovalRequest]:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                """
+                select a.*, t.slug as tenant_slug
+                from approval_requests a
+                join tenants t on t.id = a.tenant_id
+                where t.slug = %s and a.status = %s
+                order by a.created_at desc
+                """,
+                (tenant_id, status.value),
+            ).fetchall()
+        return [self._row_to_approval(row) for row in rows]
+
+    def _row_to_approval(self, row: dict[str, Any]) -> ApprovalRequest:
+        return ApprovalRequest(
+            id=cast(UUID, row["id"]),
+            tenant_id=cast(str, row["tenant_slug"]),
+            agent_run_id=cast(UUID, row["agent_run_id"]),
+            tool_execution_id=cast(UUID, row["tool_execution_id"]),
+            tool_name=cast(str, row["tool_name"]),
+            action_type=ToolActionType(cast(str, row["action_type"])),
+            input_payload=cast(dict[str, Any], row["input_payload"]),
+            reason=cast(str, row["reason"]),
+            status=ApprovalStatus(cast(str, row["status"])),
+            requested_by=cast(str | None, row["requested_by"]),
+            approved_by=cast(str | None, row["approved_by"]),
+            replay_result=cast(dict[str, Any], row["replay_result"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )

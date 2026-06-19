@@ -4,7 +4,14 @@ from collections import defaultdict
 from threading import RLock
 from uuid import UUID
 
-from apps.api.domain.models import AgentRun, AuditEvent, Document, DocumentChunk
+from apps.api.domain.models import (
+    AgentRun,
+    ApprovalRequest,
+    ApprovalStatus,
+    AuditEvent,
+    Document,
+    DocumentChunk,
+)
 
 
 class InMemoryDocumentRepository:
@@ -59,3 +66,26 @@ class InMemoryAuditLog:
         with self._lock:
             events = list(reversed(self._events[tenant_id]))
         return events[:limit]
+
+
+class InMemoryApprovalRepository:
+    def __init__(self) -> None:
+        self._approvals: dict[str, dict[UUID, ApprovalRequest]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def save(self, approval: ApprovalRequest) -> ApprovalRequest:
+        with self._lock:
+            self._approvals[approval.tenant_id][approval.id] = approval
+        return approval
+
+    def list_pending(self, tenant_id: str) -> list[ApprovalRequest]:
+        with self._lock:
+            approvals = list(self._approvals[tenant_id].values())
+        return [approval for approval in approvals if approval.status == ApprovalStatus.PENDING]
+
+    def get(self, tenant_id: str, approval_id: str) -> ApprovalRequest | None:
+        with self._lock:
+            try:
+                return self._approvals[tenant_id].get(UUID(approval_id))
+            except ValueError:
+                return None

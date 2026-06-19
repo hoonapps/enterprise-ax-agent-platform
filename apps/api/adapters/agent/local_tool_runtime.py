@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from apps.api.domain.models import ToolActionType, ToolDecision, ToolExecution, ToolRequest
+from uuid import uuid4
+
+from apps.api.domain.models import (
+    ApprovalRequest,
+    ToolActionType,
+    ToolDecision,
+    ToolExecution,
+    ToolRequest,
+)
 from apps.api.domain.policies import ToolPolicy
 
 
@@ -14,7 +22,9 @@ class LocalToolRuntime:
         decision, reason = self.policy.evaluate(request)
 
         if decision == ToolDecision.APPROVAL_REQUIRED:
+            execution_id = uuid4()
             return ToolExecution(
+                id=execution_id,
                 tool_name=request.name,
                 action_type=request.action_type,
                 decision=decision,
@@ -22,7 +32,7 @@ class LocalToolRuntime:
                 reason=reason,
                 input_payload=request.input_payload,
                 output_payload={
-                    "approval_ticket": f"approval://{request.name}",
+                    "approval_ticket": f"approval://{execution_id}",
                     "description": request.description,
                 },
             )
@@ -57,4 +67,19 @@ class LocalToolRuntime:
             reason=reason,
             input_payload=request.input_payload,
             output_payload=output_payload,
+        )
+
+    def replay_approved(self, approval: ApprovalRequest) -> ToolExecution:
+        return ToolExecution(
+            tool_name=approval.tool_name,
+            action_type=approval.action_type,
+            decision=ToolDecision.ALLOWED,
+            status="succeeded",
+            reason="승인된 tool 요청을 replay했습니다.",
+            input_payload=approval.input_payload,
+            output_payload={
+                "result": "approved_action_replayed",
+                "approval_id": str(approval.id),
+                "tool_execution_id": str(approval.tool_execution_id),
+            },
         )

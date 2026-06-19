@@ -3,11 +3,13 @@ from functools import lru_cache
 from apps.api.adapters.agent.local_tool_runtime import LocalToolRuntime
 from apps.api.adapters.persistence.in_memory import (
     InMemoryAgentRunRepository,
+    InMemoryApprovalRepository,
     InMemoryAuditLog,
     InMemoryDocumentRepository,
 )
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
+    PostgresApprovalRepository,
     PostgresAuditLog,
     PostgresDocumentRepository,
 )
@@ -17,6 +19,7 @@ from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
+    ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
     VectorSearchPort,
@@ -24,6 +27,7 @@ from apps.api.application.ports import (
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import (
+    ApprovalUseCase,
     IngestDocumentUseCase,
     RunAgentUseCase,
     SearchKnowledgeUseCase,
@@ -39,16 +43,19 @@ class AppContainer:
         self.documents: DocumentRepositoryPort
         self.audit_log: AuditLogPort
         self.runs: AgentRunRepositoryPort
+        self.approvals: ApprovalRepositoryPort
         self.vector_search: VectorSearchPort
 
         if settings.storage_backend == "postgres":
             self.documents = PostgresDocumentRepository(settings.postgres_dsn)
             self.audit_log = PostgresAuditLog(settings.postgres_dsn)
             self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
+            self.approvals = PostgresApprovalRepository(settings.postgres_dsn)
         else:
             self.documents = InMemoryDocumentRepository()
             self.audit_log = InMemoryAuditLog()
             self.runs = InMemoryAgentRunRepository()
+            self.approvals = InMemoryApprovalRepository()
 
         if settings.vector_backend == "qdrant":
             self.vector_search = QdrantVectorSearch(
@@ -82,6 +89,7 @@ class AppContainer:
             vector_search=self.vector_search,
             audit_log=self.audit_log,
             runs=self.runs,
+            approvals=self.approvals,
             classifier=self.classifier,
             planner=self.planner,
             redaction_policy=self.redaction_policy,
@@ -89,6 +97,11 @@ class AppContainer:
             tool_runtime=self.tool_runtime,
             synthesizer=self.synthesizer,
             default_top_k=settings.top_k,
+        )
+        self.approval = ApprovalUseCase(
+            approvals=self.approvals,
+            tool_runtime=self.tool_runtime,
+            audit_log=self.audit_log,
         )
 
 

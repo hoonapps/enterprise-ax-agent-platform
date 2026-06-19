@@ -42,6 +42,12 @@ class ToolDecision(StrEnum):
     NOT_REQUIRED = "not_required"
 
 
+class ApprovalStatus(StrEnum):
+    PENDING = "pending"
+    EXECUTED = "executed"
+    REJECTED = "rejected"
+
+
 @dataclass(frozen=True)
 class Document:
     tenant_id: str
@@ -130,6 +136,24 @@ class ToolExecution:
     input_payload: dict[str, Any] = field(default_factory=dict)
     output_payload: dict[str, Any] = field(default_factory=dict)
     id: UUID = field(default_factory=uuid4)
+
+
+@dataclass(frozen=True)
+class ApprovalRequest:
+    tenant_id: str
+    agent_run_id: UUID
+    tool_execution_id: UUID
+    tool_name: str
+    action_type: ToolActionType
+    input_payload: dict[str, Any]
+    reason: str
+    status: ApprovalStatus = ApprovalStatus.PENDING
+    requested_by: str | None = None
+    approved_by: str | None = None
+    replay_result: dict[str, Any] = field(default_factory=dict)
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(frozen=True)
