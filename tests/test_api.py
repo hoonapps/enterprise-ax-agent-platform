@@ -594,6 +594,69 @@ def test_agent_run_replay_creates_new_run_and_diff():
     assert audit_events.json()[0]["payload"]["source_run_id"] == source_run_id
 
 
+def test_agent_run_export_supports_jsonl_and_csv():
+    client = TestClient(create_app())
+    tenant_id = "run-export"
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": tenant_id,
+            "title": "Run Export 정책",
+            "content": "Agent run export는 redacted query, confidence, citation 수를 내보낸다.",
+            "source_uri": "test://run-export",
+        },
+    )
+    first = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "Run Export 정책을 정리해줘",
+        },
+    )
+    second = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "finance-ops",
+            "message": "고객 계좌로 100만원 송금 실행해줘",
+        },
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    exported_jsonl = client.get(
+        f"/v1/agents/runs/export?tenant_id={tenant_id}&format=jsonl&limit=10"
+    )
+    assert exported_jsonl.status_code == 200
+    assert exported_jsonl.headers["content-type"].startswith("application/x-ndjson")
+    lines = [json.loads(line) for line in exported_jsonl.text.splitlines() if line]
+    assert len(lines) == 2
+    assert {line["run_id"] for line in lines} == {
+        first.json()["run_id"],
+        second.json()["run_id"],
+    }
+    assert "query" not in lines[0]
+    assert "redacted_query" in lines[0]
+    assert "answer" not in lines[0]
+    assert "citations" in lines[0]
+
+    exported_csv = client.get(
+        f"/v1/agents/runs/export?tenant_id={tenant_id}&status=succeeded&format=csv"
+    )
+    assert exported_csv.status_code == 200
+    assert exported_csv.headers["content-type"].startswith("text/csv")
+    assert "run_id,tenant_id,scenario,status" in exported_csv.text
+    assert "Run Export 정책" in exported_csv.text
+    assert "finance-ops" not in exported_csv.text
+
+    exported_with_answer = client.get(
+        f"/v1/agents/runs/export?tenant_id={tenant_id}&format=jsonl&include_answer=true"
+    )
+    assert "answer" in json.loads(exported_with_answer.text.splitlines()[0])
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"
@@ -1369,6 +1432,9 @@ def test_operator_dashboard_serves_backend_console():
     assert "agent-run-diagnostics" in response.text
     assert "/v1/agents/runs/${encodeURIComponent(runId)}/replay" in response.text
     assert "data-run-action=\"replay\"" in response.text
+    assert "/v1/agents/runs/export" in response.text
+    assert "export-runs-jsonl" in response.text
+    assert "export-runs-csv" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text

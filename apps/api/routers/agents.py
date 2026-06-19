@@ -1,7 +1,10 @@
+import csv
+import json
+from io import StringIO
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.idempotency import (
@@ -165,6 +168,41 @@ def list_agent_runs(
         query_type=query_type,
     )
     return [_to_summary_response(run) for run in runs]
+
+
+@router.get("/agents/runs/export")
+def export_agent_runs(
+    container: ContainerDep,
+    auth: AgentReadAuth,
+    tenant_id: str = "default",
+    limit: int = Query(default=500, ge=1, le=2000),
+    scenario: str | None = None,
+    status: str | None = None,
+    query_type: str | None = None,
+    format: str = "jsonl",
+    include_answer: bool = False,
+) -> Response:
+    require_tenant_access(auth, tenant_id)
+    runs = container.run_agent.list_runs(
+        tenant_id=tenant_id,
+        limit=limit,
+        scenario=scenario,
+        status=status,
+        query_type=query_type,
+    )
+    if format == "jsonl":
+        return Response(
+            content=_runs_to_jsonl(runs, include_answer=include_answer),
+            media_type="application/x-ndjson",
+            headers={"Content-Disposition": 'attachment; filename="agent-runs.jsonl"'},
+        )
+    if format == "csv":
+        return Response(
+            content=_runs_to_csv(runs, include_answer=include_answer),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="agent-runs.csv"'},
+        )
+    raise HTTPException(status_code=400, detail="지원하지 않는 export format입니다.")
 
 
 @router.get("/agents/runs/{run_id}/timeline", response_model=list[AgentRunTimelineItemResponse])
@@ -340,6 +378,84 @@ def _to_summary_response(run: AgentRun) -> AgentRunSummaryResponse:
         created_at=run.created_at,
         completed_at=run.completed_at,
     )
+
+
+def _runs_to_jsonl(runs: list[AgentRun], *, include_answer: bool) -> str:
+    return "\n".join(
+        json.dumps(_run_export_dict(run, include_answer=include_answer), ensure_ascii=False)
+        for run in runs
+    ) + ("\n" if runs else "")
+
+
+def _runs_to_csv(runs: list[AgentRun], *, include_answer: bool) -> str:
+    output = StringIO()
+    fieldnames = [
+        "run_id",
+        "tenant_id",
+        "scenario",
+        "status",
+        "query_type",
+        "redacted_query",
+        "confidence",
+        "citation_count",
+        "tool_execution_count",
+        "trace_step_count",
+        "policy_decision",
+        "policy_allowed",
+        "created_at",
+        "completed_at",
+    ]
+    if include_answer:
+        fieldnames.append("answer")
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for run in runs:
+        row = _run_export_dict(run, include_answer=include_answer)
+        row.pop("citations", None)
+        row.pop("tool_executions", None)
+        writer.writerow(row)
+    return output.getvalue()
+
+
+def _run_export_dict(run: AgentRun, *, include_answer: bool) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "run_id": str(run.id),
+        "tenant_id": run.tenant_id,
+        "scenario": run.scenario,
+        "status": run.status.value,
+        "query_type": run.query_type.value,
+        "redacted_query": run.redacted_query,
+        "confidence": run.confidence,
+        "citation_count": len(run.citations),
+        "tool_execution_count": len(run.tool_executions),
+        "trace_step_count": len(run.trace),
+        "policy_decision": run.policy_decision.decision,
+        "policy_allowed": run.policy_decision.allowed,
+        "created_at": run.created_at.isoformat(),
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "citations": [
+            {
+                "document_id": str(citation.document_id),
+                "chunk_id": str(citation.chunk_id),
+                "title": citation.title,
+                "score": citation.score,
+                "source_uri": citation.source_uri,
+            }
+            for citation in run.citations
+        ],
+        "tool_executions": [
+            {
+                "tool_name": execution.tool_name,
+                "action_type": execution.action_type.value,
+                "decision": execution.decision.value,
+                "status": execution.status,
+            }
+            for execution in run.tool_executions
+        ],
+    }
+    if include_answer:
+        payload["answer"] = run.answer
+    return payload
 
 
 def _to_timeline_response(item: AgentRunTimelineItem) -> AgentRunTimelineItemResponse:

@@ -108,6 +108,8 @@ Agent 시스템은 나중에 왜 그런 답을 했는지 설명할 수 있어야
 
 Audit export는 같은 이벤트 모델을 JSONL/CSV로 직렬화한다.
 조회 API와 export API가 같은 `AuditLogPort` 필터를 사용하므로 저장소가 바뀌어도 동작 의미가 유지된다.
+Agent run export도 같은 원칙을 따른다. 목록 조회와 같은 필터를 사용하고, 기본 export에서는 원문 query와
+답변 본문을 제외해 운영 분석과 데이터 최소화 원칙을 함께 만족한다.
 
 ## 7. Anti-Corruption Layer
 

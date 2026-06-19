@@ -91,6 +91,7 @@
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
+- Agent run 원장은 redacted query 중심의 JSONL/CSV로 export된다.
 - 모든 HTTP 응답은 request id와 처리 시간 헤더를 반환하고, audit event와 webhook payload에
   request id를 연결한다.
 - audit event 조회/export는 request id 필터를 지원한다.

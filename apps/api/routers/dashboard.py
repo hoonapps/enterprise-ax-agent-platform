@@ -753,7 +753,15 @@ _DASHBOARD_HTML = """<!doctype html>
         <section class="panel">
           <header>
             <h2>Recent Agent Runs</h2>
-            <span class="meta">latest 8</span>
+            <div class="action-group">
+              <span class="meta">latest 8</span>
+              <button class="action-button compact" id="export-runs-jsonl" type="button">
+                JSONL
+              </button>
+              <button class="action-button compact" id="export-runs-csv" type="button">
+                CSV
+              </button>
+            </div>
           </header>
           <div class="panel-body table-wrap">
             <table>
@@ -897,6 +905,8 @@ _DASHBOARD_HTML = """<!doctype html>
       feedbackSubmit: document.querySelector("#feedback-submit"),
       feedbackState: document.querySelector("#feedback-state"),
       selectedRunLabel: document.querySelector("#selected-run-label"),
+      exportRunsJsonl: document.querySelector("#export-runs-jsonl"),
+      exportRunsCsv: document.querySelector("#export-runs-csv"),
       loadState: document.querySelector("#load-state"),
       generatedAt: document.querySelector("#generated-at"),
       documents: document.querySelector("#metric-documents"),
@@ -1608,6 +1618,36 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function exportAgentRuns(format) {
+      const tenantId = encodeURIComponent(els.tenant.value || "default");
+      const eventLimit = encodeURIComponent(els.eventLimit.value || "500");
+      const extension = format === "csv" ? "csv" : "jsonl";
+      els.loadState.className = "";
+      els.loadState.textContent = `Agent run ${extension.toUpperCase()} export 생성 중입니다.`;
+      try {
+        const response = await fetch(
+          `/v1/agents/runs/export?tenant_id=${tenantId}&limit=${eventLimit}&format=${format}`,
+          { headers: requestHeaders() }
+        );
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `agent-runs.${extension}`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        els.loadState.textContent = `Agent run ${extension.toUpperCase()} export가 생성되었습니다.`;
+      } catch (error) {
+        els.loadState.className = "error";
+        els.loadState.textContent = `Agent run export 실패: ${error.message}`;
+      }
+    }
+
     async function loadAgentTimeline(runId) {
       if (!runId) {
         renderAgentTimeline([]);
@@ -1737,6 +1777,14 @@ _DASHBOARD_HTML = """<!doctype html>
     els.feedbackForm.addEventListener("submit", (event) => {
       event.preventDefault();
       submitAgentFeedback();
+    });
+
+    els.exportRunsJsonl.addEventListener("click", () => {
+      exportAgentRuns("jsonl");
+    });
+
+    els.exportRunsCsv.addEventListener("click", () => {
+      exportAgentRuns("csv");
     });
 
     els.approvalList.addEventListener("click", (event) => {

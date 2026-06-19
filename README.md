@@ -121,6 +121,7 @@ POST /v1/knowledge/search
 POST /v1/agents/runs
 POST /v1/agents/runs/preview
 GET  /v1/agents/runs
+GET  /v1/agents/runs/export
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
 GET  /v1/agents/runs/{run_id}/diagnostics
@@ -444,6 +445,17 @@ curl "http://127.0.0.1:8000/v1/agents/runs?tenant_id=default&limit=20&status=suc
 
 목록 응답은 운영 추적용 summary입니다. 원문 query와 전체 답변 대신 `redacted_query_preview`,
 상태, query type, confidence, citation/tool/trace 개수를 반환합니다.
+
+Agent 실행 export:
+
+```bash
+curl "http://127.0.0.1:8000/v1/agents/runs/export?tenant_id=default&format=jsonl"
+curl "http://127.0.0.1:8000/v1/agents/runs/export?tenant_id=default&status=succeeded&format=csv"
+```
+
+Export는 Agent run 원장을 JSONL 또는 CSV로 반환합니다. 기본 export에는 원문 query 대신
+`redacted_query`가 포함되고, 답변 본문은 제외됩니다. 답변까지 외부 분석에 넘겨야 할 때만
+`include_answer=true`를 명시합니다.
 
 Agent 실행 timeline:
 
@@ -1007,6 +1019,7 @@ GET /dashboard
 - `/v1/operations/migrations/status`
 - `/v1/agents/runs/preview`
 - `/v1/agents/runs`
+- `/v1/agents/runs/export`
 - `/v1/agents/runs/{run_id}/timeline`
 - `/v1/agents/runs/{run_id}/diagnostics`
 - `/v1/agents/runs/{run_id}/replay`
@@ -1016,7 +1029,7 @@ GET /dashboard
 - `/v1/tools/gateway/status`
 
 화면은 Agent 실행 수, run preview, feedback summary, dependency readiness, schema migration status,
-최근 실행 이력, 실행 diagnostics, 실행 replay, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
+최근 실행 이력, 실행 export, 실행 diagnostics, 실행 replay, 실행 timeline, 월간 사용률, SLO 상태, incident snapshot, 승인 대기, 평균 지연시간,
 operations alert, tool decision, gateway circuit 상태, 감사 이벤트, 최신 evaluation metrics를 표시합니다.
 UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact
 read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.

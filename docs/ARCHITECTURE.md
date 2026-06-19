@@ -175,6 +175,12 @@ GET /v1/agents/runs
   -> scenario/status/query_type 필터 적용
   -> 최신 실행순 summary 반환
 
+GET /v1/agents/runs/export
+  -> agents:read HTTP scope 확인
+  -> tenant 접근 권한 확인
+  -> scenario/status/query_type 필터 적용
+  -> AgentRun 원장을 JSONL 또는 CSV로 직렬화
+
 GET /v1/agents/runs/{run_id}/timeline
   -> AgentRun 단건 조회
   -> trace step을 timeline item으로 변환
@@ -212,6 +218,7 @@ POST /v1/agents/runs/{run_id}/feedback
 실행 이력 목록은 상세 답변 API와 분리한다.
 운영 화면에서는 원문 query와 전체 답변 대신 `redacted_query_preview`, 상태, query type, confidence,
 trace/tool/citation 개수를 조회한다.
+Run export도 같은 필터를 사용하며, 기본값은 원문 query와 답변 본문을 제외한 운영 분석용 데이터다.
 Timeline은 단일 실행의 내부 진행과 외부 감사 이벤트를 한 응답에서 확인하는 drill-down read model이다.
 Diagnostics는 같은 원장을 읽지만 운영 판단을 위해 위험 신호와 권장 조치를 계산하는 read model이다.
 Replay는 같은 입력을 다시 실행해 새 run을 만들고, diagnostics diff로 개선 여부를 비교하는 write
@@ -357,6 +364,7 @@ GET /dashboard
      -> /v1/operations/migrations/status
      -> /v1/agents/runs/preview
      -> /v1/agents/runs
+     -> /v1/agents/runs/export
      -> /v1/agents/runs/{run_id}/timeline
      -> /v1/agents/runs/{run_id}/diagnostics
      -> /v1/agents/runs/{run_id}/replay
@@ -366,7 +374,7 @@ GET /dashboard
      -> /v1/audit/events?request_id=...
      -> /v1/tools
      -> /v1/tools/gateway/status
-  -> 운영 지표, run preview, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, schema migration status, 최근 실행 이력, 실행 diagnostics, 실행 replay, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, gateway circuit 상태, 감사 이벤트 표시
+  -> 운영 지표, run preview, feedback summary, 월간 사용률, SLO 상태, incident snapshot, alert, schema migration status, 최근 실행 이력, 실행 export, 실행 diagnostics, 실행 replay, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, gateway circuit 상태, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.

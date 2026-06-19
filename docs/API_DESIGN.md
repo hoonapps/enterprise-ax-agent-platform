@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/export`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/diagnostics`, `GET /v1/agents/runs/{run_id}/evidence` |
 | `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback`, `POST /v1/agents/runs/{run_id}/replay` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -59,6 +59,7 @@ POST /v1/knowledge/search
 POST /v1/agents/runs
 POST /v1/agents/runs/preview
 GET  /v1/agents/runs
+GET  /v1/agents/runs/export
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
 GET  /v1/agents/runs/{run_id}/diagnostics
@@ -239,6 +240,29 @@ GET /v1/agents/runs?tenant_id=default&limit=50&status=succeeded
 
 목록 응답은 운영 추적용 summary다. 원문 query와 전체 답변은 내려보내지 않고, redaction이 적용된
 preview와 상태 지표만 반환한다.
+
+## Agent 실행 Export
+
+```text
+GET /v1/agents/runs/export?tenant_id=default&format=jsonl
+GET /v1/agents/runs/export?tenant_id=default&status=succeeded&format=csv
+```
+
+지원 query parameter:
+
+| 파라미터 | 의미 |
+| --- | --- |
+| `tenant_id` | export 대상 tenant |
+| `limit` | 최대 export 개수. 1~2000 |
+| `scenario` | 특정 scenario 필터 |
+| `status` | `running`, `succeeded`, `failed`, `blocked` 필터 |
+| `query_type` | `factual`, `summary`, `compare`, `action`, `risk` 필터 |
+| `format` | `jsonl` 또는 `csv` |
+| `include_answer` | `true`이면 답변 본문 포함. 기본값은 `false` |
+
+JSONL은 citation과 tool execution summary를 중첩 구조로 포함한다. CSV는 스프레드시트 분석을 위해
+평탄화된 run summary를 반환한다. 기본 export는 원문 query를 포함하지 않고 `redacted_query`만 포함한다.
+답변 본문도 기본적으로 제외하며, 외부 분석에 필요할 때만 `include_answer=true`를 명시한다.
 
 ## Agent 실행 Timeline
 
@@ -813,6 +837,7 @@ GET /dashboard
 | `GET /v1/operations/migrations/status` | schema migration ledger 상태 |
 | `POST /v1/agents/runs/preview` | 실행 전 redaction, policy, retrieval, tool route preview |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
+| `GET /v1/agents/runs/export` | Agent 실행 원장 JSONL/CSV export |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |
 | `GET /v1/agents/runs/{run_id}/diagnostics` | 선택한 Agent 실행 품질 진단 |
 | `POST /v1/agents/runs/{run_id}/replay` | 선택한 Agent 실행 재현 및 diff |
