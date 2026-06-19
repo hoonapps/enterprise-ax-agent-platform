@@ -207,6 +207,7 @@ GET /dashboard
   -> HTML shell
   -> browser fetch
   -> /v1/operations/summary, /v1/approvals/pending, /v1/audit/events, /v1/tools
+  -> 승인/반려 action은 approval API 호출
 ```
 
 대시보드는 다음 원칙을 따른다.

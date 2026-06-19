@@ -81,6 +81,7 @@ FastAPI
     |       |
     |       +--> OperationsSummary API
     |       +--> Approval pending API
+    |       +--> Approval approve/reject API
     |       +--> Audit events API
     |       +--> Tool catalog API
     +--> MCP-compatible tool boundary
@@ -211,13 +212,15 @@ GET /dashboard
   -> browser fetch
      -> /v1/operations/summary
      -> /v1/approvals/pending
+     -> /v1/approvals/{approval_id}/approve
+     -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events
      -> /v1/tools
-  -> 운영 지표, 승인 queue, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.
-운영 화면은 API read model의 소비자로 두고, 승인 실행/반려 같은 변경은 명시적인 API 경계로 남긴다.
+운영 화면은 API read model의 소비자로 두고, 승인 실행/반려 같은 변경은 명시적인 API 경계를 호출한다.
 
 ## 엔터프라이즈 고려사항
 

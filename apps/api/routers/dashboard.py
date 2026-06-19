@@ -121,6 +121,39 @@ _DASHBOARD_HTML = """<!doctype html>
       cursor: wait;
     }
 
+    .action-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .action-button {
+      min-height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 9px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .action-button.approve {
+      border-color: #8bbd98;
+      color: var(--ok-text);
+    }
+
+    .action-button.reject {
+      border-color: #e0a0a0;
+      color: var(--danger-text);
+    }
+
+    .action-button:disabled {
+      opacity: 0.58;
+      cursor: wait;
+    }
+
     .statusbar {
       min-height: 30px;
       display: flex;
@@ -613,6 +646,7 @@ _DASHBOARD_HTML = """<!doctype html>
                 <th>Tool</th>
                 <th>Status</th>
                 <th>요청자</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -625,6 +659,26 @@ _DASHBOARD_HTML = """<!doctype html>
                     </span>
                   </td>
                   <td>${escapeHtml(approval.requested_by)}</td>
+                  <td>
+                    <div class="action-group">
+                      <button
+                        class="action-button approve"
+                        type="button"
+                        data-approval-action="approve"
+                        data-approval-id="${escapeHtml(approval.id)}"
+                      >
+                        승인
+                      </button>
+                      <button
+                        class="action-button reject"
+                        type="button"
+                        data-approval-action="reject"
+                        data-approval-id="${escapeHtml(approval.id)}"
+                      >
+                        반려
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               `).join("")}
             </tbody>
@@ -679,6 +733,55 @@ _DASHBOARD_HTML = """<!doctype html>
       return response.json();
     }
 
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
+
+    async function decideApproval(approvalId, action) {
+      const actor = window.prompt("처리자 ID를 입력하세요.", "operator-01");
+      if (!actor) {
+        return;
+      }
+      const tenantId = els.tenant.value || "default";
+      const payload = {
+        tenant_id: tenantId,
+        [action === "approve" ? "approved_by" : "rejected_by"]: actor
+      };
+      if (action === "reject") {
+        const reason = window.prompt("반려 사유를 입력하세요.", "요청 근거가 부족합니다.");
+        if (!reason) {
+          return;
+        }
+        payload.reason = reason;
+      }
+
+      els.refresh.disabled = true;
+      els.loadState.className = "";
+      els.loadState.textContent = action === "approve"
+        ? "승인 처리 중입니다."
+        : "반려 처리 중입니다.";
+      try {
+        await postJson(`/v1/approvals/${approvalId}/${action}`, payload);
+        await refreshDashboard();
+      } catch (error) {
+        els.loadState.className = "error";
+        els.loadState.textContent = `승인 상태 변경 실패: ${error.message}`;
+      } finally {
+        els.refresh.disabled = false;
+      }
+    }
+
     async function refreshDashboard() {
       const tenantId = encodeURIComponent(els.tenant.value || "default");
       const eventLimit = encodeURIComponent(els.eventLimit.value || "500");
@@ -723,6 +826,14 @@ _DASHBOARD_HTML = """<!doctype html>
     els.controls.addEventListener("submit", (event) => {
       event.preventDefault();
       refreshDashboard();
+    });
+
+    els.approvalList.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-approval-action]");
+      if (!button) {
+        return;
+      }
+      decideApproval(button.dataset.approvalId, button.dataset.approvalAction);
     });
 
     refreshDashboard();

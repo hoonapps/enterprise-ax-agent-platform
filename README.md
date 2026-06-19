@@ -519,7 +519,7 @@ GET /dashboard
 
 화면은 Agent 실행 수, 승인 대기, 평균 지연시간, tool decision, 감사 이벤트, 최신 evaluation metrics를
 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
-실행과 승인 변경은 API 경계에 남겨둡니다.
+승인/반려 버튼은 기존 approval API를 호출합니다.
 
 ## 데이터 모델 핵심
 

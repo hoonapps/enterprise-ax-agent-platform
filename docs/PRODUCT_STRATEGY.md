@@ -17,7 +17,7 @@
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 감사 이벤트를 JSONL/CSV로 export해 외부 분석과 컴플라이언스 흐름에 연결한다.
 - 운영 요약 API로 dashboard-ready 지표를 제공한다.
-- 운영 콘솔에서 Agent 실행, 승인 대기, tool catalog, 감사 이벤트를 추적한다.
+- 운영 콘솔에서 Agent 실행, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 추적한다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
 
 ## 제품 문제
@@ -82,6 +82,6 @@
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
-- 운영 콘솔은 핵심 지표, 승인 대기, tool catalog, 감사 이벤트를 같은 화면에서 보여준다.
+- 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
 - 외부 LLM이나 Vector DB 장애 시에도 실패 경계가 명확하다.
