@@ -336,3 +336,22 @@ RequestContextMiddleware
 - `RequestContextAuditLog`는 AuditLogPort decorator로 동작한다.
 - 이미 payload에 `request_id`가 있으면 덮어쓰지 않는다.
 - HTTP 요청 밖에서 생성된 이벤트는 request id 없이 기록될 수 있다.
+
+## 19. Compatible Error Envelope
+
+오류 응답은 기존 FastAPI `detail` 계약을 유지하면서 request id만 추가한다.
+
+```json
+{
+  "detail": "Agent 실행 이력을 찾을 수 없습니다.",
+  "request_id": "error-trace-001"
+}
+```
+
+이 패턴은 클라이언트 호환성과 운영 추적성을 동시에 지키기 위한 것이다.
+
+- `HTTPException.detail`은 그대로 둔다.
+- validation error의 `detail` list도 그대로 둔다.
+- response body에는 `request_id`를 추가한다.
+- response header의 `X-Request-ID`와 body의 `request_id`는 같은 값이다.
+- 500 오류는 내부 예외를 노출하지 않고 `"Internal Server Error"`만 반환한다.

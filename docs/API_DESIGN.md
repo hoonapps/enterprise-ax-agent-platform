@@ -145,13 +145,27 @@ POST /v1/approvals/{approval_id}/reject
 
 ## 오류 응답
 
+오류 응답은 FastAPI의 기존 `detail` 계약을 유지하면서 `request_id`를 추가한다.
+
 ```json
 {
-  "error": {
-    "code": "POLICY_DENIED",
-    "message": "요청한 쓰기 작업은 승인 절차가 필요합니다.",
-    "trace_id": "..."
-  }
+  "detail": "Agent 실행 이력을 찾을 수 없습니다.",
+  "request_id": "error-trace-001"
+}
+```
+
+validation error도 같은 envelope를 사용한다.
+
+```json
+{
+  "detail": [
+    {
+      "type": "string_too_short",
+      "loc": ["body", "content"],
+      "msg": "String should have at least 20 characters"
+    }
+  ],
+  "request_id": "validation-trace-001"
 }
 ```
 

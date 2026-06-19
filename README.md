@@ -239,6 +239,7 @@ HTTP API scope와 Agent tool scope는 분리되어 있습니다.
 호출자가 `X-Request-ID`를 보내면 같은 값을 응답에 돌려줍니다.
 HTTP 요청 안에서 생성된 audit event payload와 webhook delivery payload에도 같은 `request_id`를
 포함합니다.
+오류 응답 body도 기존 `detail` 필드를 유지하면서 `request_id`를 포함합니다.
 
 ```bash
 curl http://127.0.0.1:8000/health \

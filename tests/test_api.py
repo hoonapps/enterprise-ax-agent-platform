@@ -72,6 +72,41 @@ def test_request_context_headers_generate_request_id():
     assert float(response.headers["X-Process-Time-Ms"]) >= 0
 
 
+def test_http_error_response_includes_request_id_without_changing_detail():
+    client = TestClient(create_app())
+    run_id = uuid4()
+
+    response = client.get(
+        f"/v1/agents/runs/{run_id}",
+        headers={"X-Request-ID": "error-trace-001"},
+    )
+
+    assert response.status_code == 404
+    assert response.headers["X-Request-ID"] == "error-trace-001"
+    assert response.json()["detail"] == "Agent 실행 이력을 찾을 수 없습니다."
+    assert response.json()["request_id"] == "error-trace-001"
+
+
+def test_validation_error_response_includes_request_id():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/v1/documents/ingest",
+        headers={"X-Request-ID": "validation-trace-001"},
+        json={
+            "tenant_id": "default",
+            "title": "짧은 문서",
+            "content": "too short",
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert response.headers["X-Request-ID"] == "validation-trace-001"
+    assert body["request_id"] == "validation-trace-001"
+    assert isinstance(body["detail"], list)
+
+
 def test_audit_events_include_request_id_from_http_context():
     client = TestClient(create_app())
 

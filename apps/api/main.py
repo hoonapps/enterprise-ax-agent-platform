@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from apps.api.core.errors import install_exception_handlers
 from apps.api.core.observability import RequestContextMiddleware
 from apps.api.routers import (
     agents,
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.add_middleware(RequestContextMiddleware)
+    install_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(dashboard.router)
     app.include_router(documents.router)

@@ -57,6 +57,11 @@ FastAPI
     |       +--> AuditEvent payload request_id
     |       +--> WebhookDelivery payload request_id
     |
+    +--> ExceptionHandlers
+    |       |
+    |       +--> detail 호환 오류 응답
+    |       +--> response body request_id
+    |
     +--> API Key Auth / HTTP Scope Guard
     |
     +--> Agent 실행 유스케이스

@@ -93,6 +93,7 @@
 - audit event는 JSONL/CSV로 export된다.
 - 모든 HTTP 응답은 request id와 처리 시간 헤더를 반환하고, audit event와 webhook payload에
   request id를 연결한다.
+- 오류 응답은 기존 detail 계약을 유지하면서 request id를 포함한다.
 - webhook delivery outbox, lease 기반 batch dispatcher, dead-letter 재시도로 외부 workflow 전송을
   통제할 수 있다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
