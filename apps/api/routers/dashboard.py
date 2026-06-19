@@ -428,6 +428,10 @@ _DASHBOARD_HTML = """<!doctype html>
           <input id="event-limit" name="eventLimit" type="number" min="10" value="500">
         </div>
         <div class="field">
+          <label for="audit-request-id">Request ID</label>
+          <input id="audit-request-id" name="auditRequestId" autocomplete="off">
+        </div>
+        <div class="field">
           <label for="api-key">API Key</label>
           <input id="api-key" name="apiKey" type="password" autocomplete="off">
         </div>
@@ -492,6 +496,7 @@ _DASHBOARD_HTML = """<!doctype html>
                   <th>이벤트</th>
                   <th>리소스</th>
                   <th>Actor</th>
+                  <th>Request</th>
                 </tr>
               </thead>
               <tbody id="audit-events"></tbody>
@@ -550,6 +555,7 @@ _DASHBOARD_HTML = """<!doctype html>
       refresh: document.querySelector("#refresh"),
       tenant: document.querySelector("#tenant-id"),
       eventLimit: document.querySelector("#event-limit"),
+      auditRequestId: document.querySelector("#audit-request-id"),
       apiKey: document.querySelector("#api-key"),
       loadState: document.querySelector("#load-state"),
       generatedAt: document.querySelector("#generated-at"),
@@ -715,7 +721,7 @@ _DASHBOARD_HTML = """<!doctype html>
       if (!events.length) {
         els.auditEvents.innerHTML = `
           <tr>
-            <td colspan="4" class="empty">감사 이벤트가 없습니다.</td>
+            <td colspan="5" class="empty">감사 이벤트가 없습니다.</td>
           </tr>
         `;
         return;
@@ -726,8 +732,21 @@ _DASHBOARD_HTML = """<!doctype html>
           <td>${escapeHtml(event.event_type)}</td>
           <td>${escapeHtml(event.resource_type)}</td>
           <td>${escapeHtml(event.actor_id)}</td>
+          <td>${escapeHtml(event.payload?.request_id || "-")}</td>
         </tr>
       `).join("");
+    }
+
+    function buildAuditEventsUrl() {
+      const params = new URLSearchParams({
+        tenant_id: els.tenant.value || "default",
+        limit: "10"
+      });
+      const requestId = els.auditRequestId.value.trim();
+      if (requestId) {
+        params.set("request_id", requestId);
+      }
+      return `/v1/audit/events?${params.toString()}`;
     }
 
     async function fetchJson(url) {
@@ -807,7 +826,7 @@ _DASHBOARD_HTML = """<!doctype html>
         const [summary, approvals, events, tools] = await Promise.all([
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
-          fetchJson(`/v1/audit/events?tenant_id=${tenantId}&limit=10`),
+          fetchJson(buildAuditEventsUrl()),
           fetchJson("/v1/tools")
         ]);
 

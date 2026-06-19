@@ -593,6 +593,8 @@ def test_operator_dashboard_serves_backend_console():
     assert "/v1/operations/summary" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
+    assert "audit-request-id" in response.text
+    assert "request_id" in response.text
     assert "/v1/tools" in response.text
     assert "data-approval-action=\"approve\"" in response.text
     assert "data-approval-action=\"reject\"" in response.text

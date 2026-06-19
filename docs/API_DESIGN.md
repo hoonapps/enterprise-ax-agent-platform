@@ -384,13 +384,15 @@ GET /dashboard
 | --- | --- |
 | `GET /v1/operations/summary` | 상단 지표, tool decision, evaluation metrics |
 | `GET /v1/approvals/pending` | 승인 대기 queue |
-| `GET /v1/audit/events` | 최근 감사 이벤트 |
+| `GET /v1/audit/events` | 최근 감사 이벤트, request id 필터 |
 | `GET /v1/tools` | 등록된 tool catalog |
 | `POST /v1/approvals/{approval_id}/approve` | 승인 실행 |
 | `POST /v1/approvals/{approval_id}/reject` | 반려 처리 |
 
 이 구조에서 운영 화면은 API 계약의 소비자이며, 승인 실행이나 반려 같은 상태 변경도 기존 API를 통해
 명시적으로 처리한다. 화면은 별도 업무 규칙을 복제하지 않는다.
+감사 이벤트 목록은 request id 입력값이 있으면 `request_id` query parameter를 붙여 같은 HTTP 요청에서
+발생한 이벤트만 조회한다.
 
 응답:
 

@@ -728,6 +728,8 @@ GET /dashboard
 화면은 Agent 실행 수, 승인 대기, 평균 지연시간, tool decision, 감사 이벤트, 최신 evaluation metrics를
 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
 승인/반려 버튼은 기존 approval API를 호출합니다.
+감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
+생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.
 
 ## 데이터 모델 핵심
