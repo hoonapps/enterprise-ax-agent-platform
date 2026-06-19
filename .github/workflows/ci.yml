@@ -34,3 +34,9 @@ jobs:
 
       - name: Regression evaluation
         run: python scripts/run_regression_eval.py
+
+      - name: Docker Compose config
+        run: docker compose --profile worker config
+
+      - name: Docker image build
+        run: docker compose build api webhook-worker
