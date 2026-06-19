@@ -129,6 +129,7 @@ GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
 POST /v1/webhooks/deliveries/{delivery_id}/dispatch
+POST /v1/webhooks/deliveries/dispatch-pending
 POST /v1/webhooks/deliveries/{delivery_id}/mark-delivered
 POST /v1/webhooks/deliveries/{delivery_id}/mark-failed
 
@@ -607,6 +608,21 @@ Delivery 전송:
 curl -X POST http://127.0.0.1:8000/v1/webhooks/deliveries/{delivery_id}/dispatch \
   -H "Content-Type: application/json" \
   -d '{"tenant_id": "default"}'
+```
+
+전송 가능한 delivery 배치 처리:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/webhooks/deliveries/dispatch-pending \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id": "default", "limit": 100}'
+```
+
+worker 또는 운영 스케줄러에서는 같은 dispatcher를 CLI로 호출할 수 있습니다.
+Postgres 저장소를 사용하는 환경에서 pending delivery와 재시도 시각이 지난 failed delivery를 처리합니다.
+
+```bash
+make dispatch-webhooks TENANT_ID=default LIMIT=100
 ```
 
 전송 시 `X-AX-Delivery-Id`, `X-AX-Event-Id`, `X-AX-Event-Type` 헤더를 포함합니다.

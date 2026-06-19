@@ -73,6 +73,19 @@ class WebhookDispatcher:
             return self._mark_delivered(delivery)
         return self._mark_failed(delivery=delivery, result=result)
 
+    def dispatch_pending(self, *, tenant_id: str, limit: int = 100) -> list[WebhookDelivery]:
+        deliveries = self.deliveries.list_dispatchable(
+            tenant_id=tenant_id,
+            now=datetime.now(UTC),
+            limit=limit,
+        )
+        dispatched: list[WebhookDelivery] = []
+        for delivery in deliveries:
+            result = self.dispatch(tenant_id=tenant_id, delivery_id=str(delivery.id))
+            if result is not None:
+                dispatched.append(result)
+        return dispatched
+
     def _headers(
         self,
         *,

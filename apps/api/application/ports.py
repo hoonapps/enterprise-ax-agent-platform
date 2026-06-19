@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 
 from apps.api.domain.models import (
@@ -121,6 +122,13 @@ class WebhookDeliveryRepositoryPort(Protocol):
         self,
         tenant_id: str,
         status: WebhookDeliveryStatus | None = None,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]: ...
+
+    def list_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
         limit: int = 100,
     ) -> list[WebhookDelivery]: ...
 

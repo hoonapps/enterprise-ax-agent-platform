@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 from threading import RLock
 from uuid import UUID
 
@@ -286,6 +287,28 @@ class InMemoryWebhookDeliveryRepository:
         if status is not None:
             deliveries = [delivery for delivery in deliveries if delivery.status == status]
         return sorted(deliveries, key=lambda item: item.created_at, reverse=True)[:limit]
+
+    def list_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        with self._lock:
+            deliveries = list(self._deliveries[tenant_id].values())
+        dispatchable = [
+            delivery
+            for delivery in deliveries
+            if delivery.status == WebhookDeliveryStatus.PENDING
+            or (
+                delivery.status == WebhookDeliveryStatus.FAILED
+                and (delivery.next_attempt_at is None or delivery.next_attempt_at <= now)
+            )
+        ]
+        return sorted(
+            dispatchable,
+            key=lambda item: item.next_attempt_at or item.created_at,
+        )[:limit]
 
     def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
         with self._lock:

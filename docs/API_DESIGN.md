@@ -68,6 +68,7 @@ GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
 GET  /v1/webhooks/deliveries
 POST /v1/webhooks/deliveries/{delivery_id}/dispatch
+POST /v1/webhooks/deliveries/dispatch-pending
 POST /v1/webhooks/deliveries/{delivery_id}/mark-delivered
 POST /v1/webhooks/deliveries/{delivery_id}/mark-failed
 
@@ -491,6 +492,19 @@ Dispatch 요청:
 
 ```text
 POST /v1/webhooks/deliveries/{delivery_id}/dispatch
+```
+
+배치 dispatch 요청:
+
+```text
+POST /v1/webhooks/deliveries/dispatch-pending
+```
+
+```json
+{
+  "tenant_id": "default",
+  "limit": 100
+}
 ```
 
 전송 헤더:

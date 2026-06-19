@@ -1,4 +1,6 @@
 import json
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -10,7 +12,12 @@ from apps.api.application.webhooks import WebhookDispatcher
 from apps.api.core.config import get_settings
 from apps.api.core.container import get_container
 from apps.api.core.security import parse_api_key_credentials
-from apps.api.domain.models import WebhookDelivery, WebhookHttpResult, WebhookSubscription
+from apps.api.domain.models import (
+    WebhookDelivery,
+    WebhookDeliveryStatus,
+    WebhookHttpResult,
+    WebhookSubscription,
+)
 from apps.api.main import create_app
 
 
@@ -798,3 +805,83 @@ def test_webhook_dispatcher_marks_failed_with_retry_time():
     assert dispatched.attempt_count == 1
     assert dispatched.next_attempt_at is not None
     assert "HTTP 503" in str(dispatched.last_error)
+
+
+def test_webhook_dispatcher_dispatches_due_deliveries_batch():
+    subscriptions = InMemoryWebhookSubscriptionRepository()
+    deliveries = InMemoryWebhookDeliveryRepository()
+    subscription = subscriptions.save(
+        WebhookSubscription(
+            tenant_id="default",
+            name="batch-dispatch",
+            target_url="https://workflow.internal/hooks/batch",
+            event_types=["*"],
+        )
+    )
+    pending = deliveries.save(
+        WebhookDelivery(
+            tenant_id="default",
+            subscription_id=subscription.id,
+            event_id=subscription.id,
+            event_type="document.ingested",
+            target_url=subscription.target_url,
+            payload={"event_type": "document.ingested"},
+        )
+    )
+    due_failed = deliveries.save(
+        replace(
+            WebhookDelivery(
+                tenant_id="default",
+                subscription_id=subscription.id,
+                event_id=subscription.id,
+                event_type="approval.rejected",
+                target_url=subscription.target_url,
+                payload={"event_type": "approval.rejected"},
+            ),
+            status=WebhookDeliveryStatus.FAILED,
+            attempt_count=1,
+            next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+    )
+    future_failed = deliveries.save(
+        replace(
+            WebhookDelivery(
+                tenant_id="default",
+                subscription_id=subscription.id,
+                event_id=subscription.id,
+                event_type="evaluation.completed",
+                target_url=subscription.target_url,
+                payload={"event_type": "evaluation.completed"},
+            ),
+            status=WebhookDeliveryStatus.FAILED,
+            attempt_count=1,
+            next_attempt_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    http_client = FakeWebhookHttpClient(WebhookHttpResult(status_code=204))
+    dispatcher = WebhookDispatcher(
+        subscriptions=subscriptions,
+        deliveries=deliveries,
+        http_client=http_client,
+        timeout_seconds=1,
+        max_attempts=5,
+    )
+
+    dispatched = dispatcher.dispatch_pending(tenant_id="default", limit=10)
+
+    assert {delivery.id for delivery in dispatched} == {pending.id, due_failed.id}
+    assert {delivery.status for delivery in dispatched} == {"delivered"}
+    assert len(http_client.requests) == 2
+    assert deliveries.get("default", str(future_failed.id)).status == "failed"
+
+
+def test_webhook_dispatch_pending_api_returns_empty_batch():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/v1/webhooks/deliveries/dispatch-pending",
+        json={"tenant_id": "default", "limit": 10},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

@@ -309,4 +309,5 @@ AuditEvent
 - subscription은 어떤 event type을 외부 workflow로 보낼지 정의한다.
 - delivery는 pending/delivered/failed 상태를 가진 재처리 가능한 작업 단위다.
 - dispatcher는 HMAC signature, timeout, retry backoff 상태를 처리한다.
-- 실제 HTTP 전송 호출은 API endpoint 또는 별도 worker에서 같은 dispatcher를 재사용할 수 있다.
+- 단건 API와 배치 worker는 같은 dispatcher를 재사용해 상태 전이 규칙을 한 곳에 둔다.
+- 배치 worker는 pending delivery와 `next_attempt_at`이 지난 failed delivery만 가져와 전송한다.

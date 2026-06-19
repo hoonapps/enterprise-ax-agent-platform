@@ -43,3 +43,8 @@ class WebhookDeliveryResponse(BaseModel):
 class MarkWebhookDeliveryRequest(BaseModel):
     tenant_id: str = "default"
     error: str | None = None
+
+
+class DispatchPendingWebhookDeliveriesRequest(BaseModel):
+    tenant_id: str = "default"
+    limit: int = Field(default=100, ge=1, le=500)

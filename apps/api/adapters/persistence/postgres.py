@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -685,6 +686,39 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
                 limit %s
                 """,
                 params,
+            ).fetchall()
+        return [self._row_to_delivery(row) for row in rows]
+
+    def list_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                """
+                select d.*, t.slug as tenant_slug
+                from webhook_deliveries d
+                join tenants t on t.id = d.tenant_id
+                where t.slug = %s
+                  and (
+                    d.status = %s
+                    or (
+                      d.status = %s
+                      and (d.next_attempt_at is null or d.next_attempt_at <= %s)
+                    )
+                  )
+                order by coalesce(d.next_attempt_at, d.created_at) asc, d.created_at asc
+                limit %s
+                """,
+                (
+                    tenant_id,
+                    WebhookDeliveryStatus.PENDING.value,
+                    WebhookDeliveryStatus.FAILED.value,
+                    now,
+                    limit,
+                ),
             ).fetchall()
         return [self._row_to_delivery(row) for row in rows]
 

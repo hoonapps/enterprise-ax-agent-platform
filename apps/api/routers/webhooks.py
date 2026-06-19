@@ -14,6 +14,7 @@ from apps.api.domain.models import (
 )
 from apps.api.schemas.webhooks import (
     CreateWebhookSubscriptionRequest,
+    DispatchPendingWebhookDeliveriesRequest,
     MarkWebhookDeliveryRequest,
     WebhookDeliveryResponse,
     WebhookSubscriptionResponse,
@@ -132,6 +133,22 @@ def dispatch_delivery(
     if delivery is None:
         raise HTTPException(status_code=404, detail="Webhook delivery를 찾을 수 없습니다.")
     return _delivery_to_response(delivery)
+
+
+@router.post("/deliveries/dispatch-pending", response_model=list[WebhookDeliveryResponse])
+def dispatch_pending_deliveries(
+    request: DispatchPendingWebhookDeliveriesRequest,
+    container: ContainerDep,
+    auth: WebhookWriteAuth,
+) -> list[WebhookDeliveryResponse]:
+    require_tenant_access(auth, request.tenant_id)
+    return [
+        _delivery_to_response(delivery)
+        for delivery in container.webhook_dispatcher.dispatch_pending(
+            tenant_id=request.tenant_id,
+            limit=request.limit,
+        )
+    ]
 
 
 def _get_delivery(container: AppContainer, tenant_id: str, delivery_id: UUID) -> WebhookDelivery:
