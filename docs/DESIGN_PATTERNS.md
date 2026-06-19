@@ -182,3 +182,18 @@ API와 CI가 다른 평가 로직을 갖지 않도록 분리했다.
 - `scripts/run_regression_eval.py`는 CI에서 같은 use case를 실행하는 경계다.
 - dataset은 `minimum_average_score`, `minimum_pass_rate`를 가진다.
 - 기준 미달 시 CI를 실패시킨다.
+
+## 12. Read Model
+
+운영 요약 API는 쓰기 모델을 새로 만들지 않고 기존 이벤트와 원장에서 읽기 모델을 계산한다.
+
+```text
+DocumentRepositoryPort
+ApprovalRepositoryPort
+AuditLogPort
+  -> OperationsSummaryUseCase
+  -> /v1/operations/summary
+```
+
+이 방식은 dashboard가 필요한 데이터 계약을 빠르게 고정하면서도,
+나중에 Postgres materialized view나 metrics table로 교체할 여지를 남긴다.

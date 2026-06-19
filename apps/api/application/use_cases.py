@@ -29,6 +29,7 @@ from apps.api.domain.models import (
     EvaluationCase,
     EvaluationRun,
     EvaluationStatus,
+    OperationsSummary,
     PolicyDecision,
     QueryType,
     RetrievalResult,
@@ -726,6 +727,98 @@ class EvaluateAgentUseCase:
 
     def _normalize(self, value: str) -> str:
         return " ".join(value.casefold().split())
+
+
+class OperationsSummaryUseCase:
+    def __init__(
+        self,
+        *,
+        documents: DocumentRepositoryPort,
+        approvals: ApprovalRepositoryPort,
+        audit_log: AuditLogPort,
+    ) -> None:
+        self.documents = documents
+        self.approvals = approvals
+        self.audit_log = audit_log
+
+    def execute(self, *, tenant_id: str, event_limit: int = 500) -> OperationsSummary:
+        events = self.audit_log.list_events(tenant_id=tenant_id, limit=event_limit)
+        agent_events = [event for event in events if event.event_type == "agent.answer.generated"]
+        latencies = [
+            int(event.payload["latency_ms"])
+            for event in agent_events
+            if isinstance(event.payload.get("latency_ms"), int)
+        ]
+        confidences = [
+            float(event.payload["confidence"])
+            for event in agent_events
+            if isinstance(event.payload.get("confidence"), int | float)
+        ]
+
+        return OperationsSummary(
+            tenant_id=tenant_id,
+            event_limit=event_limit,
+            document_count=len(self.documents.list_documents(tenant_id)),
+            pending_approval_count=len(self.approvals.list_pending(tenant_id)),
+            agent_run_count=len(agent_events),
+            average_latency_ms=self._average(latencies),
+            average_confidence=self._average(confidences),
+            event_counts=self._event_counts(events),
+            tool_decision_counts=self._tool_decision_counts(events),
+            approval_counts=self._approval_counts(events),
+            gateway_fallback_count=self._gateway_fallback_count(events),
+            latest_evaluation_metrics=self._latest_evaluation_metrics(events),
+        )
+
+    def _event_counts(self, events: list[AuditEvent]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for event in events:
+            counts[event.event_type] = counts.get(event.event_type, 0) + 1
+        return counts
+
+    def _tool_decision_counts(self, events: list[AuditEvent]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for event in events:
+            if not event.event_type.startswith("tool."):
+                continue
+            decision = event.event_type.removeprefix("tool.")
+            counts[decision] = counts.get(decision, 0) + 1
+        return counts
+
+    def _approval_counts(self, events: list[AuditEvent]) -> dict[str, int]:
+        counts = {"requested": 0, "executed": 0, "rejected": 0}
+        for event in events:
+            if event.event_type == "approval.requested":
+                counts["requested"] += 1
+            elif event.event_type == "approval.executed":
+                counts["executed"] += 1
+            elif event.event_type == "approval.rejected":
+                counts["rejected"] += 1
+        return counts
+
+    def _gateway_fallback_count(self, events: list[AuditEvent]) -> int:
+        count = 0
+        for event in events:
+            output_payload = event.payload.get("output_payload")
+            if not isinstance(output_payload, dict):
+                continue
+            gateway = output_payload.get("_gateway")
+            if isinstance(gateway, dict) and gateway.get("fallback_used") is True:
+                count += 1
+        return count
+
+    def _latest_evaluation_metrics(self, events: list[AuditEvent]) -> dict[str, Any]:
+        for event in events:
+            if event.event_type != "evaluation.completed":
+                continue
+            metrics = event.payload.get("metrics")
+            return metrics if isinstance(metrics, dict) else {}
+        return {}
+
+    def _average(self, values: list[int] | list[float]) -> float:
+        if not values:
+            return 0.0
+        return round(sum(values) / len(values), 3)
 
 
 class ApprovalUseCase:

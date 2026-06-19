@@ -16,6 +16,7 @@
 - CI regression gate로 품질 기준 미달 변경을 차단한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 감사 이벤트를 JSONL/CSV로 export해 외부 분석과 컴플라이언스 흐름에 연결한다.
+- 운영 요약 API로 dashboard-ready 지표를 제공한다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
 
 ## 제품 문제
@@ -53,7 +54,8 @@
 10. 답변 품질은 evaluation dataset으로 반복 측정한다.
 11. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
 12. 감사 이벤트는 운영 분석 시스템으로 export할 수 있어야 한다.
-13. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+13. 운영 요약은 audit event와 업무 원장에서 계산한다.
+14. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
 
 ## 확장 축
 
@@ -77,5 +79,6 @@
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
+- 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
 - 외부 LLM이나 Vector DB 장애 시에도 실패 경계가 명확하다.

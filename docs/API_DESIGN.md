@@ -21,6 +21,8 @@ GET  /v1/agents/runs/{run_id}
 GET  /v1/audit/events
 GET  /v1/audit/export
 
+GET  /v1/operations/summary
+
 POST /v1/evaluations/runs
 GET  /v1/evaluations/runs/{evaluation_run_id}
 
@@ -251,6 +253,45 @@ GET /v1/audit/export?tenant_id=default&resource_type=agent_run&format=csv
 | `resource_type` | 특정 리소스 타입 필터 |
 | `limit` | 최대 export 개수 |
 | `format` | `jsonl` 또는 `csv` |
+
+## Operations Summary
+
+```text
+GET /v1/operations/summary?tenant_id=default&event_limit=500
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "event_limit": 500,
+  "document_count": 12,
+  "pending_approval_count": 2,
+  "agent_run_count": 31,
+  "average_latency_ms": 42.3,
+  "average_confidence": 0.81,
+  "event_counts": {
+    "agent.answer.generated": 31,
+    "tool.approval_required": 5
+  },
+  "tool_decision_counts": {
+    "allowed": 8,
+    "approval_required": 5,
+    "denied": 1
+  },
+  "approval_counts": {
+    "requested": 5,
+    "executed": 2,
+    "rejected": 1
+  },
+  "gateway_fallback_count": 0,
+  "latest_evaluation_metrics": {
+    "average_score": 1.0,
+    "pass_rate": 1.0
+  }
+}
+```
 
 ## Regression Dataset
 

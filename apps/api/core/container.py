@@ -36,6 +36,7 @@ from apps.api.application.use_cases import (
     ApprovalUseCase,
     EvaluateAgentUseCase,
     IngestDocumentUseCase,
+    OperationsSummaryUseCase,
     RunAgentUseCase,
     SearchKnowledgeUseCase,
     ToolCallUseCase,
@@ -130,6 +131,11 @@ class AppContainer:
         self.evaluate_agent = EvaluateAgentUseCase(
             evaluations=self.evaluations,
             run_agent=self.run_agent,
+            audit_log=self.audit_log,
+        )
+        self.operations_summary = OperationsSummaryUseCase(
+            documents=self.documents,
+            approvals=self.approvals,
             audit_log=self.audit_log,
         )
 

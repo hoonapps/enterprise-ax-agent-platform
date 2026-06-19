@@ -1,6 +1,16 @@
 from fastapi import FastAPI
 
-from apps.api.routers import agents, approvals, audit, documents, evaluations, health, mcp, tools
+from apps.api.routers import (
+    agents,
+    approvals,
+    audit,
+    documents,
+    evaluations,
+    health,
+    mcp,
+    operations,
+    tools,
+)
 
 
 def create_app() -> FastAPI:
@@ -16,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(agents.router)
     app.include_router(evaluations.router)
+    app.include_router(operations.router)
     app.include_router(approvals.router)
     app.include_router(tools.router)
     app.include_router(mcp.router)

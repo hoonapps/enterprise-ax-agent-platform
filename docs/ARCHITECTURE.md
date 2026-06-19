@@ -75,6 +75,7 @@ FastAPI
     |       +--> expected facts 기반 scoring
     |       +--> evaluation.completed 감사 이벤트 기록
     |       +--> AuditEvent JSONL/CSV export
+    |       +--> OperationsSummary 집계
     +--> 승인 요청 조회/승인/반려 API
     +--> MCP-compatible tool boundary
             |
@@ -182,6 +183,20 @@ GET /v1/audit/export
 export는 조회 API와 같은 AuditLogPort를 사용한다.
 따라서 메모리 모드와 Postgres 모드가 같은 필터 규칙을 따른다.
 
+## Operations Summary 흐름
+
+```text
+GET /v1/operations/summary
+  -> DocumentRepositoryPort 문서 수 조회
+  -> ApprovalRepositoryPort pending 수 조회
+  -> AuditLogPort 최근 이벤트 조회
+  -> latency/confidence/tool/approval/evaluation 지표 계산
+  -> dashboard-ready summary 반환
+```
+
+운영 요약은 별도 집계 테이블 없이 현재 이벤트 스트림에서 계산한다.
+이 방식은 MVP 단계에서 데이터 모델을 단순하게 유지하면서 dashboard API 계약을 먼저 고정한다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시
@@ -209,6 +224,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 외부 tool 호출이 몇 번 시도되었고 fallback을 사용했는가
 - 평가 케이스별 점수와 누락된 기대 사실은 무엇인가
 - 감사 이벤트를 어떤 형식으로 외부 분석 시스템에 전달했는가
+- 운영자가 한 화면에서 볼 핵심 지표는 무엇인가
 - 실행 결과와 신뢰도는 무엇인가
 
 ### 보수적 기본값

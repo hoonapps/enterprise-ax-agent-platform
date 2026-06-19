@@ -340,3 +340,70 @@ def test_audit_events_can_be_filtered_and_exported():
     assert exported_csv.headers["content-type"].startswith("text/csv")
     assert "event_type" in exported_csv.text
     assert "document.ingested" in exported_csv.text
+
+
+def test_operations_summary_aggregates_runtime_signals():
+    client = TestClient(create_app())
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "운영 요약 정책",
+            "content": (
+                "Agent 실행은 감사 이벤트와 confidence를 남긴다. "
+                "쓰기성 tool은 승인 대기 상태로 전환한다."
+            ),
+            "source_uri": "test://operations-summary",
+        },
+    )
+    client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": "default",
+            "scenario": "operations",
+            "message": "운영 요약 정책을 설명해줘",
+        },
+    )
+    client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": "summary-approval",
+            "method": "tools/call",
+            "params": {
+                "tenant_id": "default",
+                "actor_id": "operator-01",
+                "actor_scopes": ["workflow:request"],
+                "name": "workflow.request-change",
+                "arguments": {"request": "운영 보고서 생성 workflow 실행"},
+            },
+        },
+    )
+    evaluated = client.post(
+        "/v1/evaluations/runs",
+        json={
+            "tenant_id": "default",
+            "name": "운영 요약 평가",
+            "scenario": "operations",
+            "cases": [
+                {
+                    "input_query": "운영 요약 정책을 설명해줘",
+                    "expected_facts": ["감사 이벤트", "confidence"],
+                }
+            ],
+        },
+    )
+    assert evaluated.status_code == 200
+
+    summary = client.get("/v1/operations/summary?tenant_id=default")
+
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["document_count"] >= 1
+    assert body["agent_run_count"] >= 1
+    assert body["pending_approval_count"] >= 1
+    assert body["event_counts"]["document.ingested"] >= 1
+    assert body["tool_decision_counts"]["approval_required"] >= 1
+    assert body["approval_counts"]["requested"] >= 1
+    assert body["latest_evaluation_metrics"]["case_count"] == 1

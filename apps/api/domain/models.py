@@ -213,6 +213,23 @@ class EvaluationRun:
 
 
 @dataclass(frozen=True)
+class OperationsSummary:
+    tenant_id: str
+    event_limit: int
+    document_count: int
+    pending_approval_count: int
+    agent_run_count: int
+    average_latency_ms: float
+    average_confidence: float
+    event_counts: dict[str, int] = field(default_factory=dict)
+    tool_decision_counts: dict[str, int] = field(default_factory=dict)
+    approval_counts: dict[str, int] = field(default_factory=dict)
+    gateway_fallback_count: int = 0
+    latest_evaluation_metrics: dict[str, Any] = field(default_factory=dict)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentRun:
     tenant_id: str
     scenario: str
