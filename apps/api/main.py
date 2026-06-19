@@ -7,8 +7,8 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Enterprise AX Agent Platform",
         description=(
-            "한국 대기업 AX/AI Agent Engineer 포트폴리오를 위한 "
-            "FastAPI 기반 기업형 Agent 백엔드"
+            "사내 지식 검색, 업무 자동화, 정책 감사, 운영 추적을 위한 "
+            "FastAPI 기반 AX Agent 백엔드"
         ),
         version="0.1.0",
     )

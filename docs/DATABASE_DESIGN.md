@@ -178,7 +178,7 @@ Tool call을 별도 테이블로 둔 이유:
 | `payload` | jsonb | 마스킹된 상세 내용 |
 | `created_at` | timestamptz | 발생 시각 |
 
-감사 로그는 운영자/보안팀/면접관에게 모두 설명 가능한 핵심 설계다.
+감사 로그는 운영자와 보안 담당자가 Agent 실행을 재구성하기 위한 핵심 데이터다.
 
 ## Vector DB Payload
 

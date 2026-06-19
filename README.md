@@ -1,20 +1,14 @@
 # Enterprise AX Agent Platform
 
-한국 대기업 AX Engineer / AI Agent Engineer / LLM Application Backend Engineer 포지션을 목표로 만든
-기업형 LLM Agent 백엔드 포트폴리오입니다.
+사내 지식 검색, 업무 자동화, 정책 감사, 실행 추적을 하나의 흐름으로 묶는 기업형 AX Agent 백엔드입니다.
 
-이 프로젝트는 “LLM 챗봇을 만들었다”가 아니라,
+LLM Agent를 단순 챗봇으로 두지 않고, 운영 가능한 업무 시스템으로 만들기 위해 다음 문제를 제품 경계로 다룹니다.
 
-> 기업 업무 시스템에 LLM Agent를 안전하게 연결하고, RAG·권한·감사로그·평가·운영 안정성을 갖춘 백엔드 플랫폼으로 설계했다
-
-를 보여주기 위한 프로젝트입니다.
-
-## 핵심 포지셔닝
-
-```text
-모델을 직접 학습하는 AI Research Engineer가 아니라,
-LLM/Agent 도구를 활용해 기업 업무를 자동화하고 운영 가능한 시스템으로 만드는 백엔드 엔지니어
-```
+- 어떤 문서를 근거로 답했는가
+- 어떤 정책 검사를 통과했는가
+- 어떤 tool 실행이 허용되거나 차단되었는가
+- 실패와 재시도는 어디에서 제어되는가
+- 운영자는 어떤 trace와 audit event로 문제를 추적하는가
 
 ## 현재 구현 범위
 
@@ -22,6 +16,8 @@ LLM/Agent 도구를 활용해 기업 업무를 자동화하고 운영 가능한 
 - 문서 적재 API
 - 문서 chunking
 - 로컬 deterministic 검색 어댑터
+- Qdrant Vector DB 어댑터
+- Postgres Repository 어댑터
 - 질문 유형 분류
 - 질문 유형별 RAG 전략 선택
 - 근거 기반 답변 생성
@@ -29,28 +25,14 @@ LLM/Agent 도구를 활용해 기업 업무를 자동화하고 운영 가능한 
 - 위험 action 승인 차단 정책
 - Agent 실행 trace
 - 감사 이벤트 기록
-- Postgres 기준 DB 설계 SQL
-- 헥사고날 아키텍처 기반 코드 구조
-- 로컬 테스트
+- Postgres 기준 DB schema
+- Docker Compose 기반 로컬 인프라
+- ruff, mypy, pytest, GitHub Actions CI
 
-외부 LLM API key가 없어도 로컬에서 동작합니다.  
-실제 OpenAI/Claude/Qdrant/Postgres/MCP/n8n 연동은 같은 포트/어댑터 구조 위에 단계적으로 추가합니다.
+기본 모드는 외부 서비스 없이 실행됩니다.  
+설정만 바꾸면 같은 Port 경계 위에서 Postgres/Qdrant 모드로 전환됩니다.
 
-## 기술 스택
-
-| 영역 | 선택 |
-| --- | --- |
-| API | Python 3.12, FastAPI |
-| Agent Orchestration | Use Case orchestration, LangGraph 확장 예정 |
-| RAG | Chunking, retrieval strategy router, citation |
-| Vector Search | Local deterministic adapter, Qdrant 확장 예정 |
-| DB 설계 | Postgres, Audit Event, Agent Run, Tool Call schema |
-| Governance | PII redaction, policy guard, approval-required action |
-| 운영 | trace, audit log, deterministic fallback |
-| 배포 | Docker Compose |
-| 테스트 | pytest, FastAPI TestClient |
-
-## 아키텍처
+## 제품 아키텍처
 
 ```text
 FastAPI / n8n / MCP / CLI
@@ -68,13 +50,30 @@ Port Interface
 Adapter: Postgres, Vector DB, LLM, Tool Runtime, Observability
 ```
 
-자세한 설계 문서:
+핵심 원칙은 업무 규칙과 외부 기술을 분리하는 것입니다.  
+LLM, Vector DB, Workflow Tool, MCP 서버는 바뀔 수 있지만 Agent 실행 정책과 데이터 모델은 흔들리지 않아야 합니다.
 
+## 기술 스택
+
+| 영역 | 선택 |
+| --- | --- |
+| API | Python 3.12+, FastAPI |
+| Application | Use Case orchestration |
+| RAG | query classification, retrieval strategy, citation |
+| Vector Search | local keyword adapter, Qdrant adapter |
+| Persistence | in-memory adapter, Postgres adapter |
+| Governance | PII redaction, policy guard, approval-required action |
+| Observability | trace step, audit event |
+| Infra | Docker Compose |
+| Quality Gate | ruff, mypy, pytest, GitHub Actions |
+
+## 문서
+
+- [제품 전략](docs/PRODUCT_STRATEGY.md)
 - [아키텍처](docs/ARCHITECTURE.md)
 - [디자인 패턴](docs/DESIGN_PATTERNS.md)
 - [DB 설계](docs/DATABASE_DESIGN.md)
 - [API 설계](docs/API_DESIGN.md)
-- [채용 공고 매핑](docs/COMPANY_FIT.md)
 - [ADR 0001: 헥사고날 아키텍처](docs/adr/0001-use-hexagonal-architecture.md)
 
 ## API
@@ -97,16 +96,58 @@ GET  /v1/audit/events
 ## 빠른 실행
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8000
+make install
+make dev
 ```
 
-Swagger 문서:
+Swagger:
 
 ```text
 http://127.0.0.1:8000/docs
+```
+
+## 로컬 기본 모드
+
+`.env` 없이 실행하면 다음 모드로 동작합니다.
+
+```text
+STORAGE_BACKEND=memory
+VECTOR_BACKEND=local
+```
+
+이 모드는 외부 DB 없이 API, 정책, 검색, 감사 이벤트 흐름을 검증하기 위한 모드입니다.
+
+## 운영형 로컬 인프라
+
+Postgres와 Qdrant를 함께 띄웁니다.
+
+```bash
+cp .env.example .env
+docker compose up -d postgres qdrant redis
+```
+
+`.env`에서 저장소를 전환합니다.
+
+```env
+STORAGE_BACKEND=postgres
+VECTOR_BACKEND=qdrant
+POSTGRES_DSN=postgresql://ax_agent:ax_agent@localhost:5432/ax_agent
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION=ax_agent_chunks
+```
+
+그 다음 API 서버를 실행합니다.
+
+```bash
+make dev
+```
+
+Postgres는 `db/migrations`의 초기 schema로 뜨고, Qdrant collection은 어댑터가 필요 시 생성합니다.
+
+API 컨테이너까지 함께 띄울 때는 환경변수로 backend mode를 지정합니다.
+
+```bash
+STORAGE_BACKEND=postgres VECTOR_BACKEND=qdrant docker compose up --build api
 ```
 
 ## 사용 예시
@@ -132,7 +173,7 @@ curl -X POST http://127.0.0.1:8000/v1/agents/runs \
   -H "Content-Type: application/json" \
   -d '{
     "tenant_id": "default",
-    "scenario": "lg-cns",
+    "scenario": "operations",
     "message": "AX 전환 리스크와 거버넌스 기준을 정리해줘"
   }'
 ```
@@ -144,14 +185,14 @@ curl -X POST http://127.0.0.1:8000/v1/agents/runs \
   -H "Content-Type: application/json" \
   -d '{
     "tenant_id": "default",
-    "scenario": "finance",
+    "scenario": "finance-ops",
     "message": "고객 계좌로 100만원 송금 실행해줘"
   }'
 ```
 
 응답은 `approval_required` 정책 판단과 함께 실행을 차단합니다.
 
-## 테스트
+## 품질 검증
 
 ```bash
 make verify
@@ -165,65 +206,83 @@ make typecheck
 make test
 ```
 
-## 회사별 어필 포인트
+CI도 같은 검증을 수행합니다.
 
-| 회사 | 어필 기능 |
+## 데이터 모델 핵심
+
+```text
+tenants
+  ├─ users
+  ├─ documents
+  │    └─ document_chunks
+  ├─ agent_runs
+  │    ├─ retrieval_events
+  │    ├─ tool_calls
+  │    └─ agent_messages
+  ├─ evaluation_runs
+  │    └─ evaluation_cases
+  └─ audit_events
+```
+
+RDB와 Vector DB의 책임을 분리합니다.
+
+| 저장소 | 책임 |
 | --- | --- |
-| 현대오토에버 | MCP/A2A/지식그래프 확장 가능한 Tool Runtime 경계 |
-| LG CNS | Agentic RAG, 질문 유형 분류, 검색 전략 라우팅 |
-| 삼성SDS | RAG 전략 자동 선택, Policy Guard, Audit Log |
-| 무신사 | n8n/iPaaS 업무 자동화 API로 확장 가능한 구조 |
-| SK AX | LLMOps, 관측성, fallback, 운영 가능한 Agent 구조 |
-| 한화시스템 | Ontology/Vertical AI 확장 가능한 문서 메타데이터 |
-| 금융권 | 개인정보 마스킹, 승인, 감사 이벤트 |
+| Postgres | 업무 원장, 문서 메타데이터, 실행 이력, 감사 이벤트 |
+| Vector DB | 유사도 검색용 임베딩 인덱스 |
 
-## 백엔드 개발자로서 보여주는 강점
+## 운영 관점에서 중요한 설계
 
-- LLM 기능을 프롬프트에만 의존하지 않고 백엔드 유스케이스로 모델링
-- RDB와 Vector DB의 책임 분리
-- Agent 실행을 상태와 감사 이벤트로 관리
-- 정책 검사를 런타임 컴포넌트로 구현
-- 외부 벤더 SDK를 어댑터 경계로 격리
-- 테스트 가능한 구조로 API와 도메인 로직 분리
-- CI에서 lint, typecheck, test를 모두 검증
+- raw prompt가 아니라 구조화된 trace를 남긴다.
+- 답변에는 citation과 confidence를 포함한다.
+- 개인정보는 LLM context 구성 전에 마스킹한다.
+- 위험 action은 자동 실행하지 않고 승인 필요 상태로 차단한다.
+- tool call은 추론 과정 안에 숨기지 않고 별도 이벤트로 남긴다.
+- Vector DB는 재생성 가능한 파생 인덱스로 취급한다.
 
 ## 다이어그램
 
 - [시스템 컨텍스트](docs/diagrams/system-context.mmd)
 - [Agent 실행 시퀀스](docs/diagrams/agent-run-sequence.mmd)
 
-## 단계별 로드맵
+## 로드맵
 
-### 1단계: Agentic RAG MVP
+### 1단계: Agentic RAG Runtime
 
 - 문서 적재
 - chunking
-- 검색
 - 질문 유형 분류
+- 검색 전략 선택
 - 근거 기반 답변
 - trace/audit
 
-### 2단계: 운영형 RAG
+### 2단계: 운영형 Persistence
 
-- Qdrant 연동
-- Postgres repository 구현
-- 평가 데이터셋과 regression test
-- Langfuse/OpenTelemetry trace
+- Postgres repository
+- Qdrant vector adapter
+- Docker Compose schema bootstrap
+- backend mode 전환
 
-### 3단계: Enterprise Tool Runtime
+### 3단계: Tool Runtime
 
 - MCP Streamable HTTP 서버
-- Tool schema와 권한 scope
+- tool schema와 권한 scope
 - 승인 워크플로우
+- tool call audit
+
+### 4단계: LLMOps
+
+- timeout/retry/fallback
+- evaluation dataset
+- regression test
+- cost/latency metrics
+
+### 5단계: Workflow Product
+
 - n8n 연동
-
-### 4단계: 회사별 시나리오
-
-- 현대오토에버: 차량/제조 MCP + 지식그래프
-- LG CNS: 고객사 AX 컨설팅 A-RAG
-- 삼성SDS: 업무앱형 Agent + 거버넌스
-- 무신사: Slack/n8n 사내 자동화
-- SK AX: LLMOps와 관측성 강화
+- Slack 승인 플로우
+- 운영자 dashboard
+- 감사 이벤트 export
 
 ## 라이선스
 

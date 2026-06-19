@@ -17,4 +17,6 @@ def readiness() -> dict[str, str]:
         "status": "ready",
         "environment": settings.app_env,
         "llm_mode": settings.llm_mode,
+        "storage_backend": settings.storage_backend,
+        "vector_backend": settings.vector_backend,
     }

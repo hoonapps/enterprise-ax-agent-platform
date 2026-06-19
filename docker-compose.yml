@@ -3,8 +3,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file:
-      - .env
+    environment:
+      APP_NAME: ${APP_NAME:-Enterprise AX Agent Platform}
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-memory}
+      VECTOR_BACKEND: ${VECTOR_BACKEND:-local}
+      RUNTIME_DIR: ${RUNTIME_DIR:-data/runtime}
+      SAMPLE_DOCS_DIR: ${SAMPLE_DOCS_DIR:-data/sample_docs}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
+      TOP_K: ${TOP_K:-4}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-ax_agent_chunks}
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://ax_agent:ax_agent@postgres:5432/ax_agent}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "8000:8000"
     volumes:
@@ -32,6 +45,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
 
   redis:
     image: redis:7-alpine

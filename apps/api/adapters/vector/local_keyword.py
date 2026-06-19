@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import math
-import re
 from collections import Counter, defaultdict
 
+from apps.api.adapters.vector.embedding import TOKEN_PATTERN
 from apps.api.domain.models import DocumentChunk, RetrievalResult
-
-TOKEN_PATTERN = re.compile(r"[가-힣A-Za-z0-9+#./_-]+")
 
 
 class LocalKeywordVectorSearch:

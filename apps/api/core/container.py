@@ -5,9 +5,21 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryAuditLog,
     InMemoryDocumentRepository,
 )
+from apps.api.adapters.persistence.postgres import (
+    PostgresAgentRunRepository,
+    PostgresAuditLog,
+    PostgresDocumentRepository,
+)
 from apps.api.adapters.vector.local_keyword import LocalKeywordVectorSearch
+from apps.api.adapters.vector.qdrant import QdrantVectorSearch
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
+from apps.api.application.ports import (
+    AgentRunRepositoryPort,
+    AuditLogPort,
+    DocumentRepositoryPort,
+    VectorSearchPort,
+)
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.application.use_cases import (
@@ -23,11 +35,28 @@ class AppContainer:
     def __init__(self) -> None:
         settings = get_settings()
         self.settings = settings
+        self.documents: DocumentRepositoryPort
+        self.audit_log: AuditLogPort
+        self.runs: AgentRunRepositoryPort
+        self.vector_search: VectorSearchPort
 
-        self.documents = InMemoryDocumentRepository()
-        self.audit_log = InMemoryAuditLog()
-        self.runs = InMemoryAgentRunRepository()
-        self.vector_search = LocalKeywordVectorSearch()
+        if settings.storage_backend == "postgres":
+            self.documents = PostgresDocumentRepository(settings.postgres_dsn)
+            self.audit_log = PostgresAuditLog(settings.postgres_dsn)
+            self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
+        else:
+            self.documents = InMemoryDocumentRepository()
+            self.audit_log = InMemoryAuditLog()
+            self.runs = InMemoryAgentRunRepository()
+
+        if settings.vector_backend == "qdrant":
+            self.vector_search = QdrantVectorSearch(
+                url=settings.qdrant_url,
+                collection_name=settings.qdrant_collection,
+                dimensions=settings.embedding_dimensions,
+            )
+        else:
+            self.vector_search = LocalKeywordVectorSearch()
 
         self.chunker = TextChunker()
         self.classifier = QueryClassifier()

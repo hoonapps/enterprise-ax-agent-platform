@@ -3,7 +3,7 @@
 ## 목표
 
 `Enterprise AX Agent Platform`은 LLM Agent를 기업 업무 시스템에 붙일 때 필요한
-백엔드 구조를 로컬에서 검증하는 포트폴리오 프로젝트다.
+백엔드 실행 계층을 검증하는 제품이다.
 
 단순 챗봇이 아니라 다음 역량을 보여주는 것을 목표로 한다.
 
@@ -97,8 +97,7 @@ POST /v1/agents/runs
   -> 답변 + 출처 + trace 반환
 ```
 
-이 흐름은 LG CNS의 Agentic RAG, 삼성SDS의 RAG 전략 자동 선택, SK AX의 운영 가능한 Agent 구조를
-동시에 설명할 수 있도록 설계했다.
+이 흐름은 Agentic RAG, RAG 전략 자동 선택, 운영 가능한 Agent runtime을 동시에 수용하도록 설계했다.
 
 ## 문서 적재 흐름
 
@@ -143,7 +142,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 
 ### 보수적 기본값
 
-포트폴리오라도 기본값은 안전하게 둔다.
+로컬 실행에서도 기본값은 안전하게 둔다.
 
 - 외부 LLM 키 없이도 로컬 deterministic 모드로 실행
 - 쓰기성 tool call은 기본 비활성화
@@ -151,17 +150,17 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 근거 문서가 없으면 답변 보류
 - 모든 실행은 감사 이벤트로 기록
 
-## 회사별 확장 포인트
+## 제품 확장 포인트
 
-| 타깃 회사 | 추가 구현 | 현재 아키텍처 연결점 |
+| 확장 영역 | 추가 구현 | 현재 아키텍처 연결점 |
 | --- | --- | --- |
-| 현대오토에버 | MCP 서버, A2A, 지식그래프 | Tool Runtime, Agent Orchestrator, Graph Adapter |
-| LG CNS | Agentic RAG, 검색 전략 평가 | Query Classifier, Retrieval Planner, Evaluation |
-| 삼성SDS | RAG 전략 라우팅, 거버넌스 | Policy Guard, Audit Log, Workflow API |
-| 무신사 | n8n/iPaaS 업무 자동화 | REST API, Tool Executor, Scenario Module |
-| SK AX | LLMOps, retry/fallback, 관측성 | Trace, Adapter Boundary, Audit Event |
-| 한화시스템 | 멀티모달 RAG, Ontology | Document Metadata, Vector Adapter, Graph Extension |
-| 금융권 | 마스킹, 승인, 규제 대응 | Redaction, RBAC-ready Schema, Audit Trail |
+| Tool Runtime | MCP 서버, Agent 간 협업, tool schema | Tool Runtime, Agent Orchestrator |
+| Agentic RAG | 검색 전략 평가, reranking, freshness check | Query Classifier, Retrieval Planner, Evaluation |
+| Governance | RAG 라우팅, 승인, 감사 정책 | Policy Guard, Audit Log, Workflow API |
+| Workflow | n8n/iPaaS 업무 자동화 | REST API, Tool Executor, Scenario Module |
+| LLMOps | retry/fallback, timeout, 관측성 | Trace, Adapter Boundary, Audit Event |
+| Domain Intelligence | 멀티모달 RAG, Ontology, 지식그래프 | Document Metadata, Vector Adapter, Graph Extension |
+| Regulated Workflow | 마스킹, 승인, 규제 대응 | Redaction, RBAC-ready Schema, Audit Trail |
 
 ## MVP에서 일부러 하지 않는 것
 

@@ -16,12 +16,15 @@ class Settings(BaseSettings):
     sample_docs_dir: Path = Path("data/sample_docs")
     embedding_dimensions: int = Field(default=384, ge=32, le=3072)
     top_k: int = Field(default=4, ge=1, le=20)
+    storage_backend: str = "memory"
+    vector_backend: str = "local"
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "ax_agent_chunks"
+    postgres_dsn: str = "postgresql://ax_agent:ax_agent@localhost:5432/ax_agent"
 
     @property
     def llm_mode(self) -> str:

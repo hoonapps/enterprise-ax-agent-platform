@@ -1,7 +1,7 @@
 [project]
 name = "enterprise-ax-agent-platform"
 version = "0.1.0"
-description = "한국 대기업 AX/AI Agent Engineer 포트폴리오를 위한 FastAPI 기반 기업형 Agent 백엔드."
+description = "FastAPI 기반 기업형 AX Agent 운영 플랫폼."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -25,6 +25,7 @@ dependencies = [
   "langgraph>=0.2.60",
   "langchain-core>=0.3.30",
   "qdrant-client>=1.12.0",
+  "psycopg[binary]>=3.2.0",
   "python-dotenv>=1.0.1",
   "typing-extensions>=4.12.2"
 ]
