@@ -285,6 +285,25 @@ class OperationsUsage:
 
 
 @dataclass(frozen=True)
+class OperationsSlo:
+    tenant_id: str
+    event_limit: int
+    run_count: int
+    success_count: int
+    blocked_count: int
+    failed_count: int
+    success_rate: float
+    blocked_rate: float
+    p95_latency_ms: float
+    average_confidence: float
+    latency_target_ms: int
+    success_rate_target: float
+    error_budget_remaining: float
+    status: str
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class RetentionPruneResult:
     tenant_id: str
     dry_run: bool

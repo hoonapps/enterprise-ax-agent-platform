@@ -6,12 +6,14 @@ from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import (
     OperationsAlert,
+    OperationsSlo,
     OperationsSummary,
     OperationsUsage,
     RetentionPruneResult,
 )
 from apps.api.schemas.operations import (
     OperationsAlertResponse,
+    OperationsSloResponse,
     OperationsSummaryResponse,
     OperationsUsageResponse,
     RetentionPruneRequest,
@@ -48,6 +50,25 @@ def get_operations_usage(
     require_tenant_access(auth, tenant_id)
     usage = container.operations_usage.execute(tenant_id=tenant_id)
     return _usage_to_response(usage)
+
+
+@router.get("/slo", response_model=OperationsSloResponse)
+def get_operations_slo(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+    tenant_id: str = "default",
+    event_limit: int = 500,
+    latency_target_ms: int = 3000,
+    success_rate_target: float = 0.95,
+) -> OperationsSloResponse:
+    require_tenant_access(auth, tenant_id)
+    slo = container.operations_slo.execute(
+        tenant_id=tenant_id,
+        event_limit=event_limit,
+        latency_target_ms=latency_target_ms,
+        success_rate_target=success_rate_target,
+    )
+    return _slo_to_response(slo)
 
 
 @router.get("/alerts", response_model=list[OperationsAlertResponse])
@@ -123,6 +144,26 @@ def _usage_to_response(usage: OperationsUsage) -> OperationsUsageResponse:
         usage_ratio=usage.usage_ratio,
         exceeded=usage.exceeded,
         generated_at=usage.generated_at,
+    )
+
+
+def _slo_to_response(slo: OperationsSlo) -> OperationsSloResponse:
+    return OperationsSloResponse(
+        tenant_id=slo.tenant_id,
+        event_limit=slo.event_limit,
+        run_count=slo.run_count,
+        success_count=slo.success_count,
+        blocked_count=slo.blocked_count,
+        failed_count=slo.failed_count,
+        success_rate=slo.success_rate,
+        blocked_rate=slo.blocked_rate,
+        p95_latency_ms=slo.p95_latency_ms,
+        average_confidence=slo.average_confidence,
+        latency_target_ms=slo.latency_target_ms,
+        success_rate_target=slo.success_rate_target,
+        error_budget_remaining=slo.error_budget_remaining,
+        status=slo.status,
+        generated_at=slo.generated_at,
     )
 
 

@@ -32,6 +32,24 @@ class OperationsUsageResponse(BaseModel):
     generated_at: datetime
 
 
+class OperationsSloResponse(BaseModel):
+    tenant_id: str
+    event_limit: int
+    run_count: int
+    success_count: int
+    blocked_count: int
+    failed_count: int
+    success_rate: float
+    blocked_rate: float
+    p95_latency_ms: float
+    average_confidence: float
+    latency_target_ms: int
+    success_rate_target: float
+    error_budget_remaining: float
+    status: str
+    generated_at: datetime
+
+
 class OperationsAlertResponse(BaseModel):
     tenant_id: str
     code: str

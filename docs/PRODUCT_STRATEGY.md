@@ -103,6 +103,8 @@
 - 운영 alert API는 summary 지표를 임계치와 비교해 latency, confidence, gateway fallback, evaluation
   품질 하락을 별도 read model로 반환한다.
 - 월간 Agent 실행 quota guard는 실행 전 사용량을 확인하고, 초과 요청을 blocked run과 감사 이벤트로 남긴다.
+- SLO read model은 success rate, blocked rate, p95 latency, error budget을 계산해 운영 상태를
+  `healthy`, `watch`, `breached`로 분류한다.
 - Agent 실행 이력과 timeline read model은 실행 상태, trace, tool execution, audit event를 운영자가
   단계별로 추적할 수 있게 한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.

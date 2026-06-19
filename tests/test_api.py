@@ -733,6 +733,47 @@ def test_monthly_usage_quota_blocks_agent_runs_and_reports_operations_usage(monk
     _clear_runtime_caches()
 
 
+def test_operations_slo_calculates_runtime_service_objectives():
+    client = TestClient(create_app())
+    container = get_container()
+    tenant_id = "slo-test"
+
+    for status, latency_ms, confidence in [
+        ("succeeded", 1200, 0.82),
+        ("succeeded", 1800, 0.88),
+        ("blocked", 4200, 0.2),
+    ]:
+        container.base_audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="agent",
+                actor_id="test",
+                event_type="agent.answer.generated",
+                resource_type="agent_run",
+                payload={
+                    "latency_ms": latency_ms,
+                    "confidence": confidence,
+                    "status": status,
+                },
+            )
+        )
+
+    response = client.get(
+        f"/v1/operations/slo?tenant_id={tenant_id}"
+        "&latency_target_ms=3000&success_rate_target=0.8"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run_count"] == 3
+    assert body["success_count"] == 2
+    assert body["blocked_count"] == 1
+    assert body["success_rate"] == 0.667
+    assert body["blocked_rate"] == 0.333
+    assert body["p95_latency_ms"] == 4200.0
+    assert body["status"] == "breached"
+
+
 def test_operations_alerts_detect_runtime_threshold_breaches():
     client = TestClient(create_app())
     container = get_container()
@@ -914,11 +955,13 @@ def test_operator_dashboard_serves_backend_console():
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
+    assert "/v1/operations/slo" in response.text
     assert "/v1/operations/alerts" in response.text
     assert "/v1/agents/runs" in response.text
     assert "/timeline" in response.text
     assert "agent-run-timeline" in response.text
     assert "metric-usage" in response.text
+    assert "metric-slo" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

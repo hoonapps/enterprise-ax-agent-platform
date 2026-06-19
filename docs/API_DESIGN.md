@@ -540,6 +540,7 @@ GET /dashboard
 | --- | --- |
 | `GET /v1/operations/summary` | 상단 지표, tool decision, evaluation metrics |
 | `GET /v1/operations/usage` | 월간 Agent 실행 quota 사용률 |
+| `GET /v1/operations/slo` | 성공률, blocked 비율, p95 latency, error budget |
 | `GET /v1/operations/alerts` | 임계치 기반 운영 alert |
 | `GET /v1/agents/runs` | 최근 Agent 실행 이력 |
 | `GET /v1/agents/runs/{run_id}/timeline` | 선택한 Agent 실행 timeline |

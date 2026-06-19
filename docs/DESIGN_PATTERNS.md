@@ -197,6 +197,8 @@ AuditLogPort
 
 이 방식은 dashboard가 필요한 데이터 계약을 빠르게 고정하면서도,
 나중에 Postgres materialized view나 metrics table로 교체할 여지를 남긴다.
+`OperationsSloUseCase`도 같은 원칙을 따른다. Agent 실행 이벤트를 읽어 success rate, p95 latency,
+error budget을 계산하되, 별도 쓰기 모델을 만들지 않는다.
 
 ## 13. Quota Guard
 

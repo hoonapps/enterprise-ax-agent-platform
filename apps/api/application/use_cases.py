@@ -34,6 +34,7 @@ from apps.api.domain.models import (
     EvaluationRun,
     EvaluationStatus,
     OperationsAlert,
+    OperationsSlo,
     OperationsSummary,
     OperationsUsage,
     PolicyDecision,
@@ -1049,6 +1050,75 @@ class OperationsUsageUseCase:
             usage_ratio=round(used / self.monthly_agent_run_quota, 3),
             exceeded=used >= self.monthly_agent_run_quota,
         )
+
+
+class OperationsSloUseCase:
+    def __init__(self, *, audit_log: AuditLogPort) -> None:
+        self.audit_log = audit_log
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        event_limit: int = 500,
+        latency_target_ms: int = 3000,
+        success_rate_target: float = 0.95,
+    ) -> OperationsSlo:
+        events = self.audit_log.list_events(tenant_id=tenant_id, limit=event_limit)
+        agent_events = [event for event in events if event.event_type == "agent.answer.generated"]
+        statuses = [str(event.payload.get("status", "")) for event in agent_events]
+        latencies = [
+            int(event.payload["latency_ms"])
+            for event in agent_events
+            if isinstance(event.payload.get("latency_ms"), int)
+        ]
+        confidences = [
+            float(event.payload["confidence"])
+            for event in agent_events
+            if isinstance(event.payload.get("confidence"), int | float)
+        ]
+        run_count = len(agent_events)
+        success_count = sum(1 for status in statuses if status == RunStatus.SUCCEEDED.value)
+        blocked_count = sum(1 for status in statuses if status == RunStatus.BLOCKED.value)
+        failed_count = sum(1 for status in statuses if status == RunStatus.FAILED.value)
+        success_rate = round(success_count / run_count, 3) if run_count else 1.0
+        blocked_rate = round(blocked_count / run_count, 3) if run_count else 0.0
+        p95_latency_ms = self._percentile(latencies, percentile=0.95)
+        error_budget_remaining = round(max(success_rate - success_rate_target, 0.0), 3)
+        status = "healthy"
+        if success_rate < success_rate_target or p95_latency_ms > latency_target_ms:
+            status = "breached"
+        elif blocked_rate >= 0.2:
+            status = "watch"
+
+        return OperationsSlo(
+            tenant_id=tenant_id,
+            event_limit=event_limit,
+            run_count=run_count,
+            success_count=success_count,
+            blocked_count=blocked_count,
+            failed_count=failed_count,
+            success_rate=success_rate,
+            blocked_rate=blocked_rate,
+            p95_latency_ms=p95_latency_ms,
+            average_confidence=self._average(confidences),
+            latency_target_ms=latency_target_ms,
+            success_rate_target=success_rate_target,
+            error_budget_remaining=error_budget_remaining,
+            status=status,
+        )
+
+    def _average(self, values: list[float]) -> float:
+        if not values:
+            return 0.0
+        return round(sum(values) / len(values), 3)
+
+    def _percentile(self, values: list[int], *, percentile: float) -> float:
+        if not values:
+            return 0.0
+        sorted_values = sorted(values)
+        index = max(0, min(len(sorted_values) - 1, round((len(sorted_values) - 1) * percentile)))
+        return float(sorted_values[index])
 
 
 class RetentionPruneUseCase:
