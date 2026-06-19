@@ -310,4 +310,6 @@ AuditEvent
 - delivery는 pending/delivered/failed 상태를 가진 재처리 가능한 작업 단위다.
 - dispatcher는 HMAC signature, timeout, retry backoff 상태를 처리한다.
 - 단건 API와 배치 worker는 같은 dispatcher를 재사용해 상태 전이 규칙을 한 곳에 둔다.
-- 배치 worker는 pending delivery와 `next_attempt_at`이 지난 failed delivery만 가져와 전송한다.
+- 배치 worker는 먼저 `dispatching` 상태로 delivery를 claim하고, lease 시간 동안 소유권을 갖는다.
+- Postgres adapter는 `FOR UPDATE SKIP LOCKED`로 여러 worker의 중복 claim을 막는다.
+- lease가 만료된 `dispatching` delivery는 다시 claim 대상이 되어 worker 중단 후에도 복구된다.

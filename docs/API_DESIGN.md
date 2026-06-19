@@ -507,6 +507,10 @@ POST /v1/webhooks/deliveries/dispatch-pending
 }
 ```
 
+배치 dispatcher는 pending delivery, 재시도 시각이 지난 failed delivery, lease가 만료된
+dispatching delivery를 먼저 `dispatching` 상태로 claim한다. HTTP 전송이 완료되면
+`delivered` 또는 `failed`로 다시 전이한다.
+
 전송 헤더:
 
 | 헤더 | 의미 |

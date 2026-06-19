@@ -113,6 +113,7 @@ class AppContainer:
             http_client=self.webhook_http_client,
             timeout_seconds=settings.webhook_timeout_seconds,
             max_attempts=settings.webhook_max_attempts,
+            lease_seconds=settings.webhook_lease_seconds,
         )
 
         if settings.vector_backend == "qdrant":

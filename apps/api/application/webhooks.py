@@ -28,12 +28,14 @@ class WebhookDispatcher:
         http_client: WebhookHttpClientPort,
         timeout_seconds: float,
         max_attempts: int,
+        lease_seconds: int = 60,
     ) -> None:
         self.subscriptions = subscriptions
         self.deliveries = deliveries
         self.http_client = http_client
         self.timeout_seconds = timeout_seconds
         self.max_attempts = max_attempts
+        self.lease_seconds = lease_seconds
 
     def dispatch(self, *, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
         delivery = self.deliveries.get(tenant_id=tenant_id, delivery_id=delivery_id)
@@ -74,9 +76,11 @@ class WebhookDispatcher:
         return self._mark_failed(delivery=delivery, result=result)
 
     def dispatch_pending(self, *, tenant_id: str, limit: int = 100) -> list[WebhookDelivery]:
-        deliveries = self.deliveries.list_dispatchable(
+        now = datetime.now(UTC)
+        deliveries = self.deliveries.claim_dispatchable(
             tenant_id=tenant_id,
-            now=datetime.now(UTC),
+            now=now,
+            lease_until=now + timedelta(seconds=self.lease_seconds),
             limit=limit,
         )
         dispatched: list[WebhookDelivery] = []

@@ -132,6 +132,14 @@ class WebhookDeliveryRepositoryPort(Protocol):
         limit: int = 100,
     ) -> list[WebhookDelivery]: ...
 
+    def claim_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
+        lease_until: datetime,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]: ...
+
     def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None: ...
 
 

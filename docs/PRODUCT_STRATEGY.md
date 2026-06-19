@@ -91,7 +91,7 @@
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
 - regression dataset은 CI에서 자동 실행된다.
 - audit event는 JSONL/CSV로 export된다.
-- webhook delivery outbox와 batch dispatcher로 외부 workflow 전송을 재처리할 수 있다.
+- webhook delivery outbox와 lease 기반 batch dispatcher로 외부 workflow 전송을 재처리할 수 있다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.

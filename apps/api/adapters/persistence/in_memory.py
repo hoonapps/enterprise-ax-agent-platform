@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from datetime import datetime
 from threading import RLock
 from uuid import UUID
@@ -299,16 +300,40 @@ class InMemoryWebhookDeliveryRepository:
         dispatchable = [
             delivery
             for delivery in deliveries
-            if delivery.status == WebhookDeliveryStatus.PENDING
-            or (
-                delivery.status == WebhookDeliveryStatus.FAILED
-                and (delivery.next_attempt_at is None or delivery.next_attempt_at <= now)
-            )
+            if _is_dispatchable_delivery(delivery=delivery, now=now)
         ]
         return sorted(
             dispatchable,
             key=lambda item: item.next_attempt_at or item.created_at,
         )[:limit]
+
+    def claim_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
+        lease_until: datetime,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        with self._lock:
+            dispatchable = [
+                delivery
+                for delivery in self._deliveries[tenant_id].values()
+                if _is_dispatchable_delivery(delivery=delivery, now=now)
+            ]
+            claimed = [
+                replace(
+                    delivery,
+                    status=WebhookDeliveryStatus.DISPATCHING,
+                    next_attempt_at=lease_until,
+                )
+                for delivery in sorted(
+                    dispatchable,
+                    key=lambda item: item.next_attempt_at or item.created_at,
+                )[:limit]
+            ]
+            for delivery in claimed:
+                self._deliveries[tenant_id][delivery.id] = delivery
+        return claimed
 
     def get(self, tenant_id: str, delivery_id: str) -> WebhookDelivery | None:
         with self._lock:
@@ -316,3 +341,11 @@ class InMemoryWebhookDeliveryRepository:
                 return self._deliveries[tenant_id].get(UUID(delivery_id))
             except ValueError:
                 return None
+
+
+def _is_dispatchable_delivery(*, delivery: WebhookDelivery, now: datetime) -> bool:
+    if delivery.status == WebhookDeliveryStatus.PENDING:
+        return True
+    if delivery.status in {WebhookDeliveryStatus.FAILED, WebhookDeliveryStatus.DISPATCHING}:
+        return delivery.next_attempt_at is None or delivery.next_attempt_at <= now
+    return False

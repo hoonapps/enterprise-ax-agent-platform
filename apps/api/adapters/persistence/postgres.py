@@ -705,7 +705,7 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
                   and (
                     d.status = %s
                     or (
-                      d.status = %s
+                      d.status in (%s, %s)
                       and (d.next_attempt_at is null or d.next_attempt_at <= %s)
                     )
                   )
@@ -716,8 +716,61 @@ class PostgresWebhookDeliveryRepository(PostgresBase):
                     tenant_id,
                     WebhookDeliveryStatus.PENDING.value,
                     WebhookDeliveryStatus.FAILED.value,
+                    WebhookDeliveryStatus.DISPATCHING.value,
                     now,
                     limit,
+                ),
+            ).fetchall()
+        return [self._row_to_delivery(row) for row in rows]
+
+    def claim_dispatchable(
+        self,
+        tenant_id: str,
+        now: datetime,
+        lease_until: datetime,
+        limit: int = 100,
+    ) -> list[WebhookDelivery]:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                """
+                with candidates as (
+                  select d.id
+                  from webhook_deliveries d
+                  join tenants t on t.id = d.tenant_id
+                  where t.slug = %s
+                    and (
+                      d.status = %s
+                      or (
+                        d.status in (%s, %s)
+                        and (d.next_attempt_at is null or d.next_attempt_at <= %s)
+                      )
+                    )
+                  order by coalesce(d.next_attempt_at, d.created_at) asc, d.created_at asc
+                  limit %s
+                  for update skip locked
+                ),
+                updated as (
+                  update webhook_deliveries d
+                  set status = %s,
+                      next_attempt_at = %s
+                  from candidates c
+                  where d.id = c.id
+                  returning d.*
+                )
+                select u.*, t.slug as tenant_slug
+                from updated u
+                join tenants t on t.id = u.tenant_id
+                order by coalesce(u.next_attempt_at, u.created_at) asc, u.created_at asc
+                """,
+                (
+                    tenant_id,
+                    WebhookDeliveryStatus.PENDING.value,
+                    WebhookDeliveryStatus.FAILED.value,
+                    WebhookDeliveryStatus.DISPATCHING.value,
+                    now,
+                    limit,
+                    WebhookDeliveryStatus.DISPATCHING.value,
+                    lease_until,
                 ),
             ).fetchall()
         return [self._row_to_delivery(row) for row in rows]

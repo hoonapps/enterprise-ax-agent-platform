@@ -306,6 +306,7 @@ class AuditEvent:
 
 class WebhookDeliveryStatus(StrEnum):
     PENDING = "pending"
+    DISPATCHING = "dispatching"
     DELIVERED = "delivered"
     FAILED = "failed"
 

@@ -1,6 +1,7 @@
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -873,6 +874,45 @@ def test_webhook_dispatcher_dispatches_due_deliveries_batch():
     assert {delivery.status for delivery in dispatched} == {"delivered"}
     assert len(http_client.requests) == 2
     assert deliveries.get("default", str(future_failed.id)).status == "failed"
+
+
+def test_webhook_delivery_claim_lease_prevents_duplicate_batch_dispatch():
+    deliveries = InMemoryWebhookDeliveryRepository()
+    delivery = deliveries.save(
+        WebhookDelivery(
+            tenant_id="default",
+            subscription_id=uuid4(),
+            event_id=uuid4(),
+            event_type="document.ingested",
+            target_url="https://workflow.internal/hooks/lease",
+            payload={"event_type": "document.ingested"},
+        )
+    )
+    now = datetime.now(UTC)
+
+    first_claim = deliveries.claim_dispatchable(
+        tenant_id="default",
+        now=now,
+        lease_until=now + timedelta(minutes=1),
+        limit=10,
+    )
+    second_claim = deliveries.claim_dispatchable(
+        tenant_id="default",
+        now=now,
+        lease_until=now + timedelta(minutes=1),
+        limit=10,
+    )
+    expired_claim = deliveries.claim_dispatchable(
+        tenant_id="default",
+        now=now + timedelta(minutes=2),
+        lease_until=now + timedelta(minutes=3),
+        limit=10,
+    )
+
+    assert [item.id for item in first_claim] == [delivery.id]
+    assert first_claim[0].status == WebhookDeliveryStatus.DISPATCHING
+    assert second_claim == []
+    assert [item.id for item in expired_claim] == [delivery.id]
 
 
 def test_webhook_dispatch_pending_api_returns_empty_batch():
