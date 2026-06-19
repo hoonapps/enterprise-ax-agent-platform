@@ -393,6 +393,20 @@ readiness는 배포 제어와 운영 장애 판단을 위한 계약이다.
 local memory/vector 모드는 process 내부 adapter를 ready로 보고, Postgres/Qdrant 모드는 실제 연결을
 검사한다.
 
+## Migration Status 흐름
+
+```text
+GET /v1/operations/migrations/status
+  -> db/migrations/*.sql 파일을 version 순으로 읽음
+  -> SHA-256 checksum 계산
+  -> Postgres schema_migrations ledger 조회
+  -> applied/pending/checksum_mismatch 상태 계산
+```
+
+API는 migration을 직접 적용하지 않는다. DDL 실행은 `scripts/manage_migrations.py`가 담당하고,
+운영 API는 현재 DB와 repository migration 파일의 일치 여부만 읽는다. 이 분리는 운영 화면이나
+readiness 호출이 스키마를 변경하지 않는다는 경계를 보장한다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시

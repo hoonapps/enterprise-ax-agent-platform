@@ -9,12 +9,14 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryWebhookDeliveryRepository,
     InMemoryWebhookSubscriptionRepository,
 )
+from apps.api.application.migrations import MigrationStatusUseCase
 from apps.api.application.webhooks import WebhookDispatcher
 from apps.api.core.config import get_settings
 from apps.api.core.container import get_container
 from apps.api.core.security import parse_api_key_credentials
 from apps.api.domain.models import (
     AuditEvent,
+    SchemaMigrationRecord,
     WebhookDelivery,
     WebhookDeliveryStatus,
     WebhookHttpResult,
@@ -45,6 +47,20 @@ class FakeWebhookHttpClient:
             }
         )
         return self.result
+
+
+class FakeMigrationLedger:
+    def __init__(
+        self,
+        *,
+        ledger_available: bool,
+        records: list[SchemaMigrationRecord],
+    ) -> None:
+        self.ledger_available = ledger_available
+        self.records = records
+
+    def list_applied(self) -> tuple[bool, list[SchemaMigrationRecord]]:
+        return self.ledger_available, self.records
 
 
 def _clear_runtime_caches() -> None:
@@ -103,6 +119,78 @@ def test_readiness_returns_503_when_dependency_is_unavailable(monkeypatch):
         assert "error" in vector["detail"]
     finally:
         _clear_runtime_caches()
+
+
+def test_migration_status_returns_not_applicable_for_memory_backend():
+    client = TestClient(create_app())
+
+    response = client.get("/v1/operations/migrations/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["storage_backend"] == "memory"
+    assert body["ledger_available"] is False
+    assert body["status"] == "not_applicable"
+    assert {item["status"] for item in body["migrations"]} == {"not_tracked"}
+
+
+def test_migration_status_detects_applied_pending_and_checksum_mismatch(tmp_path):
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    first = migrations_dir / "001_initial.sql"
+    second = migrations_dir / "002_rls.sql"
+    third = migrations_dir / "003_ops.sql"
+    first.write_text("select 1;\n", encoding="utf-8")
+    second.write_text("select 2;\n", encoding="utf-8")
+    third.write_text("select 3;\n", encoding="utf-8")
+
+    first_status = MigrationStatusUseCase(
+        migrations_dir=migrations_dir,
+        storage_backend="postgres",
+        ledger=FakeMigrationLedger(ledger_available=False, records=[]),
+    ).execute()
+
+    assert first_status.status == "untracked"
+    assert {item.status for item in first_status.migrations} == {"not_tracked"}
+
+    checksum = MigrationStatusUseCase(
+        migrations_dir=migrations_dir,
+        storage_backend="memory",
+    ).execute().migrations[0].checksum
+    second_checksum = MigrationStatusUseCase(
+        migrations_dir=migrations_dir,
+        storage_backend="memory",
+    ).execute().migrations[1].checksum
+    applied_at = datetime(2026, 6, 20, tzinfo=UTC)
+    tracked_status = MigrationStatusUseCase(
+        migrations_dir=migrations_dir,
+        storage_backend="postgres",
+        ledger=FakeMigrationLedger(
+            ledger_available=True,
+            records=[
+                SchemaMigrationRecord(
+                    version="001",
+                    filename="001_initial.sql",
+                    checksum=checksum,
+                    applied_at=applied_at,
+                ),
+                SchemaMigrationRecord(
+                    version="002",
+                    filename="002_rls.sql",
+                    checksum=f"stale-{second_checksum}",
+                    applied_at=applied_at,
+                ),
+            ],
+        ),
+    ).execute()
+
+    assert tracked_status.status == "checksum_mismatch"
+    status_by_version = {item.version: item.status for item in tracked_status.migrations}
+    assert status_by_version == {
+        "001": "applied",
+        "002": "checksum_mismatch",
+        "003": "pending",
+    }
 
 
 def test_http_error_response_includes_request_id_without_changing_detail():

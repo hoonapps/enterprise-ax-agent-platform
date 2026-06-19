@@ -6,6 +6,7 @@ from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import (
     AgentFeedbackSummary,
+    MigrationStatus,
     OperationsAlert,
     OperationsIncidentSnapshot,
     OperationsSlo,
@@ -15,6 +16,8 @@ from apps.api.domain.models import (
 )
 from apps.api.schemas.operations import (
     AgentFeedbackSummaryResponse,
+    MigrationStatusItemResponse,
+    MigrationStatusResponse,
     OperationsAlertResponse,
     OperationsIncidentSnapshotResponse,
     OperationsSloResponse,
@@ -129,6 +132,16 @@ def get_operations_alerts(
     return [_alert_to_response(alert) for alert in alerts]
 
 
+@router.get("/migrations/status", response_model=MigrationStatusResponse)
+def get_migration_status(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+) -> MigrationStatusResponse:
+    _ = auth
+    status = container.migration_status.execute()
+    return _migration_status_to_response(status)
+
+
 @router.post("/retention/prune", response_model=RetentionPruneResponse)
 def prune_retention(
     payload: RetentionPruneRequest,
@@ -224,6 +237,26 @@ def _feedback_summary_to_response(summary: AgentFeedbackSummary) -> AgentFeedbac
         negative_count=summary.negative_count,
         outcome_counts=summary.outcome_counts,
         generated_at=summary.generated_at,
+    )
+
+
+def _migration_status_to_response(status: MigrationStatus) -> MigrationStatusResponse:
+    return MigrationStatusResponse(
+        storage_backend=status.storage_backend,
+        ledger_available=status.ledger_available,
+        status=status.status,
+        migrations=[
+            MigrationStatusItemResponse(
+                version=item.version,
+                filename=item.filename,
+                checksum=item.checksum,
+                applied_checksum=item.applied_checksum,
+                status=item.status,
+                applied_at=item.applied_at,
+            )
+            for item in status.migrations
+        ],
+        generated_at=status.generated_at,
     )
 
 

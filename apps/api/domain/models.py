@@ -330,6 +330,40 @@ class RetentionPruneResult:
 
 
 @dataclass(frozen=True)
+class MigrationFile:
+    version: str
+    filename: str
+    checksum: str
+
+
+@dataclass(frozen=True)
+class SchemaMigrationRecord:
+    version: str
+    filename: str
+    checksum: str
+    applied_at: datetime
+
+
+@dataclass(frozen=True)
+class MigrationStatusItem:
+    version: str
+    filename: str
+    checksum: str
+    applied_checksum: str | None
+    status: str
+    applied_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class MigrationStatus:
+    storage_backend: str
+    ledger_available: bool
+    status: str
+    migrations: list[MigrationStatusItem]
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class OperationsAlert:
     tenant_id: str
     code: str

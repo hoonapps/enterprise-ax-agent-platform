@@ -1,4 +1,4 @@
-.PHONY: install dev test lint typecheck regression dispatch-webhooks verify verify-tenant-rls run
+.PHONY: install dev test lint typecheck regression dispatch-webhooks verify verify-tenant-rls migration-status migration-baseline migration-apply run
 
 install:
 	python3 -m venv .venv
@@ -24,6 +24,15 @@ dispatch-webhooks:
 
 verify-tenant-rls:
 	. .venv/bin/activate && python scripts/verify_tenant_rls.py
+
+migration-status:
+	. .venv/bin/activate && python scripts/manage_migrations.py status
+
+migration-baseline:
+	. .venv/bin/activate && python scripts/manage_migrations.py baseline
+
+migration-apply:
+	. .venv/bin/activate && python scripts/manage_migrations.py apply
 
 verify: lint typecheck test regression
 

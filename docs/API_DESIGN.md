@@ -32,7 +32,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
-| `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/usage`, `GET /v1/operations/slo`, `GET /v1/operations/incidents/snapshot`, `GET /v1/operations/feedback/summary`, `GET /v1/operations/alerts` |
+| `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/usage`, `GET /v1/operations/slo`, `GET /v1/operations/incidents/snapshot`, `GET /v1/operations/feedback/summary`, `GET /v1/operations/alerts`, `GET /v1/operations/migrations/status` |
 | `operations:write` | `POST /v1/operations/retention/prune` |
 | `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
@@ -75,6 +75,7 @@ GET  /v1/operations/slo
 GET  /v1/operations/incidents/snapshot
 GET  /v1/operations/feedback/summary
 GET  /v1/operations/alerts
+GET  /v1/operations/migrations/status
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
@@ -541,6 +542,37 @@ GET /v1/operations/alerts?tenant_id=default&event_limit=500
   }
 ]
 ```
+
+## Migration Status
+
+```text
+GET /v1/operations/migrations/status
+```
+
+응답:
+
+```json
+{
+  "storage_backend": "postgres",
+  "ledger_available": true,
+  "status": "up_to_date",
+  "migrations": [
+    {
+      "version": "001",
+      "filename": "001_initial_schema.sql",
+      "checksum": "64자 sha256",
+      "applied_checksum": "64자 sha256",
+      "status": "applied",
+      "applied_at": "2026-06-20T00:00:00Z"
+    }
+  ],
+  "generated_at": "2026-06-20T00:00:00Z"
+}
+```
+
+`storage_backend=memory`이면 `status=not_applicable`이다. Postgres 모드에서
+`schema_migrations` ledger가 없으면 `status=untracked`를 반환한다. Ledger가 있을 때는 migration
+파일의 SHA-256과 DB에 기록된 checksum을 비교해 `applied`, `pending`, `checksum_mismatch`를 구분한다.
 
 ## Retention Prune
 

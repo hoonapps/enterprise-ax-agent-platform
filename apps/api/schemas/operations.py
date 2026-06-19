@@ -101,3 +101,20 @@ class RetentionPruneResponse(BaseModel):
     audit_events_deleted: int
     webhook_deliveries_deleted: int
     generated_at: datetime
+
+
+class MigrationStatusItemResponse(BaseModel):
+    version: str
+    filename: str
+    checksum: str
+    applied_checksum: str | None
+    status: str
+    applied_at: datetime | None
+
+
+class MigrationStatusResponse(BaseModel):
+    storage_backend: str
+    ledger_available: bool
+    status: str
+    migrations: list[MigrationStatusItemResponse]
+    generated_at: datetime

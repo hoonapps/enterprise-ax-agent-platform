@@ -16,6 +16,7 @@ from apps.api.adapters.persistence.in_memory import (
     InMemoryWebhookDeliveryRepository,
     InMemoryWebhookSubscriptionRepository,
 )
+from apps.api.adapters.persistence.migrations import PostgresMigrationLedger
 from apps.api.adapters.persistence.outbox import OutboxAuditLog
 from apps.api.adapters.persistence.postgres import (
     PostgresAgentRunRepository,
@@ -33,6 +34,7 @@ from apps.api.adapters.vector.qdrant import QdrantVectorSearch
 from apps.api.adapters.webhook_http import UrllibWebhookHttpClient
 from apps.api.application.answering import GroundedAnswerSynthesizer
 from apps.api.application.chunking import TextChunker
+from apps.api.application.migrations import MigrationStatusUseCase
 from apps.api.application.ontology import OntologyExtractor
 from apps.api.application.ports import (
     AgentRunRepositoryPort,
@@ -41,6 +43,7 @@ from apps.api.application.ports import (
     DocumentRepositoryPort,
     EvaluationRepositoryPort,
     IdempotencyRepositoryPort,
+    MigrationLedgerPort,
     OntologyRepositoryPort,
     VectorSearchPort,
     WebhookDeliveryRepositoryPort,
@@ -84,8 +87,10 @@ class AppContainer:
         self.webhook_deliveries: WebhookDeliveryRepositoryPort
         self.webhook_dispatcher: WebhookDispatcher
         self.vector_search: VectorSearchPort
+        self.migration_ledger: MigrationLedgerPort | None
 
         if settings.storage_backend == "postgres":
+            self.migration_ledger = PostgresMigrationLedger(settings.postgres_dsn)
             self.documents = PostgresDocumentRepository(settings.postgres_dsn)
             self.base_audit_log = PostgresAuditLog(settings.postgres_dsn)
             self.runs = PostgresAgentRunRepository(settings.postgres_dsn)
@@ -98,6 +103,7 @@ class AppContainer:
             )
             self.webhook_deliveries = PostgresWebhookDeliveryRepository(settings.postgres_dsn)
         else:
+            self.migration_ledger = None
             self.documents = InMemoryDocumentRepository()
             self.base_audit_log = InMemoryAuditLog()
             self.runs = InMemoryAgentRunRepository()
@@ -218,6 +224,11 @@ class AppContainer:
             operations_usage=self.operations_usage,
             operations_slo=self.operations_slo,
             operations_alerts=self.operations_alerts,
+        )
+        self.migration_status = MigrationStatusUseCase(
+            migrations_dir=settings.migrations_dir,
+            storage_backend=settings.storage_backend,
+            ledger=self.migration_ledger,
         )
         self.retention_prune = RetentionPruneUseCase(
             audit_log=self.audit_log,

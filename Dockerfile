@@ -10,6 +10,7 @@ COPY apps ./apps
 RUN pip install --no-cache-dir "."
 
 COPY data ./data
+COPY db ./db
 COPY scripts ./scripts
 
 EXPOSE 8000

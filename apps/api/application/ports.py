@@ -16,6 +16,7 @@ from apps.api.domain.models import (
     OntologyGraph,
     OntologyNode,
     RetrievalResult,
+    SchemaMigrationRecord,
     ToolDefinition,
     ToolExecution,
     ToolGatewayResult,
@@ -172,3 +173,7 @@ class WebhookHttpClientPort(Protocol):
         headers: dict[str, str],
         timeout_seconds: float,
     ) -> WebhookHttpResult: ...
+
+
+class MigrationLedgerPort(Protocol):
+    def list_applied(self) -> tuple[bool, list[SchemaMigrationRecord]]: ...

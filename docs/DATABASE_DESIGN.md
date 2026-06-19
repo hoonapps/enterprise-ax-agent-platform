@@ -52,6 +52,8 @@ tenants
   +-- webhook_deliveries
   |
   +-- idempotency_keys
+
+schema_migrations
 ```
 
 ## 핵심 테이블
@@ -66,6 +68,21 @@ tenants
 | `slug` | text | 고유 식별자 |
 | `name` | text | 표시 이름 |
 | `created_at` | timestamptz | 생성 시각 |
+
+### `schema_migrations`
+
+DB schema migration ledger다. Tenant 업무 데이터와 분리된 운영 메타데이터이므로 `tenant_id`를 갖지 않는다.
+
+| 컬럼 | 타입 | 설명 |
+| --- | --- | --- |
+| `version` | text | migration version. 파일명 prefix와 일치 |
+| `filename` | text | 적용된 migration 파일명 |
+| `checksum` | text | migration 파일 SHA-256 |
+| `applied_at` | timestamptz | ledger 기록 시각 |
+
+`GET /v1/operations/migrations/status`는 이 테이블과 `db/migrations/*.sql` 파일의 checksum을 비교한다.
+Ledger가 없으면 `untracked`, checksum이 다르면 `checksum_mismatch`, 파일이 ledger에 없으면 `pending`으로
+보고한다.
 
 ### `documents`
 
