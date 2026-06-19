@@ -198,7 +198,22 @@ AuditLogPort
 이 방식은 dashboard가 필요한 데이터 계약을 빠르게 고정하면서도,
 나중에 Postgres materialized view나 metrics table로 교체할 여지를 남긴다.
 
-## 13. Backend-Served Operator Console
+## 13. Quota Guard
+
+Agent 실행량 제한은 Router가 아니라 UseCase 초입에서 처리한다.
+
+```text
+RunAgentUseCase
+  -> AgentRunRepositoryPort.count_runs_between()
+  -> quota_guard trace step
+  -> blocked AgentRun
+  -> agent.quota.exceeded audit event
+```
+
+이 구조는 API, MCP, evaluation 등 여러 진입점이 같은 실행 정책을 공유하게 만든다.
+운영 화면은 `/v1/operations/usage` read model을 읽어 guard와 동일한 기준의 월간 사용률을 표시한다.
+
+## 14. Backend-Served Operator Console
 
 운영 콘솔은 제품의 핵심 쓰기 흐름과 분리된 얇은 UI 경계다.
 
@@ -220,7 +235,7 @@ GET /dashboard
 이 구조는 React 같은 별도 프론트엔드가 붙어도 유지된다. 기존 dashboard는 API 계약 검증용
 운영 콘솔로 남고, 더 복잡한 화면은 같은 read model 위에서 확장할 수 있다.
 
-## 14. API Key Scope Guard
+## 15. API Key Scope Guard
 
 HTTP API 접근 권한은 Agent tool 실행 권한과 분리한다.
 
@@ -246,7 +261,7 @@ X-API-Key
 운영형 로컬 환경에서는 `AUTH_ENABLED=true`와 `API_KEY_CREDENTIALS`로 같은 API를 보호할 수 있다.
 credential의 `@tenant-a|tenant-b` suffix로 허용 tenant를 지정할 수 있다.
 
-## 15. Idempotency Repository
+## 16. Idempotency Repository
 
 재시도 가능한 쓰기 API는 `Idempotency-Key`를 처리한다.
 
@@ -270,7 +285,7 @@ HTTP Request
 승인 replay 멱등성과는 책임이 다르다. `Idempotency-Key`는 HTTP write API 재시도 중복을 막고,
 approval replay는 승인 이후 외부 tool 실행 중복을 막는다.
 
-## 16. Ontology Read Model
+## 17. Ontology Read Model
 
 문서 적재 use case는 검색 청크와 별도로 ontology graph read model을 업데이트한다.
 
@@ -288,7 +303,7 @@ Document
 - Extractor는 현재 결정론적 규칙 기반이지만, 나중에 LLM entity extraction으로 교체할 수 있다.
 - Repository는 메모리/Postgres 구현을 제공하고, 이후 Neo4j 같은 graph backend로 확장할 수 있다.
 
-## 17. Webhook Outbox
+## 18. Webhook Outbox
 
 감사 이벤트와 외부 workflow 전송은 분리한다.
 
@@ -316,7 +331,7 @@ AuditEvent
 - 최대 재시도 횟수를 넘은 delivery는 `dead_letter`로 분리해 자동 재시도 폭주를 막는다.
 - 수동 retry는 상태와 attempt count를 초기화해 운영자가 원인 조치 후 다시 큐에 넣는 동작이다.
 
-## 18. Request Context Audit Enrichment
+## 19. Request Context Audit Enrichment
 
 HTTP request context와 audit event를 연결한다.
 
@@ -339,7 +354,7 @@ RequestContextMiddleware
 - audit event 조회와 export는 `request_id` 필터를 지원한다.
 - Postgres adapter는 `payload ->> 'request_id'` expression index로 필터 비용을 낮춘다.
 
-## 19. Compatible Error Envelope
+## 20. Compatible Error Envelope
 
 오류 응답은 기존 FastAPI `detail` 계약을 유지하면서 request id만 추가한다.
 

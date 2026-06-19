@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     webhook_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
     webhook_max_attempts: int = Field(default=5, ge=1, le=20)
     webhook_lease_seconds: int = Field(default=60, ge=5, le=600)
+    monthly_agent_run_quota: int = Field(default=1000, ge=1, le=1_000_000)
 
     openai_api_key: str = ""
     anthropic_api_key: str = ""

@@ -680,6 +680,59 @@ def test_operations_summary_aggregates_runtime_signals():
     assert body["latest_evaluation_metrics"]["case_count"] == 1
 
 
+def test_monthly_usage_quota_blocks_agent_runs_and_reports_operations_usage(monkeypatch):
+    with monkeypatch.context() as scoped:
+        scoped.setenv("MONTHLY_AGENT_RUN_QUOTA", "1")
+        _clear_runtime_caches()
+        client = TestClient(create_app())
+        tenant_id = "usage-quota"
+
+        first = client.post(
+            "/v1/agents/runs",
+            json={
+                "tenant_id": tenant_id,
+                "scenario": "operations",
+                "message": "월간 사용량 guard가 없는 상태에서 첫 실행은 허용되어야 한다.",
+            },
+        )
+        second = client.post(
+            "/v1/agents/runs",
+            json={
+                "tenant_id": tenant_id,
+                "scenario": "operations",
+                "message": "월간 사용량 quota를 초과한 두 번째 실행은 차단되어야 한다.",
+            },
+        )
+
+        assert first.status_code == 200
+        assert first.json()["status"] == "succeeded"
+        assert second.status_code == 200
+        blocked = second.json()
+        assert blocked["status"] == "blocked"
+        assert blocked["policy"]["decision"] == "quota_exceeded"
+        assert any(step["step"] == "quota_guard" for step in blocked["trace"])
+
+        usage = client.get(f"/v1/operations/usage?tenant_id={tenant_id}")
+        assert usage.status_code == 200
+        usage_body = usage.json()
+        assert usage_body["monthly_agent_run_quota"] == 1
+        assert usage_body["agent_runs_used"] == 2
+        assert usage_body["agent_runs_remaining"] == 0
+        assert usage_body["exceeded"] is True
+
+        alerts = client.get(f"/v1/operations/alerts?tenant_id={tenant_id}")
+        assert alerts.status_code == 200
+        assert "monthly_agent_run_quota" in {alert["code"] for alert in alerts.json()}
+
+        events = client.get(
+            f"/v1/audit/events?tenant_id={tenant_id}&event_type=agent.quota.exceeded"
+        )
+        assert events.status_code == 200
+        assert len(events.json()) == 1
+
+    _clear_runtime_caches()
+
+
 def test_operations_alerts_detect_runtime_threshold_breaches():
     client = TestClient(create_app())
     container = get_container()
@@ -860,10 +913,12 @@ def test_operator_dashboard_serves_backend_console():
     assert response.headers["content-type"].startswith("text/html")
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/operations/summary" in response.text
+    assert "/v1/operations/usage" in response.text
     assert "/v1/operations/alerts" in response.text
     assert "/v1/agents/runs" in response.text
     assert "/timeline" in response.text
     assert "agent-run-timeline" in response.text
+    assert "metric-usage" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

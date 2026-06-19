@@ -272,6 +272,19 @@ class OperationsSummary:
 
 
 @dataclass(frozen=True)
+class OperationsUsage:
+    tenant_id: str
+    period_start: datetime
+    period_end: datetime
+    monthly_agent_run_quota: int
+    agent_runs_used: int
+    agent_runs_remaining: int
+    usage_ratio: float
+    exceeded: bool
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class RetentionPruneResult:
     tenant_id: str
     dry_run: bool

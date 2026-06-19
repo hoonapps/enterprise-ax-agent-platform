@@ -301,6 +301,7 @@ GET /dashboard
   -> FastAPI HTML response
   -> browser fetch
      -> /v1/operations/summary
+     -> /v1/operations/usage
      -> /v1/operations/alerts
      -> /v1/agents/runs
      -> /v1/agents/runs/{run_id}/timeline
@@ -309,7 +310,7 @@ GET /dashboard
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
-  -> 운영 지표, alert, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, 월간 사용률, alert, 최근 실행 이력, 실행 timeline, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.
@@ -318,6 +319,7 @@ request id 필터도 화면 내부 상태로 별도 저장하지 않고 audit ev
 
 Operations alert는 별도 쓰기 모델이 아니라 summary read model 위에서 계산한다.
 임계치 기준은 API query parameter로 넘기며, 대시보드는 반환된 alert만 표시한다.
+월간 사용률은 Agent 실행 저장소의 기간 집계를 읽으며, Agent 실행 전 `quota_guard`와 같은 기준을 사용한다.
 실행 timeline은 목록에서 선택된 run id로 조회하며, 화면 자체에 별도 timeline 상태를 저장하지 않는다.
 
 ## Retention Prune 흐름

@@ -545,6 +545,10 @@ _DASHBOARD_HTML = """<!doctype html>
         <div class="label">Gateway fallback</div>
         <div class="value" id="metric-fallbacks">-</div>
       </article>
+      <article class="metric">
+        <div class="label">월간 사용률</div>
+        <div class="value" id="metric-usage">-</div>
+      </article>
     </section>
 
     <section class="panel-grid">
@@ -683,6 +687,7 @@ _DASHBOARD_HTML = """<!doctype html>
       latency: document.querySelector("#metric-latency"),
       confidence: document.querySelector("#metric-confidence"),
       fallbacks: document.querySelector("#metric-fallbacks"),
+      usage: document.querySelector("#metric-usage"),
       operationsAlerts: document.querySelector("#operations-alerts"),
       toolDecisions: document.querySelector("#tool-decisions"),
       agentRuns: document.querySelector("#agent-runs"),
@@ -1044,8 +1049,9 @@ _DASHBOARD_HTML = """<!doctype html>
       els.loadState.textContent = "데이터를 불러오는 중입니다.";
 
       try {
-        const [summary, alerts, runs, approvals, events, tools] = await Promise.all([
+        const [summary, usage, alerts, runs, approvals, events, tools] = await Promise.all([
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
+          fetchJson(`/v1/operations/usage?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
@@ -1059,6 +1065,11 @@ _DASHBOARD_HTML = """<!doctype html>
         els.latency.textContent = formatLatency(summary.average_latency_ms);
         els.confidence.textContent = formatRatio(summary.average_confidence);
         els.fallbacks.textContent = formatNumber(summary.gateway_fallback_count);
+        els.usage.textContent = `${Math.round(Number(usage.usage_ratio || 0) * 100)}%`;
+        els.usage.title = [
+          formatNumber(usage.agent_runs_used),
+          formatNumber(usage.monthly_agent_run_quota)
+        ].join(" / ");
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
         if (!runs.some((run) => run.run_id === selectedRunId)) {

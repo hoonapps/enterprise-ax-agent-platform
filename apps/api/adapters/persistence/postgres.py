@@ -423,6 +423,21 @@ class PostgresAgentRunRepository(PostgresBase):
 
         return [self._row_to_run(row) for row in rows]
 
+    def count_runs_between(self, tenant_id: str, start: datetime, end: datetime) -> int:
+        with psycopg.connect(self.dsn) as conn:
+            row = conn.execute(
+                """
+                select count(*)
+                from agent_runs r
+                join tenants t on t.id = r.tenant_id
+                where t.slug = %s
+                  and r.created_at >= %s
+                  and r.created_at < %s
+                """,
+                (tenant_id, start, end),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
     def _row_to_run(self, row: dict[str, Any]) -> AgentRun:
         metadata = cast(dict[str, Any], row["metadata"] or {})
         return AgentRun(

@@ -20,6 +20,18 @@ class OperationsSummaryResponse(BaseModel):
     generated_at: datetime
 
 
+class OperationsUsageResponse(BaseModel):
+    tenant_id: str
+    period_start: datetime
+    period_end: datetime
+    monthly_agent_run_quota: int
+    agent_runs_used: int
+    agent_runs_remaining: int
+    usage_ratio: float
+    exceeded: bool
+    generated_at: datetime
+
+
 class OperationsAlertResponse(BaseModel):
     tenant_id: str
     code: str

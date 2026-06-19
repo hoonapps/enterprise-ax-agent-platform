@@ -54,6 +54,7 @@ from apps.api.application.use_cases import (
     IngestDocumentUseCase,
     OperationsAlertUseCase,
     OperationsSummaryUseCase,
+    OperationsUsageUseCase,
     RetentionPruneUseCase,
     RunAgentUseCase,
     SearchKnowledgeUseCase,
@@ -170,6 +171,7 @@ class AppContainer:
             tool_runtime=self.tool_runtime,
             synthesizer=self.synthesizer,
             default_top_k=settings.top_k,
+            monthly_agent_run_quota=settings.monthly_agent_run_quota,
         )
         self.call_tool = ToolCallUseCase(
             registry=self.tool_registry,
@@ -193,8 +195,13 @@ class AppContainer:
             approvals=self.approvals,
             audit_log=self.audit_log,
         )
+        self.operations_usage = OperationsUsageUseCase(
+            runs=self.runs,
+            monthly_agent_run_quota=settings.monthly_agent_run_quota,
+        )
         self.operations_alerts = OperationsAlertUseCase(
             operations_summary=self.operations_summary,
+            operations_usage=self.operations_usage,
         )
         self.retention_prune = RetentionPruneUseCase(
             audit_log=self.audit_log,

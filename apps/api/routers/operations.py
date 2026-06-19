@@ -4,10 +4,16 @@ from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
-from apps.api.domain.models import OperationsAlert, OperationsSummary, RetentionPruneResult
+from apps.api.domain.models import (
+    OperationsAlert,
+    OperationsSummary,
+    OperationsUsage,
+    RetentionPruneResult,
+)
 from apps.api.schemas.operations import (
     OperationsAlertResponse,
     OperationsSummaryResponse,
+    OperationsUsageResponse,
     RetentionPruneRequest,
     RetentionPruneResponse,
 )
@@ -33,6 +39,17 @@ def get_operations_summary(
     return _to_response(summary)
 
 
+@router.get("/usage", response_model=OperationsUsageResponse)
+def get_operations_usage(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+    tenant_id: str = "default",
+) -> OperationsUsageResponse:
+    require_tenant_access(auth, tenant_id)
+    usage = container.operations_usage.execute(tenant_id=tenant_id)
+    return _usage_to_response(usage)
+
+
 @router.get("/alerts", response_model=list[OperationsAlertResponse])
 def get_operations_alerts(
     container: ContainerDep,
@@ -44,6 +61,7 @@ def get_operations_alerts(
     min_average_confidence: float = 0.55,
     max_gateway_fallbacks: int = 0,
     min_evaluation_pass_rate: float = 0.85,
+    max_monthly_usage_ratio: float = 0.9,
 ) -> list[OperationsAlertResponse]:
     require_tenant_access(auth, tenant_id)
     alerts = container.operations_alerts.execute(
@@ -54,6 +72,7 @@ def get_operations_alerts(
         min_average_confidence=min_average_confidence,
         max_gateway_fallbacks=max_gateway_fallbacks,
         min_evaluation_pass_rate=min_evaluation_pass_rate,
+        max_monthly_usage_ratio=max_monthly_usage_ratio,
     )
     return [_alert_to_response(alert) for alert in alerts]
 
@@ -90,6 +109,20 @@ def _to_response(summary: OperationsSummary) -> OperationsSummaryResponse:
         gateway_fallback_count=summary.gateway_fallback_count,
         latest_evaluation_metrics=summary.latest_evaluation_metrics,
         generated_at=summary.generated_at,
+    )
+
+
+def _usage_to_response(usage: OperationsUsage) -> OperationsUsageResponse:
+    return OperationsUsageResponse(
+        tenant_id=usage.tenant_id,
+        period_start=usage.period_start,
+        period_end=usage.period_end,
+        monthly_agent_run_quota=usage.monthly_agent_run_quota,
+        agent_runs_used=usage.agent_runs_used,
+        agent_runs_remaining=usage.agent_runs_remaining,
+        usage_ratio=usage.usage_ratio,
+        exceeded=usage.exceeded,
+        generated_at=usage.generated_at,
     )
 
 

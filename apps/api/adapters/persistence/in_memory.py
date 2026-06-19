@@ -140,6 +140,14 @@ class InMemoryAgentRunRepository:
             runs = [run for run in runs if run.query_type.value == query_type]
         return sorted(runs, key=lambda run: run.created_at, reverse=True)[:limit]
 
+    def count_runs_between(self, tenant_id: str, start: datetime, end: datetime) -> int:
+        with self._lock:
+            return sum(
+                1
+                for run in self._runs[tenant_id].values()
+                if start <= run.created_at < end
+            )
+
 
 class InMemoryAuditLog:
     def __init__(self) -> None:

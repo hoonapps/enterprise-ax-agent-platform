@@ -168,6 +168,9 @@ Agent 요청 1건을 나타낸다.
 - `(tenant_id, scenario, created_at desc)`
 - `(tenant_id, status)`
 
+월간 quota guard와 operations usage read model은 `(tenant_id, created_at desc)` 인덱스로 기간 내
+실행 수를 계산한다. 별도 quota usage 테이블은 두지 않고, Agent 실행 원장을 기준으로 재계산한다.
+
 ### `retrieval_events`
 
 검색 전략과 검색 결과를 추적한다.

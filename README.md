@@ -128,6 +128,7 @@ GET  /v1/audit/events
 GET  /v1/audit/export
 
 GET  /v1/operations/summary
+GET  /v1/operations/usage
 GET  /v1/operations/alerts
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
@@ -733,6 +734,17 @@ curl "http://127.0.0.1:8000/v1/operations/summary?tenant_id=default"
 - gateway fallback count
 - 최신 evaluation metrics
 
+## Operations Usage
+
+월간 Agent 실행량은 tenant별 quota guard와 같은 기준으로 계산합니다.
+
+```bash
+curl "http://127.0.0.1:8000/v1/operations/usage?tenant_id=default"
+```
+
+`MONTHLY_AGENT_RUN_QUOTA` 환경변수로 월간 실행 한도를 설정합니다. Agent 실행 요청이 한도를
+초과하면 실행 전 `quota_guard` 단계에서 차단되고, `agent.quota.exceeded` 감사 이벤트가 남습니다.
+
 ## Operations Alerts
 
 운영 alert API는 summary 지표를 임계치와 비교해 즉시 확인해야 할 상태만 반환합니다.
@@ -748,6 +760,7 @@ curl "http://127.0.0.1:8000/v1/operations/alerts?tenant_id=default&event_limit=5
 - Agent 평균 신뢰도가 0.55 미만
 - Gateway fallback이 0건 초과
 - 최근 evaluation pass rate가 0.85 미만
+- 월간 Agent 실행 사용률이 0.9 이상
 
 각 기준은 query parameter로 조정할 수 있습니다.
 
@@ -781,6 +794,7 @@ GET /dashboard
 대시보드는 다음 API를 읽어 화면을 구성합니다.
 
 - `/v1/operations/summary`
+- `/v1/operations/usage`
 - `/v1/operations/alerts`
 - `/v1/agents/runs`
 - `/v1/agents/runs/{run_id}/timeline`
@@ -788,9 +802,10 @@ GET /dashboard
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, 최근 실행 이력, 실행 timeline, 승인 대기, 평균 지연시간, operations alert,
-tool decision, 감사 이벤트, 최신 evaluation metrics를 표시합니다. UI는 업무 운영자가 빠르게 상태를
-판단할 수 있도록 compact read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.
+화면은 Agent 실행 수, 최근 실행 이력, 실행 timeline, 월간 사용률, 승인 대기, 평균 지연시간,
+operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를 표시합니다. UI는 업무
+운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며, 승인/반려 버튼은
+기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
 생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.

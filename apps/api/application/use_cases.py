@@ -35,6 +35,7 @@ from apps.api.domain.models import (
     EvaluationStatus,
     OperationsAlert,
     OperationsSummary,
+    OperationsUsage,
     PolicyDecision,
     QueryType,
     RetentionPruneResult,
@@ -47,6 +48,16 @@ from apps.api.domain.models import (
     TraceStep,
 )
 from apps.api.domain.policies import AgentPolicy, RedactionPolicy
+
+
+def month_window(now: datetime | None = None) -> tuple[datetime, datetime]:
+    reference = now or datetime.now(UTC)
+    start = datetime(reference.year, reference.month, 1, tzinfo=UTC)
+    if reference.month == 12:
+        end = datetime(reference.year + 1, 1, 1, tzinfo=UTC)
+    else:
+        end = datetime(reference.year, reference.month + 1, 1, tzinfo=UTC)
+    return start, end
 
 
 class IngestDocumentUseCase:
@@ -129,6 +140,7 @@ class RunAgentUseCase:
         tool_runtime: ToolRuntimePort,
         synthesizer: GroundedAnswerSynthesizer,
         default_top_k: int,
+        monthly_agent_run_quota: int = 1000,
     ) -> None:
         self.vector_search = vector_search
         self.audit_log = audit_log
@@ -141,6 +153,7 @@ class RunAgentUseCase:
         self.tool_runtime = tool_runtime
         self.synthesizer = synthesizer
         self.default_top_k = default_top_k
+        self.monthly_agent_run_quota = monthly_agent_run_quota
 
     def execute(
         self,
@@ -171,6 +184,31 @@ class RunAgentUseCase:
                 detail={"query_type": query_type.value},
             )
         )
+
+        usage = self._current_month_usage(tenant_id)
+        quota_remaining = max(self.monthly_agent_run_quota - usage, 0)
+        trace.append(
+            TraceStep(
+                step="quota_guard",
+                status="succeeded" if quota_remaining > 0 else "blocked",
+                detail={
+                    "monthly_agent_run_quota": self.monthly_agent_run_quota,
+                    "agent_runs_used": usage,
+                    "agent_runs_remaining": quota_remaining,
+                },
+            )
+        )
+        if quota_remaining <= 0:
+            return self._block_quota_exceeded(
+                tenant_id=tenant_id,
+                scenario=scenario,
+                message=message,
+                redacted=redacted,
+                query_type=query_type,
+                user_id=user_id,
+                trace=trace,
+                latency_ms=int((perf_counter() - started) * 1000),
+            )
 
         plan = self.planner.plan(query_type, self.default_top_k)
         trace.append(
@@ -363,6 +401,62 @@ class RunAgentUseCase:
         top_score = max(result.score for result in results)
         coverage_bonus = min(len(results) * 0.08, 0.24)
         return round(min(0.95, top_score + coverage_bonus), 3)
+
+    def _current_month_usage(self, tenant_id: str) -> int:
+        start, end = month_window()
+        return self.runs.count_runs_between(tenant_id=tenant_id, start=start, end=end)
+
+    def _block_quota_exceeded(
+        self,
+        *,
+        tenant_id: str,
+        scenario: str,
+        message: str,
+        redacted: str,
+        query_type: QueryType,
+        user_id: str | None,
+        trace: list[TraceStep],
+        latency_ms: int,
+    ) -> AgentRun:
+        decision = PolicyDecision(
+            allowed=False,
+            decision="quota_exceeded",
+            reason="월간 Agent 실행 한도를 초과했습니다.",
+        )
+        run = AgentRun(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            scenario=scenario,
+            query=message,
+            redacted_query=redacted,
+            query_type=query_type,
+            answer="월간 Agent 실행 한도를 초과하여 실행하지 않았습니다.",
+            status=RunStatus.BLOCKED,
+            citations=[],
+            trace=trace,
+            confidence=0.0,
+            policy_decision=decision,
+            completed_at=datetime.now(UTC),
+        )
+        self.runs.save(run)
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="agent",
+                actor_id=user_id or "system",
+                event_type="agent.quota.exceeded",
+                resource_type="agent_run",
+                resource_id=run.id,
+                payload={
+                    "scenario": scenario,
+                    "query_type": query_type.value,
+                    "monthly_agent_run_quota": self.monthly_agent_run_quota,
+                    "status": run.status.value,
+                },
+            )
+        )
+        self._audit_agent_run(run, latency_ms=latency_ms)
+        return run
 
     def _execute_tools_if_needed(
         self,
@@ -927,6 +1021,36 @@ class OperationsSummaryUseCase:
         return round(sum(values) / len(values), 3)
 
 
+class OperationsUsageUseCase:
+    def __init__(
+        self,
+        *,
+        runs: AgentRunRepositoryPort,
+        monthly_agent_run_quota: int,
+    ) -> None:
+        self.runs = runs
+        self.monthly_agent_run_quota = monthly_agent_run_quota
+
+    def execute(self, *, tenant_id: str, now: datetime | None = None) -> OperationsUsage:
+        period_start, period_end = month_window(now)
+        used = self.runs.count_runs_between(
+            tenant_id=tenant_id,
+            start=period_start,
+            end=period_end,
+        )
+        remaining = max(self.monthly_agent_run_quota - used, 0)
+        return OperationsUsage(
+            tenant_id=tenant_id,
+            period_start=period_start,
+            period_end=period_end,
+            monthly_agent_run_quota=self.monthly_agent_run_quota,
+            agent_runs_used=used,
+            agent_runs_remaining=remaining,
+            usage_ratio=round(used / self.monthly_agent_run_quota, 3),
+            exceeded=used >= self.monthly_agent_run_quota,
+        )
+
+
 class RetentionPruneUseCase:
     def __init__(
         self,
@@ -995,8 +1119,14 @@ class RetentionPruneUseCase:
 
 
 class OperationsAlertUseCase:
-    def __init__(self, *, operations_summary: OperationsSummaryUseCase) -> None:
+    def __init__(
+        self,
+        *,
+        operations_summary: OperationsSummaryUseCase,
+        operations_usage: OperationsUsageUseCase,
+    ) -> None:
         self.operations_summary = operations_summary
+        self.operations_usage = operations_usage
 
     def execute(
         self,
@@ -1008,8 +1138,10 @@ class OperationsAlertUseCase:
         min_average_confidence: float = 0.55,
         max_gateway_fallbacks: int = 0,
         min_evaluation_pass_rate: float = 0.85,
+        max_monthly_usage_ratio: float = 0.9,
     ) -> list[OperationsAlert]:
         summary = self.operations_summary.execute(tenant_id=tenant_id, event_limit=event_limit)
+        usage = self.operations_usage.execute(tenant_id=tenant_id)
         alerts: list[OperationsAlert] = []
 
         if summary.pending_approval_count > max_pending_approvals:
@@ -1075,6 +1207,19 @@ class OperationsAlertUseCase:
                     metric="latest_evaluation_pass_rate",
                     actual_value=float(pass_rate),
                     threshold=min_evaluation_pass_rate,
+                )
+            )
+
+        if usage.usage_ratio >= max_monthly_usage_ratio:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="monthly_agent_run_quota",
+                    severity="critical" if usage.exceeded else "warning",
+                    message="월간 Agent 실행 사용량이 임계치에 도달했습니다.",
+                    metric="monthly_agent_run_usage_ratio",
+                    actual_value=usage.usage_ratio,
+                    threshold=max_monthly_usage_ratio,
                 )
             )
 
