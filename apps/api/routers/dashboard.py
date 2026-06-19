@@ -48,7 +48,8 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     button,
-    input {
+    input,
+    select {
       font: inherit;
     }
 
@@ -98,6 +99,7 @@ _DASHBOARD_HTML = """<!doctype html>
     }
 
     .field input,
+    .field select,
     .field textarea {
       height: 38px;
       border: 1px solid var(--border);
@@ -433,6 +435,36 @@ _DASHBOARD_HTML = """<!doctype html>
       overflow-wrap: anywhere;
     }
 
+    .feedback-form {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .feedback-header,
+    .feedback-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .feedback-header span:first-child {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .feedback-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
     .empty {
       color: var(--muted);
       padding: 12px 0;
@@ -491,6 +523,10 @@ _DASHBOARD_HTML = """<!doctype html>
 
       .bar-value {
         text-align: left;
+      }
+
+      .feedback-grid {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -612,6 +648,16 @@ _DASHBOARD_HTML = """<!doctype html>
 
         <section class="panel">
           <header>
+            <h2>Feedback Summary</h2>
+            <span class="meta">human review signal</span>
+          </header>
+          <div class="panel-body">
+            <div id="feedback-summary"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Tool Decision</h2>
             <span class="meta">runtime decision count</span>
           </header>
@@ -672,6 +718,46 @@ _DASHBOARD_HTML = """<!doctype html>
           </header>
           <div class="panel-body">
             <div class="timeline-list" id="agent-run-timeline"></div>
+            <form class="feedback-form" id="agent-feedback-form">
+              <div class="feedback-header">
+                <span>선택 실행 평가</span>
+                <span id="selected-run-label">-</span>
+              </div>
+              <div class="feedback-grid">
+                <div class="field">
+                  <label for="feedback-rating">Rating</label>
+                  <select id="feedback-rating" name="rating">
+                    <option value="5">5 · accepted</option>
+                    <option value="4">4 · useful</option>
+                    <option value="3">3 · neutral</option>
+                    <option value="2">2 · weak</option>
+                    <option value="1">1 · rejected</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="feedback-outcome">Outcome</label>
+                  <input id="feedback-outcome" name="outcome" value="accepted">
+                </div>
+                <div class="field">
+                  <label for="feedback-submitted-by">Reviewer</label>
+                  <input id="feedback-submitted-by" name="submittedBy" value="operator-01">
+                </div>
+              </div>
+              <div class="field full">
+                <label for="feedback-comment">Comment</label>
+                <textarea id="feedback-comment" name="comment">
+근거와 답변 구조가 충분합니다.
+                </textarea>
+              </div>
+              <div class="field full">
+                <label for="feedback-tags">Tags</label>
+                <input id="feedback-tags" name="tags" value="grounded,useful">
+              </div>
+              <div class="feedback-actions">
+                <button class="refresh" id="feedback-submit" type="submit">Feedback 저장</button>
+                <span id="feedback-state"></span>
+              </div>
+            </form>
           </div>
         </section>
 
@@ -730,6 +816,15 @@ _DASHBOARD_HTML = """<!doctype html>
       previewMessage: document.querySelector("#preview-message"),
       previewSubmit: document.querySelector("#preview-submit"),
       previewResult: document.querySelector("#preview-result"),
+      feedbackForm: document.querySelector("#agent-feedback-form"),
+      feedbackRating: document.querySelector("#feedback-rating"),
+      feedbackOutcome: document.querySelector("#feedback-outcome"),
+      feedbackSubmittedBy: document.querySelector("#feedback-submitted-by"),
+      feedbackComment: document.querySelector("#feedback-comment"),
+      feedbackTags: document.querySelector("#feedback-tags"),
+      feedbackSubmit: document.querySelector("#feedback-submit"),
+      feedbackState: document.querySelector("#feedback-state"),
+      selectedRunLabel: document.querySelector("#selected-run-label"),
       loadState: document.querySelector("#load-state"),
       generatedAt: document.querySelector("#generated-at"),
       documents: document.querySelector("#metric-documents"),
@@ -742,6 +837,7 @@ _DASHBOARD_HTML = """<!doctype html>
       slo: document.querySelector("#metric-slo"),
       operationsAlerts: document.querySelector("#operations-alerts"),
       incidentSnapshot: document.querySelector("#incident-snapshot"),
+      feedbackSummary: document.querySelector("#feedback-summary"),
       toolDecisions: document.querySelector("#tool-decisions"),
       agentRuns: document.querySelector("#agent-runs"),
       agentTimeline: document.querySelector("#agent-run-timeline"),
@@ -853,6 +949,36 @@ _DASHBOARD_HTML = """<!doctype html>
               <div class="timeline-detail">${escapeHtml(action)}</div>
             </div>
           `).join("")}
+        </div>
+      `;
+    }
+
+    function renderFeedbackSummary(summary) {
+      els.feedbackSummary.innerHTML = `
+        <div class="alert-item">
+          <div class="alert-line">
+            <span class="alert-message">
+              평균 rating ${formatRatio(summary.average_rating)}
+            </span>
+            <span class="badge ${summary.negative_count > 0 ? "warn" : "ok"}">
+              ${formatNumber(summary.feedback_count)}
+            </span>
+          </div>
+          <div class="alert-metric">
+            positive ${formatNumber(summary.positive_count)}
+            · negative ${formatNumber(summary.negative_count)}
+          </div>
+        </div>
+        <div class="bars">
+          ${Object.entries(summary.outcome_counts || {}).map(([key, value]) => `
+            <div class="bar-row">
+              <div class="bar-label">${escapeHtml(key)}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: ${Math.max(8, value * 20)}%"></div>
+              </div>
+              <div class="bar-value">${formatNumber(value)}</div>
+            </div>
+          `).join("") || `<div class="empty">feedback 데이터가 없습니다.</div>`}
         </div>
       `;
     }
@@ -985,6 +1111,16 @@ _DASHBOARD_HTML = """<!doctype html>
           </td>
         </tr>
       `).join("");
+    }
+
+    function renderSelectedRunLabel() {
+      if (!selectedRunId) {
+        els.selectedRunLabel.textContent = "-";
+        els.feedbackSubmit.disabled = true;
+        return;
+      }
+      els.selectedRunLabel.textContent = selectedRunId.slice(0, 8);
+      els.feedbackSubmit.disabled = false;
     }
 
     function renderAgentTimeline(items) {
@@ -1130,9 +1266,43 @@ _DASHBOARD_HTML = """<!doctype html>
       }
     }
 
+    async function submitAgentFeedback() {
+      if (!selectedRunId) {
+        els.feedbackState.className = "error";
+        els.feedbackState.textContent = "선택된 실행 이력이 없습니다.";
+        return;
+      }
+      const tenantId = els.tenant.value || "default";
+      const tags = els.feedbackTags.value
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      els.feedbackSubmit.disabled = true;
+      els.feedbackState.className = "";
+      els.feedbackState.textContent = "저장 중입니다.";
+      try {
+        await postJson(`/v1/agents/runs/${selectedRunId}/feedback`, {
+          tenant_id: tenantId,
+          rating: Number(els.feedbackRating.value),
+          outcome: els.feedbackOutcome.value.trim() || "reviewed",
+          submitted_by: els.feedbackSubmittedBy.value.trim() || "operator-01",
+          comment: els.feedbackComment.value.trim() || null,
+          tags
+        });
+        els.feedbackState.textContent = "저장되었습니다.";
+        await refreshDashboard();
+      } catch (error) {
+        els.feedbackState.className = "error";
+        els.feedbackState.textContent = `저장 실패: ${error.message}`;
+      } finally {
+        renderSelectedRunLabel();
+      }
+    }
+
     async function loadAgentTimeline(runId) {
       if (!runId) {
         renderAgentTimeline([]);
+        renderSelectedRunLabel();
         return;
       }
       const tenantId = encodeURIComponent(els.tenant.value || "default");
@@ -1141,10 +1311,12 @@ _DASHBOARD_HTML = """<!doctype html>
           `/v1/agents/runs/${encodeURIComponent(runId)}/timeline?tenant_id=${tenantId}`
         );
         renderAgentTimeline(timeline);
+        renderSelectedRunLabel();
       } catch (error) {
         els.agentTimeline.innerHTML = `
           <div class="empty">Timeline 조회 실패: ${escapeHtml(error.message)}</div>
         `;
+        renderSelectedRunLabel();
       }
     }
 
@@ -1161,6 +1333,7 @@ _DASHBOARD_HTML = """<!doctype html>
           usage,
           slo,
           incident,
+          feedback,
           alerts,
           runs,
           approvals,
@@ -1173,6 +1346,7 @@ _DASHBOARD_HTML = """<!doctype html>
           fetchJson(
             `/v1/operations/incidents/snapshot?tenant_id=${tenantId}&event_limit=${eventLimit}`
           ),
+          fetchJson(`/v1/operations/feedback/summary?tenant_id=${tenantId}`),
           fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
@@ -1203,6 +1377,7 @@ _DASHBOARD_HTML = """<!doctype html>
         }
         renderOperationsAlerts(alerts);
         renderIncidentSnapshot(incident);
+        renderFeedbackSummary(feedback);
         renderAgentRuns(runs);
         await loadAgentTimeline(selectedRunId);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
@@ -1231,6 +1406,11 @@ _DASHBOARD_HTML = """<!doctype html>
     els.previewForm.addEventListener("submit", (event) => {
       event.preventDefault();
       previewAgentRun();
+    });
+
+    els.feedbackForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitAgentFeedback();
     });
 
     els.approvalList.addEventListener("click", (event) => {

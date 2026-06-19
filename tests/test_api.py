@@ -257,6 +257,54 @@ def test_agent_run_preview_does_not_persist_run_or_audit_event():
     assert events.json() == []
 
 
+def test_agent_run_feedback_appends_audit_event_and_updates_summary():
+    client = TestClient(create_app())
+    tenant_id = "run-feedback"
+
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "운영 feedback 수집 정책을 설명해줘",
+        },
+    )
+    assert run.status_code == 200
+    run_id = run.json()["run_id"]
+
+    feedback = client.post(
+        f"/v1/agents/runs/{run_id}/feedback",
+        json={
+            "tenant_id": tenant_id,
+            "rating": 5,
+            "outcome": "accepted",
+            "submitted_by": "operator-01",
+            "comment": "근거와 답변 구조가 충분합니다.",
+            "tags": ["grounded", "useful"],
+        },
+    )
+
+    assert feedback.status_code == 200
+    feedback_body = feedback.json()
+    assert feedback_body["run_id"] == run_id
+    assert feedback_body["rating"] == 5
+    assert feedback_body["outcome"] == "accepted"
+
+    events = client.get(
+        f"/v1/audit/events?tenant_id={tenant_id}&event_type=agent.feedback.submitted"
+    )
+    summary = client.get(f"/v1/operations/feedback/summary?tenant_id={tenant_id}")
+
+    assert events.status_code == 200
+    assert len(events.json()) == 1
+    assert summary.status_code == 200
+    summary_body = summary.json()
+    assert summary_body["feedback_count"] == 1
+    assert summary_body["average_rating"] == 5.0
+    assert summary_body["positive_count"] == 1
+    assert summary_body["outcome_counts"]["accepted"] == 1
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"
@@ -1019,6 +1067,10 @@ def test_operator_dashboard_serves_backend_console():
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/agents/runs/preview" in response.text
     assert "preview-result" in response.text
+    assert "/v1/agents/runs/${selectedRunId}/feedback" in response.text
+    assert "agent-feedback-form" in response.text
+    assert "/v1/operations/feedback/summary" in response.text
+    assert "feedback-summary" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/usage" in response.text
     assert "/v1/operations/slo" in response.text

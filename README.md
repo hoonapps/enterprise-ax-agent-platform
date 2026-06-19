@@ -122,6 +122,7 @@ POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
+POST /v1/agents/runs/{run_id}/feedback
 
 GET  /v1/ontology/graph
 
@@ -132,6 +133,7 @@ GET  /v1/operations/summary
 GET  /v1/operations/usage
 GET  /v1/operations/slo
 GET  /v1/operations/incidents/snapshot
+GET  /v1/operations/feedback/summary
 GET  /v1/operations/alerts
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
@@ -385,6 +387,24 @@ curl "http://127.0.0.1:8000/v1/agents/runs/{run_id}/timeline?tenant_id=default"
 Timeline은 단일 Agent 실행의 trace step, tool execution, 관련 audit event를 같은 sequence로 묶어
 반환합니다. 운영자는 실행 상세 답변을 열기 전에 어떤 단계에서 승인, 차단, fallback, 감사 이벤트가
 발생했는지 확인할 수 있습니다.
+
+Agent 실행 feedback:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/agents/runs/{run_id}/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "default",
+    "rating": 5,
+    "outcome": "accepted",
+    "submitted_by": "operator-01",
+    "comment": "근거와 답변 구조가 충분합니다.",
+    "tags": ["grounded", "useful"]
+  }'
+```
+
+feedback은 `agent.feedback.submitted` 감사 이벤트로 저장되며, 별도 summary read model에서 품질 개선
+신호로 집계됩니다.
 
 위험 action 차단:
 
@@ -787,6 +807,16 @@ curl "http://127.0.0.1:8000/v1/operations/incidents/snapshot?tenant_id=default"
 운영자는 이 응답으로 어떤 지표가 문제인지, 어떤 run timeline이나 승인 queue를 먼저 봐야 하는지
 빠르게 판단할 수 있습니다.
 
+## Feedback Summary
+
+Feedback summary API는 최근 Agent run feedback 이벤트를 집계합니다.
+
+```bash
+curl "http://127.0.0.1:8000/v1/operations/feedback/summary?tenant_id=default"
+```
+
+응답에는 feedback count, average rating, positive/negative count, outcome별 count가 포함됩니다.
+
 ## Operations Alerts
 
 운영 alert API는 summary 지표를 임계치와 비교해 즉시 확인해야 할 상태만 반환합니다.
@@ -839,6 +869,7 @@ GET /dashboard
 - `/v1/operations/usage`
 - `/v1/operations/slo`
 - `/v1/operations/incidents/snapshot`
+- `/v1/operations/feedback/summary`
 - `/v1/operations/alerts`
 - `/v1/agents/runs/preview`
 - `/v1/agents/runs`
@@ -847,10 +878,10 @@ GET /dashboard
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, run preview, 최근 실행 이력, 실행 timeline, 월간 사용률, SLO 상태, incident
-snapshot, 승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트, 최신 evaluation metrics를
-표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
-승인/반려 버튼은 기존 approval API를 호출합니다.
+화면은 Agent 실행 수, run preview, feedback summary, 최근 실행 이력, 실행 timeline, 월간 사용률,
+SLO 상태, incident snapshot, 승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트,
+최신 evaluation metrics를 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact
+read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
 생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.

@@ -53,6 +53,27 @@ class AgentRunPreviewResponse(BaseModel):
     generated_at: datetime
 
 
+class AgentRunFeedbackRequest(BaseModel):
+    tenant_id: str = "default"
+    rating: int = Field(..., ge=1, le=5)
+    outcome: str = Field(default="accepted", min_length=2)
+    submitted_by: str = Field(default="operator-01", min_length=2)
+    comment: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class AgentRunFeedbackResponse(BaseModel):
+    id: UUID
+    tenant_id: str
+    run_id: UUID
+    rating: int
+    outcome: str
+    submitted_by: str
+    comment: str | None
+    tags: list[str]
+    created_at: datetime
+
+
 class AgentRunSummaryResponse(BaseModel):
     run_id: UUID
     tenant_id: str

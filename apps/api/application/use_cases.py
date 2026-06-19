@@ -24,7 +24,9 @@ from apps.api.application.ports import (
 from apps.api.application.query_classifier import QueryClassifier
 from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
+    AgentFeedbackSummary,
     AgentRun,
+    AgentRunFeedback,
     AgentRunPreview,
     AgentRunTimelineItem,
     ApprovalRequest,
@@ -640,6 +642,90 @@ class RunAgentUseCase:
                     "latency_ms": latency_ms,
                 },
             )
+            )
+
+
+class AgentFeedbackUseCase:
+    def __init__(
+        self,
+        *,
+        runs: AgentRunRepositoryPort,
+        audit_log: AuditLogPort,
+    ) -> None:
+        self.runs = runs
+        self.audit_log = audit_log
+
+    def submit(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        rating: int,
+        outcome: str,
+        submitted_by: str,
+        comment: str | None = None,
+        tags: list[str] | None = None,
+    ) -> AgentRunFeedback | None:
+        run = self.runs.get(tenant_id=tenant_id, run_id=str(run_id))
+        if run is None:
+            return None
+
+        feedback = AgentRunFeedback(
+            tenant_id=tenant_id,
+            run_id=run.id,
+            rating=rating,
+            outcome=outcome,
+            submitted_by=submitted_by,
+            comment=comment,
+            tags=tags or [],
+        )
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="user",
+                actor_id=submitted_by,
+                event_type="agent.feedback.submitted",
+                resource_type="agent_run",
+                resource_id=run.id,
+                payload={
+                    "feedback_id": str(feedback.id),
+                    "rating": feedback.rating,
+                    "outcome": feedback.outcome,
+                    "comment": feedback.comment,
+                    "tags": feedback.tags,
+                },
+            )
+        )
+        return feedback
+
+    def summary(self, *, tenant_id: str, event_limit: int = 500) -> AgentFeedbackSummary:
+        events = self.audit_log.list_events(
+            tenant_id=tenant_id,
+            limit=event_limit,
+            event_type="agent.feedback.submitted",
+        )
+        ratings = [
+            int(event.payload["rating"])
+            for event in events
+            if isinstance(event.payload.get("rating"), int)
+        ]
+        outcome_counts: dict[str, int] = {}
+        for event in events:
+            outcome = str(event.payload.get("outcome", "unknown"))
+            outcome_counts[outcome] = outcome_counts.get(outcome, 0) + 1
+
+        positive_count = sum(1 for rating in ratings if rating >= 4)
+        negative_count = sum(1 for rating in ratings if rating <= 2)
+        average_rating = round(sum(ratings) / len(ratings), 3) if ratings else 0.0
+
+        return AgentFeedbackSummary(
+            tenant_id=tenant_id,
+            event_limit=event_limit,
+            feedback_count=len(events),
+            average_rating=average_rating,
+            positive_count=positive_count,
+            negative_count=negative_count,
+            outcome_counts=outcome_counts,
         )
 
 

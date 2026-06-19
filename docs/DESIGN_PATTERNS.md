@@ -201,6 +201,8 @@ AuditLogPort
 error budget을 계산하되, 별도 쓰기 모델을 만들지 않는다.
 `OperationsIncidentSnapshotUseCase`는 여러 read model을 조합하는 facade 역할을 하며, 저장된 incident
 테이블 없이도 운영자가 볼 원인 후보와 권장 조치를 계산한다.
+`AgentFeedbackUseCase`는 feedback 제출을 `agent.feedback.submitted` 감사 이벤트로 남기고, 별도
+summary read model에서 rating과 outcome을 집계한다.
 
 ## 13. Quota Guard
 

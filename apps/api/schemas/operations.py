@@ -62,6 +62,17 @@ class OperationsIncidentSnapshotResponse(BaseModel):
     generated_at: datetime
 
 
+class AgentFeedbackSummaryResponse(BaseModel):
+    tenant_id: str
+    event_limit: int
+    feedback_count: int
+    average_rating: float
+    positive_count: int
+    negative_count: int
+    outcome_counts: dict[str, int]
+    generated_at: datetime
+
+
 class OperationsAlertResponse(BaseModel):
     tenant_id: str
     code: str

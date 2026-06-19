@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import (
+    AgentFeedbackSummary,
     OperationsAlert,
     OperationsIncidentSnapshot,
     OperationsSlo,
@@ -13,6 +14,7 @@ from apps.api.domain.models import (
     RetentionPruneResult,
 )
 from apps.api.schemas.operations import (
+    AgentFeedbackSummaryResponse,
     OperationsAlertResponse,
     OperationsIncidentSnapshotResponse,
     OperationsSloResponse,
@@ -86,6 +88,18 @@ def get_operations_incident_snapshot(
         event_limit=event_limit,
     )
     return _incident_snapshot_to_response(snapshot)
+
+
+@router.get("/feedback/summary", response_model=AgentFeedbackSummaryResponse)
+def get_agent_feedback_summary(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+    tenant_id: str = "default",
+    event_limit: int = 500,
+) -> AgentFeedbackSummaryResponse:
+    require_tenant_access(auth, tenant_id)
+    summary = container.agent_feedback.summary(tenant_id=tenant_id, event_limit=event_limit)
+    return _feedback_summary_to_response(summary)
 
 
 @router.get("/alerts", response_model=list[OperationsAlertResponse])
@@ -197,6 +211,19 @@ def _incident_snapshot_to_response(
         suspected_causes=snapshot.suspected_causes,
         recommended_actions=snapshot.recommended_actions,
         generated_at=snapshot.generated_at,
+    )
+
+
+def _feedback_summary_to_response(summary: AgentFeedbackSummary) -> AgentFeedbackSummaryResponse:
+    return AgentFeedbackSummaryResponse(
+        tenant_id=summary.tenant_id,
+        event_limit=summary.event_limit,
+        feedback_count=summary.feedback_count,
+        average_rating=summary.average_rating,
+        positive_count=summary.positive_count,
+        negative_count=summary.negative_count,
+        outcome_counts=summary.outcome_counts,
+        generated_at=summary.generated_at,
     )
 
 

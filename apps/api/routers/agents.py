@@ -13,6 +13,8 @@ from apps.api.core.idempotency import (
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
+    AgentRunFeedbackRequest,
+    AgentRunFeedbackResponse,
     AgentRunPreviewResponse,
     AgentRunSummaryResponse,
     AgentRunTimelineItemResponse,
@@ -187,6 +189,38 @@ def get_agent_run_timeline(
         )
         for item in timeline
     ]
+
+
+@router.post("/agents/runs/{run_id}/feedback", response_model=AgentRunFeedbackResponse)
+def submit_agent_run_feedback(
+    run_id: UUID,
+    request: AgentRunFeedbackRequest,
+    container: ContainerDep,
+    auth: AgentRunAuth,
+) -> AgentRunFeedbackResponse:
+    require_tenant_access(auth, request.tenant_id)
+    feedback = container.agent_feedback.submit(
+        tenant_id=request.tenant_id,
+        run_id=run_id,
+        rating=request.rating,
+        outcome=request.outcome,
+        submitted_by=request.submitted_by,
+        comment=request.comment,
+        tags=request.tags,
+    )
+    if feedback is None:
+        raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
+    return AgentRunFeedbackResponse(
+        id=feedback.id,
+        tenant_id=feedback.tenant_id,
+        run_id=feedback.run_id,
+        rating=feedback.rating,
+        outcome=feedback.outcome,
+        submitted_by=feedback.submitted_by,
+        comment=feedback.comment,
+        tags=feedback.tags,
+        created_at=feedback.created_at,
+    )
 
 
 @router.get("/agents/runs/{run_id}", response_model=RunAgentResponse)

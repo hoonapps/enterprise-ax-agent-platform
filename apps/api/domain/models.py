@@ -393,6 +393,31 @@ class AgentRunPreview:
 
 
 @dataclass(frozen=True)
+class AgentRunFeedback:
+    tenant_id: str
+    run_id: UUID
+    rating: int
+    outcome: str
+    submitted_by: str
+    comment: str | None = None
+    tags: list[str] = field(default_factory=list)
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class AgentFeedbackSummary:
+    tenant_id: str
+    event_limit: int
+    feedback_count: int
+    average_rating: float
+    positive_count: int
+    negative_count: int
+    outcome_counts: dict[str, int] = field(default_factory=dict)
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AuditEvent:
     tenant_id: str
     actor_type: str
