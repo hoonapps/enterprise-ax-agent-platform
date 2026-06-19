@@ -378,6 +378,52 @@ class PostgresAgentRunRepository(PostgresBase):
         if row is None:
             return None
 
+        return self._row_to_run(row)
+
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        scenario: str | None = None,
+        status: str | None = None,
+        query_type: str | None = None,
+    ) -> list[AgentRun]:
+        filters = ["t.slug = %s"]
+        params: list[Any] = [tenant_id]
+        if scenario is not None:
+            filters.append("r.scenario = %s")
+            params.append(scenario)
+        if status is not None:
+            filters.append("r.status = %s")
+            params.append(status)
+        if query_type is not None:
+            filters.append("r.query_type = %s")
+            params.append(query_type)
+        params.append(limit)
+
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            rows = conn.execute(
+                f"""
+                select r.*, t.slug as tenant_slug, m.content as answer, m.metadata
+                from agent_runs r
+                join tenants t on t.id = r.tenant_id
+                left join lateral (
+                  select content, metadata
+                  from agent_messages
+                  where agent_run_id = r.id and role = 'assistant'
+                  order by created_at desc
+                  limit 1
+                ) m on true
+                where {" and ".join(filters)}
+                order by r.created_at desc
+                limit %s
+                """,
+                params,
+            ).fetchall()
+
+        return [self._row_to_run(row) for row in rows]
+
+    def _row_to_run(self, row: dict[str, Any]) -> AgentRun:
         metadata = cast(dict[str, Any], row["metadata"] or {})
         return AgentRun(
             id=cast(UUID, row["id"]),

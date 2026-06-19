@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs/{run_id}` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}` |
 | `agents:run` | `POST /v1/agents/runs` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -57,6 +57,7 @@ GET  /v1/documents
 POST /v1/knowledge/search
 
 POST /v1/agents/runs
+GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 
 GET  /v1/ontology/graph
@@ -145,6 +146,46 @@ POST /v1/approvals/{approval_id}/reject
   ]
 }
 ```
+
+## Agent 실행 이력
+
+```text
+GET /v1/agents/runs?tenant_id=default&limit=50&status=succeeded
+```
+
+지원 query parameter:
+
+| 파라미터 | 의미 |
+| --- | --- |
+| `tenant_id` | 조회 대상 tenant |
+| `limit` | 최대 조회 개수. 1~200 |
+| `scenario` | 특정 scenario 필터 |
+| `status` | `running`, `succeeded`, `failed`, `blocked` 필터 |
+| `query_type` | `factual`, `summary`, `compare`, `action`, `risk` 필터 |
+
+응답:
+
+```json
+[
+  {
+    "run_id": "018f...",
+    "tenant_id": "default",
+    "scenario": "operations",
+    "status": "succeeded",
+    "query_type": "risk",
+    "redacted_query_preview": "AX 전환 리스크와 거버넌스 기준을 정리해줘",
+    "confidence": 0.82,
+    "citation_count": 3,
+    "tool_execution_count": 0,
+    "trace_step_count": 5,
+    "created_at": "2026-06-19T00:00:00Z",
+    "completed_at": "2026-06-19T00:00:01Z"
+  }
+]
+```
+
+목록 응답은 운영 추적용 summary다. 원문 query와 전체 답변은 내려보내지 않고, redaction이 적용된
+preview와 상태 지표만 반환한다.
 
 ## 오류 응답
 

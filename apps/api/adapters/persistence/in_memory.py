@@ -122,6 +122,24 @@ class InMemoryAgentRunRepository:
             except ValueError:
                 return None
 
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        scenario: str | None = None,
+        status: str | None = None,
+        query_type: str | None = None,
+    ) -> list[AgentRun]:
+        with self._lock:
+            runs = list(self._runs[tenant_id].values())
+        if scenario is not None:
+            runs = [run for run in runs if run.scenario == scenario]
+        if status is not None:
+            runs = [run for run in runs if run.status.value == status]
+        if query_type is not None:
+            runs = [run for run in runs if run.query_type.value == query_type]
+        return sorted(runs, key=lambda run: run.created_at, reverse=True)[:limit]
+
 
 class InMemoryAuditLog:
     def __init__(self) -> None:

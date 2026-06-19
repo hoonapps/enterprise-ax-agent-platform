@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.idempotency import (
@@ -13,6 +13,7 @@ from apps.api.core.idempotency import (
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
 from apps.api.domain.models import AgentRun
 from apps.api.schemas.agents import (
+    AgentRunSummaryResponse,
     RunAgentRequest,
     RunAgentResponse,
     SearchKnowledgeRequest,
@@ -97,6 +98,27 @@ def run_agent(
     return response
 
 
+@router.get("/agents/runs", response_model=list[AgentRunSummaryResponse])
+def list_agent_runs(
+    container: ContainerDep,
+    auth: AgentReadAuth,
+    tenant_id: str = "default",
+    limit: int = Query(default=50, ge=1, le=200),
+    scenario: str | None = None,
+    status: str | None = None,
+    query_type: str | None = None,
+) -> list[AgentRunSummaryResponse]:
+    require_tenant_access(auth, tenant_id)
+    runs = container.run_agent.list_runs(
+        tenant_id=tenant_id,
+        limit=limit,
+        scenario=scenario,
+        status=status,
+        query_type=query_type,
+    )
+    return [_to_summary_response(run) for run in runs]
+
+
 @router.get("/agents/runs/{run_id}", response_model=RunAgentResponse)
 def get_agent_run(
     run_id: UUID,
@@ -109,6 +131,26 @@ def get_agent_run(
     if run is None:
         raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
     return _to_response(run)
+
+
+def _to_summary_response(run: AgentRun) -> AgentRunSummaryResponse:
+    preview = " ".join(run.redacted_query.split())
+    if len(preview) > 120:
+        preview = f"{preview[:117]}..."
+    return AgentRunSummaryResponse(
+        run_id=run.id,
+        tenant_id=run.tenant_id,
+        scenario=run.scenario,
+        status=run.status.value,
+        query_type=run.query_type.value,
+        redacted_query_preview=preview,
+        confidence=run.confidence,
+        citation_count=len(run.citations),
+        tool_execution_count=len(run.tool_executions),
+        trace_step_count=len(run.trace),
+        created_at=run.created_at,
+        completed_at=run.completed_at,
+    )
 
 
 def _to_response(run: AgentRun) -> RunAgentResponse:

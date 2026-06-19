@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -32,6 +33,21 @@ class RunAgentResponse(BaseModel):
     trace: list[TraceStepResponse]
     policy: PolicyResponse
     tool_executions: list[ToolExecutionResponse]
+
+
+class AgentRunSummaryResponse(BaseModel):
+    run_id: UUID
+    tenant_id: str
+    scenario: str
+    status: str
+    query_type: str
+    redacted_query_preview: str
+    confidence: float
+    citation_count: int
+    tool_execution_count: int
+    trace_step_count: int
+    created_at: datetime
+    completed_at: datetime | None
 
 
 class SearchKnowledgeRequest(BaseModel):

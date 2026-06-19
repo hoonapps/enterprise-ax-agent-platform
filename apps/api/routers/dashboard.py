@@ -552,6 +552,27 @@ _DASHBOARD_HTML = """<!doctype html>
       <div class="stack">
         <section class="panel">
           <header>
+            <h2>Recent Agent Runs</h2>
+            <span class="meta">latest 8</span>
+          </header>
+          <div class="panel-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>시간</th>
+                  <th>Status</th>
+                  <th>Type</th>
+                  <th>Query</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="agent-runs"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Approval Flow</h2>
             <span class="meta">pending queue</span>
           </header>
@@ -611,6 +632,7 @@ _DASHBOARD_HTML = """<!doctype html>
       fallbacks: document.querySelector("#metric-fallbacks"),
       operationsAlerts: document.querySelector("#operations-alerts"),
       toolDecisions: document.querySelector("#tool-decisions"),
+      agentRuns: document.querySelector("#agent-runs"),
       auditEvents: document.querySelector("#audit-events"),
       approvalList: document.querySelector("#approval-list"),
       toolCatalog: document.querySelector("#tool-catalog"),
@@ -657,7 +679,10 @@ _DASHBOARD_HTML = """<!doctype html>
       if (["allowed", "executed", "succeeded", "low", "read"].includes(value)) {
         return "ok";
       }
-      if (["approval_required", "pending", "medium", "write", "warning"].includes(value)) {
+      if (
+        ["approval_required", "pending", "medium", "write", "warning", "blocked"]
+          .includes(value)
+      ) {
         return "warn";
       }
       if (["denied", "rejected", "failed", "high", "critical"].includes(value)) {
@@ -783,6 +808,30 @@ _DASHBOARD_HTML = """<!doctype html>
       `).join("");
     }
 
+    function renderAgentRuns(runs) {
+      if (!runs.length) {
+        els.agentRuns.innerHTML = `
+          <tr>
+            <td colspan="5" class="empty">Agent 실행 이력이 없습니다.</td>
+          </tr>
+        `;
+        return;
+      }
+      els.agentRuns.innerHTML = runs.map((run) => `
+        <tr>
+          <td>${formatTime(run.created_at)}</td>
+          <td>
+            <span class="badge ${badgeClass(run.status)}">
+              ${escapeHtml(run.status)}
+            </span>
+          </td>
+          <td>${escapeHtml(run.query_type)}</td>
+          <td>${escapeHtml(run.redacted_query_preview)}</td>
+          <td>${formatRatio(run.confidence)}</td>
+        </tr>
+      `).join("");
+    }
+
     function renderAuditEvents(events) {
       if (!events.length) {
         els.auditEvents.innerHTML = `
@@ -889,9 +938,10 @@ _DASHBOARD_HTML = """<!doctype html>
       els.loadState.textContent = "데이터를 불러오는 중입니다.";
 
       try {
-        const [summary, alerts, approvals, events, tools] = await Promise.all([
+        const [summary, alerts, runs, approvals, events, tools] = await Promise.all([
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
+          fetchJson(`/v1/agents/runs?tenant_id=${tenantId}&limit=8`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
           fetchJson(buildAuditEventsUrl()),
           fetchJson("/v1/tools")
@@ -906,6 +956,7 @@ _DASHBOARD_HTML = """<!doctype html>
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
         renderOperationsAlerts(alerts);
+        renderAgentRuns(runs);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
         renderApprovals(approvals);
         renderTools(tools);

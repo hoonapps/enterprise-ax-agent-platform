@@ -118,6 +118,7 @@ GET  /v1/documents
 POST /v1/knowledge/search
 
 POST /v1/agents/runs
+GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 
 GET  /v1/ontology/graph
@@ -219,7 +220,7 @@ HTTP API scope와 Agent tool scope는 분리되어 있습니다.
 | --- | --- |
 | `documents:read` / `documents:write` | 문서 조회/적재 |
 | `knowledge:read` | 검색 API |
-| `agents:read` / `agents:run` | Agent 실행 조회/생성 |
+| `agents:read` / `agents:run` | Agent 실행 목록/조회/생성 |
 | `approvals:read` / `approvals:write` | 승인 조회/승인/반려 |
 | `audit:read` | 감사 이벤트 조회/export |
 | `operations:read` / `operations:write` | 운영 요약, alert, 보관 정책 실행 |
@@ -344,6 +345,15 @@ curl -X POST http://127.0.0.1:8000/v1/agents/runs \
     "message": "AX 전환 리스크와 거버넌스 기준을 정리해줘"
   }'
 ```
+
+Agent 실행 이력:
+
+```bash
+curl "http://127.0.0.1:8000/v1/agents/runs?tenant_id=default&limit=20&status=succeeded"
+```
+
+목록 응답은 운영 추적용 summary입니다. 원문 query와 전체 답변 대신 `redacted_query_preview`,
+상태, query type, confidence, citation/tool/trace 개수를 반환합니다.
 
 위험 action 차단:
 
@@ -761,13 +771,14 @@ GET /dashboard
 
 - `/v1/operations/summary`
 - `/v1/operations/alerts`
+- `/v1/agents/runs`
 - `/v1/approvals/pending`
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, 승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트,
-최신 evaluation metrics를 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read
-model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.
+화면은 Agent 실행 수, 최근 실행 이력, 승인 대기, 평균 지연시간, operations alert, tool decision,
+감사 이벤트, 최신 evaluation metrics를 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록
+compact read model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
 생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.

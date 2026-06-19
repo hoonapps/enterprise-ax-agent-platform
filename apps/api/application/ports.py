@@ -67,6 +67,15 @@ class AgentRunRepositoryPort(Protocol):
 
     def get(self, tenant_id: str, run_id: str) -> AgentRun | None: ...
 
+    def list_runs(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        scenario: str | None = None,
+        status: str | None = None,
+        query_type: str | None = None,
+    ) -> list[AgentRun]: ...
+
 
 class ToolRuntimePort(Protocol):
     def execute(self, request: ToolRequest) -> ToolExecution: ...

@@ -264,6 +264,23 @@ class RunAgentUseCase:
     def get_run(self, tenant_id: str, run_id: UUID) -> AgentRun | None:
         return self.runs.get(tenant_id=tenant_id, run_id=str(run_id))
 
+    def list_runs(
+        self,
+        *,
+        tenant_id: str,
+        limit: int = 50,
+        scenario: str | None = None,
+        status: str | None = None,
+        query_type: str | None = None,
+    ) -> list[AgentRun]:
+        return self.runs.list_runs(
+            tenant_id=tenant_id,
+            limit=limit,
+            scenario=scenario,
+            status=status,
+            query_type=query_type,
+        )
+
     def _confidence(self, results: list[RetrievalResult]) -> float:
         if not results:
             return 0.0

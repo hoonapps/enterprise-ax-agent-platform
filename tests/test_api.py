@@ -224,6 +224,61 @@ def test_health_and_agent_flow():
     assert body["tool_executions"] == []
 
 
+def test_agent_run_history_lists_recent_runs_with_filters():
+    client = TestClient(create_app())
+    tenant_id = "run-history"
+
+    client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": tenant_id,
+            "title": "실행 이력 정책",
+            "content": (
+                "Agent 실행 이력은 상태, 질문 유형, 신뢰도, trace 개수를 "
+                "확인할 수 있어야 한다."
+            ),
+            "source_uri": "test://run-history",
+        },
+    )
+    succeeded = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "실행 이력 정책을 정리해줘",
+        },
+    )
+    blocked = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "finance-ops",
+            "message": "고객 계좌로 100만원 송금 실행해줘",
+        },
+    )
+    assert succeeded.status_code == 200
+    assert blocked.status_code == 200
+
+    listed = client.get(f"/v1/agents/runs?tenant_id={tenant_id}&limit=10")
+    blocked_only = client.get(f"/v1/agents/runs?tenant_id={tenant_id}&status=blocked")
+    scenario_only = client.get(f"/v1/agents/runs?tenant_id={tenant_id}&scenario=operations")
+
+    assert listed.status_code == 200
+    body = listed.json()
+    assert [item["status"] for item in body] == ["blocked", "succeeded"]
+    assert body[0]["redacted_query_preview"]
+    assert body[0]["trace_step_count"] >= 1
+    assert "answer" not in body[0]
+
+    assert blocked_only.status_code == 200
+    assert len(blocked_only.json()) == 1
+    assert blocked_only.json()[0]["status"] == "blocked"
+
+    assert scenario_only.status_code == 200
+    assert len(scenario_only.json()) == 1
+    assert scenario_only.json()[0]["scenario"] == "operations"
+
+
 def test_api_returns_tool_execution_for_action_request():
     client = TestClient(create_app())
 
@@ -764,6 +819,7 @@ def test_operator_dashboard_serves_backend_console():
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/operations/summary" in response.text
     assert "/v1/operations/alerts" in response.text
+    assert "/v1/agents/runs" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

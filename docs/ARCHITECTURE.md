@@ -149,6 +149,20 @@ POST /v1/agents/runs
 
 이 흐름은 Agentic RAG, RAG 전략 자동 선택, 운영 가능한 Agent runtime을 동시에 수용하도록 설계했다.
 
+## Agent 실행 이력 조회
+
+```text
+GET /v1/agents/runs
+  -> agents:read HTTP scope 확인
+  -> tenant 접근 권한 확인
+  -> scenario/status/query_type 필터 적용
+  -> 최신 실행순 summary 반환
+```
+
+실행 이력 목록은 상세 답변 API와 분리한다.
+운영 화면에서는 원문 query와 전체 답변 대신 `redacted_query_preview`, 상태, query type, confidence,
+trace/tool/citation 개수를 조회한다.
+
 HTTP scope와 Agent tool scope는 다르다.
 
 - HTTP scope는 API endpoint 접근을 제어한다.
@@ -280,12 +294,13 @@ GET /dashboard
   -> browser fetch
      -> /v1/operations/summary
      -> /v1/operations/alerts
+     -> /v1/agents/runs
      -> /v1/approvals/pending
      -> /v1/approvals/{approval_id}/approve
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
-  -> 운영 지표, alert, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, alert, 최근 실행 이력, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.
