@@ -126,6 +126,7 @@ GET  /v1/audit/events
 GET  /v1/audit/export
 
 GET  /v1/operations/summary
+GET  /v1/operations/alerts
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
@@ -221,7 +222,7 @@ HTTP API scope와 Agent tool scope는 분리되어 있습니다.
 | `agents:read` / `agents:run` | Agent 실행 조회/생성 |
 | `approvals:read` / `approvals:write` | 승인 조회/승인/반려 |
 | `audit:read` | 감사 이벤트 조회/export |
-| `operations:read` / `operations:write` | 운영 요약, 보관 정책 실행 |
+| `operations:read` / `operations:write` | 운영 요약, alert, 보관 정책 실행 |
 | `ontology:read` | ontology graph 조회 |
 | `tools:read` | tool catalog |
 | `webhooks:read` / `webhooks:write` | webhook subscription/outbox |
@@ -711,6 +712,24 @@ curl "http://127.0.0.1:8000/v1/operations/summary?tenant_id=default"
 - gateway fallback count
 - 최신 evaluation metrics
 
+## Operations Alerts
+
+운영 alert API는 summary 지표를 임계치와 비교해 즉시 확인해야 할 상태만 반환합니다.
+
+```bash
+curl "http://127.0.0.1:8000/v1/operations/alerts?tenant_id=default&event_limit=500"
+```
+
+기본 alert 기준:
+
+- 승인 대기 요청이 20건 초과
+- Agent 평균 지연 시간이 3000ms 초과
+- Agent 평균 신뢰도가 0.55 미만
+- Gateway fallback이 0건 초과
+- 최근 evaluation pass rate가 0.85 미만
+
+각 기준은 query parameter로 조정할 수 있습니다.
+
 ## Retention Prune
 
 운영 데이터가 장기간 쌓이면 감사 이벤트와 webhook delivery outbox를 보관 정책에 맞춰 정리해야 합니다.
@@ -741,13 +760,14 @@ GET /dashboard
 대시보드는 다음 API를 읽어 화면을 구성합니다.
 
 - `/v1/operations/summary`
+- `/v1/operations/alerts`
 - `/v1/approvals/pending`
 - `/v1/audit/events`
 - `/v1/tools`
 
-화면은 Agent 실행 수, 승인 대기, 평균 지연시간, tool decision, 감사 이벤트, 최신 evaluation metrics를
-표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read model로 구성되어 있으며,
-승인/반려 버튼은 기존 approval API를 호출합니다.
+화면은 Agent 실행 수, 승인 대기, 평균 지연시간, operations alert, tool decision, 감사 이벤트,
+최신 evaluation metrics를 표시합니다. UI는 업무 운영자가 빠르게 상태를 판단할 수 있도록 compact read
+model로 구성되어 있으며, 승인/반려 버튼은 기존 approval API를 호출합니다.
 감사 이벤트 영역은 request id 입력값을 `/v1/audit/events?request_id=...`로 전달해 특정 HTTP 요청에서
 생성된 이벤트만 좁혀볼 수 있습니다.
 인증이 켜진 환경에서는 화면의 API Key 입력란에 key를 넣으면 이후 API 호출에 `X-API-Key`가 포함됩니다.

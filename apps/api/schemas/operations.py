@@ -20,6 +20,17 @@ class OperationsSummaryResponse(BaseModel):
     generated_at: datetime
 
 
+class OperationsAlertResponse(BaseModel):
+    tenant_id: str
+    code: str
+    severity: str
+    message: str
+    metric: str
+    actual_value: float
+    threshold: float
+    generated_at: datetime
+
+
 class RetentionPruneRequest(BaseModel):
     tenant_id: str = "default"
     audit_older_than_days: int = Field(default=90, ge=1, le=3650)

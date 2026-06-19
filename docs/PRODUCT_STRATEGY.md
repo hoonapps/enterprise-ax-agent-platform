@@ -100,6 +100,8 @@
 - retention prune은 dry-run으로 삭제 대상을 먼저 계산하고, terminal webhook delivery와 오래된 audit
   event를 보관 정책에 맞춰 정리한다.
 - 운영 요약 API는 pending approvals, agent runs, tool decisions, evaluation metrics를 제공한다.
+- 운영 alert API는 summary 지표를 임계치와 비교해 latency, confidence, gateway fallback, evaluation
+  품질 하락을 별도 read model로 반환한다.
 - 운영 콘솔은 핵심 지표, 승인 대기, 승인/반려, tool catalog, 감사 이벤트를 같은 화면에서 처리한다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
 - 문서에서 추출된 ontology graph로 업무 개념과 관계를 조회할 수 있다.

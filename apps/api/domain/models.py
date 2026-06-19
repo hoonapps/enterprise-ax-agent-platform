@@ -285,6 +285,18 @@ class RetentionPruneResult:
 
 
 @dataclass(frozen=True)
+class OperationsAlert:
+    tenant_id: str
+    code: str
+    severity: str
+    message: str
+    metric: str
+    actual_value: float
+    threshold: float
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentRun:
     tenant_id: str
     scenario: str

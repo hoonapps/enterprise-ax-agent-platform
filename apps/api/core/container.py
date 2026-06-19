@@ -52,6 +52,7 @@ from apps.api.application.use_cases import (
     ApprovalUseCase,
     EvaluateAgentUseCase,
     IngestDocumentUseCase,
+    OperationsAlertUseCase,
     OperationsSummaryUseCase,
     RetentionPruneUseCase,
     RunAgentUseCase,
@@ -191,6 +192,9 @@ class AppContainer:
             documents=self.documents,
             approvals=self.approvals,
             audit_log=self.audit_log,
+        )
+        self.operations_alerts = OperationsAlertUseCase(
+            operations_summary=self.operations_summary,
         )
         self.retention_prune = RetentionPruneUseCase(
             audit_log=self.audit_log,

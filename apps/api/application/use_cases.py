@@ -32,6 +32,7 @@ from apps.api.domain.models import (
     EvaluationCase,
     EvaluationRun,
     EvaluationStatus,
+    OperationsAlert,
     OperationsSummary,
     PolicyDecision,
     QueryType,
@@ -898,6 +899,114 @@ class RetentionPruneUseCase:
             )
         )
         return result
+
+
+class OperationsAlertUseCase:
+    def __init__(self, *, operations_summary: OperationsSummaryUseCase) -> None:
+        self.operations_summary = operations_summary
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        event_limit: int = 500,
+        max_pending_approvals: int = 20,
+        max_average_latency_ms: int = 3000,
+        min_average_confidence: float = 0.55,
+        max_gateway_fallbacks: int = 0,
+        min_evaluation_pass_rate: float = 0.85,
+    ) -> list[OperationsAlert]:
+        summary = self.operations_summary.execute(tenant_id=tenant_id, event_limit=event_limit)
+        alerts: list[OperationsAlert] = []
+
+        if summary.pending_approval_count > max_pending_approvals:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="pending_approval_backlog",
+                    severity="warning",
+                    message="승인 대기 요청이 임계치를 초과했습니다.",
+                    metric="pending_approval_count",
+                    actual_value=float(summary.pending_approval_count),
+                    threshold=float(max_pending_approvals),
+                )
+            )
+
+        if summary.average_latency_ms > max_average_latency_ms:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="agent_latency_high",
+                    severity="warning",
+                    message="Agent 평균 지연 시간이 임계치를 초과했습니다.",
+                    metric="average_latency_ms",
+                    actual_value=summary.average_latency_ms,
+                    threshold=float(max_average_latency_ms),
+                )
+            )
+
+        if summary.agent_run_count > 0 and summary.average_confidence < min_average_confidence:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="answer_confidence_low",
+                    severity="warning",
+                    message="Agent 평균 신뢰도가 임계치보다 낮습니다.",
+                    metric="average_confidence",
+                    actual_value=summary.average_confidence,
+                    threshold=min_average_confidence,
+                )
+            )
+
+        if summary.gateway_fallback_count > max_gateway_fallbacks:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="tool_gateway_fallback",
+                    severity="critical",
+                    message="Tool gateway fallback이 발생했습니다.",
+                    metric="gateway_fallback_count",
+                    actual_value=float(summary.gateway_fallback_count),
+                    threshold=float(max_gateway_fallbacks),
+                )
+            )
+
+        pass_rate = summary.latest_evaluation_metrics.get("pass_rate")
+        if isinstance(pass_rate, int | float) and pass_rate < min_evaluation_pass_rate:
+            alerts.append(
+                self._alert(
+                    tenant_id=tenant_id,
+                    code="evaluation_pass_rate_low",
+                    severity="critical",
+                    message="최근 평가 pass rate가 임계치보다 낮습니다.",
+                    metric="latest_evaluation_pass_rate",
+                    actual_value=float(pass_rate),
+                    threshold=min_evaluation_pass_rate,
+                )
+            )
+
+        return alerts
+
+    def _alert(
+        self,
+        *,
+        tenant_id: str,
+        code: str,
+        severity: str,
+        message: str,
+        metric: str,
+        actual_value: float,
+        threshold: float,
+    ) -> OperationsAlert:
+        return OperationsAlert(
+            tenant_id=tenant_id,
+            code=code,
+            severity=severity,
+            message=message,
+            metric=metric,
+            actual_value=round(actual_value, 3),
+            threshold=round(threshold, 3),
+        )
 
 
 class ApprovalUseCase:

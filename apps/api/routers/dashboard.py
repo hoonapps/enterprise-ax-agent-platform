@@ -343,6 +343,40 @@ _DASHBOARD_HTML = """<!doctype html>
       color: var(--danger-text);
     }
 
+    .alert-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .alert-item {
+      display: grid;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fbfcfd;
+    }
+
+    .alert-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .alert-message {
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .alert-metric {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
     .empty {
       color: var(--muted);
       padding: 12px 0;
@@ -475,6 +509,16 @@ _DASHBOARD_HTML = """<!doctype html>
       <div class="stack">
         <section class="panel">
           <header>
+            <h2>Operations Alerts</h2>
+            <span class="meta">threshold signals</span>
+          </header>
+          <div class="panel-body">
+            <div class="alert-list" id="operations-alerts"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Tool Decision</h2>
             <span class="meta">runtime decision count</span>
           </header>
@@ -565,6 +609,7 @@ _DASHBOARD_HTML = """<!doctype html>
       latency: document.querySelector("#metric-latency"),
       confidence: document.querySelector("#metric-confidence"),
       fallbacks: document.querySelector("#metric-fallbacks"),
+      operationsAlerts: document.querySelector("#operations-alerts"),
       toolDecisions: document.querySelector("#tool-decisions"),
       auditEvents: document.querySelector("#audit-events"),
       approvalList: document.querySelector("#approval-list"),
@@ -612,13 +657,34 @@ _DASHBOARD_HTML = """<!doctype html>
       if (["allowed", "executed", "succeeded", "low", "read"].includes(value)) {
         return "ok";
       }
-      if (["approval_required", "pending", "medium", "write"].includes(value)) {
+      if (["approval_required", "pending", "medium", "write", "warning"].includes(value)) {
         return "warn";
       }
-      if (["denied", "rejected", "failed", "high"].includes(value)) {
+      if (["denied", "rejected", "failed", "high", "critical"].includes(value)) {
         return "danger";
       }
       return "";
+    }
+
+    function renderOperationsAlerts(alerts) {
+      if (!alerts.length) {
+        els.operationsAlerts.innerHTML = `<div class="empty">활성 alert가 없습니다.</div>`;
+        return;
+      }
+      els.operationsAlerts.innerHTML = alerts.map((alert) => `
+        <div class="alert-item">
+          <div class="alert-line">
+            <span class="alert-message">${escapeHtml(alert.message)}</span>
+            <span class="badge ${badgeClass(alert.severity)}">
+              ${escapeHtml(alert.severity)}
+            </span>
+          </div>
+          <div class="alert-metric">
+            ${escapeHtml(alert.metric)}:
+            ${escapeHtml(alert.actual_value)} / ${escapeHtml(alert.threshold)}
+          </div>
+        </div>
+      `).join("");
     }
 
     function renderBars(target, counts) {
@@ -823,8 +889,9 @@ _DASHBOARD_HTML = """<!doctype html>
       els.loadState.textContent = "데이터를 불러오는 중입니다.";
 
       try {
-        const [summary, approvals, events, tools] = await Promise.all([
+        const [summary, alerts, approvals, events, tools] = await Promise.all([
           fetchJson(`/v1/operations/summary?tenant_id=${tenantId}&event_limit=${eventLimit}`),
+          fetchJson(`/v1/operations/alerts?tenant_id=${tenantId}&event_limit=${eventLimit}`),
           fetchJson(`/v1/approvals/pending?tenant_id=${tenantId}`),
           fetchJson(buildAuditEventsUrl()),
           fetchJson("/v1/tools")
@@ -838,6 +905,7 @@ _DASHBOARD_HTML = """<!doctype html>
         els.fallbacks.textContent = formatNumber(summary.gateway_fallback_count);
         els.generatedAt.textContent = `Generated ${formatTime(summary.generated_at)}`;
 
+        renderOperationsAlerts(alerts);
         renderBars(els.toolDecisions, summary.tool_decision_counts);
         renderApprovals(approvals);
         renderTools(tools);

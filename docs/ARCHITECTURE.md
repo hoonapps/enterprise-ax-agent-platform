@@ -279,17 +279,21 @@ GET /dashboard
   -> FastAPI HTML response
   -> browser fetch
      -> /v1/operations/summary
+     -> /v1/operations/alerts
      -> /v1/approvals/pending
      -> /v1/approvals/{approval_id}/approve
      -> /v1/approvals/{approval_id}/reject
      -> /v1/audit/events?request_id=...
      -> /v1/tools
-  -> 운영 지표, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
+  -> 운영 지표, alert, 승인 queue, 승인/반려 처리, tool catalog, 감사 이벤트 표시
 ```
 
 대시보드는 별도 상태 저장소를 갖지 않는다.
 운영 화면은 API read model의 소비자로 두고, 승인 실행/반려 같은 변경은 명시적인 API 경계를 호출한다.
 request id 필터도 화면 내부 상태로 별도 저장하지 않고 audit event 조회 API의 query parameter로 전달한다.
+
+Operations alert는 별도 쓰기 모델이 아니라 summary read model 위에서 계산한다.
+임계치 기준은 API query parameter로 넘기며, 대시보드는 반환된 alert만 표시한다.
 
 ## Retention Prune 흐름
 

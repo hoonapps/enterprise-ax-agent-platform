@@ -583,6 +583,82 @@ def test_operations_summary_aggregates_runtime_signals():
     assert body["latest_evaluation_metrics"]["case_count"] == 1
 
 
+def test_operations_alerts_detect_runtime_threshold_breaches():
+    client = TestClient(create_app())
+    container = get_container()
+    tenant_id = "alerts-test"
+
+    container.base_audit_log.append(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_type="agent",
+            actor_id="test",
+            event_type="agent.answer.generated",
+            resource_type="agent_run",
+            payload={
+                "latency_ms": 4200,
+                "confidence": 0.31,
+                "status": "succeeded",
+            },
+        )
+    )
+    container.base_audit_log.append(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_type="agent",
+            actor_id="test",
+            event_type="tool.allowed",
+            resource_type="tool_call",
+            payload={
+                "output_payload": {
+                    "_gateway": {
+                        "fallback_used": True,
+                    }
+                }
+            },
+        )
+    )
+    container.base_audit_log.append(
+        AuditEvent(
+            tenant_id=tenant_id,
+            actor_type="system",
+            actor_id="evaluation",
+            event_type="evaluation.completed",
+            resource_type="evaluation_run",
+            payload={
+                "metrics": {
+                    "case_count": 4,
+                    "pass_rate": 0.5,
+                }
+            },
+        )
+    )
+
+    response = client.get(
+        "/v1/operations/alerts",
+        params={
+            "tenant_id": tenant_id,
+            "max_average_latency_ms": 3000,
+            "min_average_confidence": 0.55,
+            "max_gateway_fallbacks": 0,
+            "min_evaluation_pass_rate": 0.85,
+        },
+    )
+
+    assert response.status_code == 200
+    alerts = response.json()
+    codes = {alert["code"] for alert in alerts}
+    assert codes == {
+        "agent_latency_high",
+        "answer_confidence_low",
+        "tool_gateway_fallback",
+        "evaluation_pass_rate_low",
+    }
+    severities = {alert["code"]: alert["severity"] for alert in alerts}
+    assert severities["agent_latency_high"] == "warning"
+    assert severities["tool_gateway_fallback"] == "critical"
+
+
 def test_retention_prune_supports_dry_run_and_terminal_cleanup():
     client = TestClient(create_app())
     container = get_container()
@@ -687,6 +763,7 @@ def test_operator_dashboard_serves_backend_console():
     assert response.headers["content-type"].startswith("text/html")
     assert "Enterprise AX Agent Operations" in response.text
     assert "/v1/operations/summary" in response.text
+    assert "/v1/operations/alerts" in response.text
     assert "/v1/approvals/pending" in response.text
     assert "/v1/audit/events" in response.text
     assert "audit-request-id" in response.text

@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends
 
 from apps.api.core.container import AppContainer, get_container
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
-from apps.api.domain.models import OperationsSummary, RetentionPruneResult
+from apps.api.domain.models import OperationsAlert, OperationsSummary, RetentionPruneResult
 from apps.api.schemas.operations import (
+    OperationsAlertResponse,
     OperationsSummaryResponse,
     RetentionPruneRequest,
     RetentionPruneResponse,
@@ -30,6 +31,31 @@ def get_operations_summary(
         event_limit=event_limit,
     )
     return _to_response(summary)
+
+
+@router.get("/alerts", response_model=list[OperationsAlertResponse])
+def get_operations_alerts(
+    container: ContainerDep,
+    auth: OperationsReadAuth,
+    tenant_id: str = "default",
+    event_limit: int = 500,
+    max_pending_approvals: int = 20,
+    max_average_latency_ms: int = 3000,
+    min_average_confidence: float = 0.55,
+    max_gateway_fallbacks: int = 0,
+    min_evaluation_pass_rate: float = 0.85,
+) -> list[OperationsAlertResponse]:
+    require_tenant_access(auth, tenant_id)
+    alerts = container.operations_alerts.execute(
+        tenant_id=tenant_id,
+        event_limit=event_limit,
+        max_pending_approvals=max_pending_approvals,
+        max_average_latency_ms=max_average_latency_ms,
+        min_average_confidence=min_average_confidence,
+        max_gateway_fallbacks=max_gateway_fallbacks,
+        min_evaluation_pass_rate=min_evaluation_pass_rate,
+    )
+    return [_alert_to_response(alert) for alert in alerts]
 
 
 @router.post("/retention/prune", response_model=RetentionPruneResponse)
@@ -64,6 +90,19 @@ def _to_response(summary: OperationsSummary) -> OperationsSummaryResponse:
         gateway_fallback_count=summary.gateway_fallback_count,
         latest_evaluation_metrics=summary.latest_evaluation_metrics,
         generated_at=summary.generated_at,
+    )
+
+
+def _alert_to_response(alert: OperationsAlert) -> OperationsAlertResponse:
+    return OperationsAlertResponse(
+        tenant_id=alert.tenant_id,
+        code=alert.code,
+        severity=alert.severity,
+        message=alert.message,
+        metric=alert.metric,
+        actual_value=alert.actual_value,
+        threshold=alert.threshold,
+        generated_at=alert.generated_at,
     )
 
 

@@ -32,7 +32,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
 | `audit:read` | `GET /v1/audit/events`, `GET /v1/audit/export` |
-| `operations:read` | `GET /v1/operations/summary` |
+| `operations:read` | `GET /v1/operations/summary`, `GET /v1/operations/alerts` |
 | `operations:write` | `POST /v1/operations/retention/prune` |
 | `ontology:read` | `GET /v1/ontology/graph` |
 | `tools:read` | `GET /v1/tools` |
@@ -65,6 +65,7 @@ GET  /v1/audit/events
 GET  /v1/audit/export
 
 GET  /v1/operations/summary
+GET  /v1/operations/alerts
 POST /v1/operations/retention/prune
 GET  /v1/webhooks/subscriptions
 POST /v1/webhooks/subscriptions
@@ -332,6 +333,39 @@ GET /v1/audit/export?tenant_id=default&request_id=local-trace-001&format=jsonl
 
 ```text
 GET /v1/operations/summary?tenant_id=default&event_limit=500
+```
+
+## Operations Alerts
+
+```text
+GET /v1/operations/alerts?tenant_id=default&event_limit=500
+```
+
+지원 query parameter:
+
+| 파라미터 | 기본값 | 의미 |
+| --- | --- | --- |
+| `max_pending_approvals` | `20` | 승인 대기 임계치 |
+| `max_average_latency_ms` | `3000` | 평균 지연 시간 임계치 |
+| `min_average_confidence` | `0.55` | 평균 신뢰도 하한 |
+| `max_gateway_fallbacks` | `0` | gateway fallback 허용 건수 |
+| `min_evaluation_pass_rate` | `0.85` | 최근 evaluation pass rate 하한 |
+
+응답:
+
+```json
+[
+  {
+    "tenant_id": "default",
+    "code": "tool_gateway_fallback",
+    "severity": "critical",
+    "message": "Tool gateway fallback이 발생했습니다.",
+    "metric": "gateway_fallback_count",
+    "actual_value": 1,
+    "threshold": 0,
+    "generated_at": "2026-06-19T00:00:00Z"
+  }
+]
 ```
 
 ## Retention Prune
