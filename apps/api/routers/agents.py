@@ -11,8 +11,9 @@ from apps.api.core.idempotency import (
     save_idempotent_response,
 )
 from apps.api.core.security import AuthPrincipal, require_scopes, require_tenant_access
-from apps.api.domain.models import AgentRun
+from apps.api.domain.models import AgentRun, AgentRunTimelineItem, AuditEvent
 from apps.api.schemas.agents import (
+    AgentRunEvidenceBundleResponse,
     AgentRunFeedbackRequest,
     AgentRunFeedbackResponse,
     AgentRunPreviewResponse,
@@ -25,6 +26,7 @@ from apps.api.schemas.agents import (
     SearchResultResponse,
 )
 from apps.api.schemas.common import (
+    AuditEventResponse,
     CitationResponse,
     PolicyResponse,
     ToolExecutionResponse,
@@ -176,19 +178,7 @@ def get_agent_run_timeline(
     )
     if timeline is None:
         raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
-    return [
-        AgentRunTimelineItemResponse(
-            run_id=item.run_id,
-            source=item.source,
-            event_type=item.event_type,
-            status=item.status,
-            title=item.title,
-            detail=item.detail,
-            sequence=item.sequence,
-            occurred_at=item.occurred_at,
-        )
-        for item in timeline
-    ]
+    return [_to_timeline_response(item) for item in timeline]
 
 
 @router.post("/agents/runs/{run_id}/feedback", response_model=AgentRunFeedbackResponse)
@@ -223,6 +213,34 @@ def submit_agent_run_feedback(
     )
 
 
+@router.get("/agents/runs/{run_id}/evidence", response_model=AgentRunEvidenceBundleResponse)
+def get_agent_run_evidence_bundle(
+    run_id: UUID,
+    container: ContainerDep,
+    auth: AgentReadAuth,
+    tenant_id: str = "default",
+    audit_event_limit: int = Query(default=500, ge=1, le=2000),
+) -> AgentRunEvidenceBundleResponse:
+    require_tenant_access(auth, tenant_id)
+    bundle = container.run_agent.get_evidence_bundle(
+        tenant_id=tenant_id,
+        run_id=run_id,
+        audit_event_limit=audit_event_limit,
+    )
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Agent 실행 이력을 찾을 수 없습니다.")
+    return AgentRunEvidenceBundleResponse(
+        tenant_id=bundle.tenant_id,
+        run_id=bundle.run_id,
+        run=_to_response(bundle.run),
+        timeline=[_to_timeline_response(item) for item in bundle.timeline],
+        audit_events=[_to_audit_event_response(event) for event in bundle.audit_events],
+        feedback_events=[_to_audit_event_response(event) for event in bundle.feedback_events],
+        evidence_hash=bundle.evidence_hash,
+        generated_at=bundle.generated_at,
+    )
+
+
 @router.get("/agents/runs/{run_id}", response_model=RunAgentResponse)
 def get_agent_run(
     run_id: UUID,
@@ -254,6 +272,33 @@ def _to_summary_response(run: AgentRun) -> AgentRunSummaryResponse:
         trace_step_count=len(run.trace),
         created_at=run.created_at,
         completed_at=run.completed_at,
+    )
+
+
+def _to_timeline_response(item: AgentRunTimelineItem) -> AgentRunTimelineItemResponse:
+    return AgentRunTimelineItemResponse(
+        run_id=item.run_id,
+        source=item.source,
+        event_type=item.event_type,
+        status=item.status,
+        title=item.title,
+        detail=item.detail,
+        sequence=item.sequence,
+        occurred_at=item.occurred_at,
+    )
+
+
+def _to_audit_event_response(event: AuditEvent) -> AuditEventResponse:
+    return AuditEventResponse(
+        id=event.id,
+        tenant_id=event.tenant_id,
+        actor_type=event.actor_type,
+        actor_id=event.actor_id,
+        event_type=event.event_type,
+        resource_type=event.resource_type,
+        resource_id=event.resource_id,
+        payload=event.payload,
+        created_at=event.created_at,
     )
 
 

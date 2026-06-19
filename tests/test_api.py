@@ -337,6 +337,56 @@ def test_agent_run_feedback_appends_audit_event_and_updates_summary():
     assert summary_body["outcome_counts"]["accepted"] == 1
 
 
+def test_agent_run_evidence_bundle_combines_run_timeline_audit_and_feedback():
+    client = TestClient(create_app())
+    tenant_id = "run-evidence"
+
+    run = client.post(
+        "/v1/agents/runs",
+        json={
+            "tenant_id": tenant_id,
+            "scenario": "operations",
+            "message": "운영 증거 번들 생성 기준을 정리해줘",
+        },
+    )
+    assert run.status_code == 200
+    run_id = run.json()["run_id"]
+
+    feedback = client.post(
+        f"/v1/agents/runs/{run_id}/feedback",
+        json={
+            "tenant_id": tenant_id,
+            "rating": 4,
+            "outcome": "useful",
+            "submitted_by": "reviewer-01",
+            "comment": "추적 가능한 응답입니다.",
+            "tags": ["traceable"],
+        },
+    )
+    assert feedback.status_code == 200
+
+    evidence = client.get(f"/v1/agents/runs/{run_id}/evidence?tenant_id={tenant_id}")
+    evidence_replay = client.get(f"/v1/agents/runs/{run_id}/evidence?tenant_id={tenant_id}")
+
+    assert evidence.status_code == 200
+    assert evidence_replay.status_code == 200
+    body = evidence.json()
+    assert body["tenant_id"] == tenant_id
+    assert body["run_id"] == run_id
+    assert body["run"]["run_id"] == run_id
+    assert len(body["evidence_hash"]) == 64
+    assert body["evidence_hash"] == evidence_replay.json()["evidence_hash"]
+
+    timeline_sources = {item["source"] for item in body["timeline"]}
+    audit_event_types = {event["event_type"] for event in body["audit_events"]}
+    assert {"trace", "audit"}.issubset(timeline_sources)
+    assert "agent.answer.generated" in audit_event_types
+    assert "agent.feedback.submitted" in audit_event_types
+    assert len(body["feedback_events"]) == 1
+    assert body["feedback_events"][0]["payload"]["rating"] == 4
+    assert body["feedback_events"][0]["payload"]["tags"] == ["traceable"]
+
+
 def test_agent_run_history_lists_recent_runs_with_filters():
     client = TestClient(create_app())
     tenant_id = "run-history"

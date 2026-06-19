@@ -406,6 +406,18 @@ class AgentRunFeedback:
 
 
 @dataclass(frozen=True)
+class AgentRunEvidenceBundle:
+    tenant_id: str
+    run_id: UUID
+    run: AgentRun
+    timeline: list[AgentRunTimelineItem]
+    audit_events: list[AuditEvent]
+    feedback_events: list[AuditEvent]
+    evidence_hash: str
+    generated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
 class AgentFeedbackSummary:
     tenant_id: str
     event_limit: int

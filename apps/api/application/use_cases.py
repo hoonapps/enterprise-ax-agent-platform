@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import hashlib
+import json
+from dataclasses import asdict, is_dataclass, replace
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
@@ -26,6 +28,7 @@ from apps.api.application.retrieval_strategy import RetrievalPlanner
 from apps.api.domain.models import (
     AgentFeedbackSummary,
     AgentRun,
+    AgentRunEvidenceBundle,
     AgentRunFeedback,
     AgentRunPreview,
     AgentRunTimelineItem,
@@ -63,6 +66,16 @@ def month_window(now: datetime | None = None) -> tuple[datetime, datetime]:
     else:
         end = datetime(reference.year, reference.month + 1, 1, tzinfo=UTC)
     return start, end
+
+
+def _json_default(value: object) -> object:
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
 
 
 class IngestDocumentUseCase:
@@ -377,6 +390,55 @@ class RunAgentUseCase:
         if run is None:
             return None
 
+        audit_events = self._list_run_audit_events(
+            tenant_id=tenant_id,
+            run=run,
+            audit_event_limit=audit_event_limit,
+        )
+        return self._build_timeline(run=run, audit_events=audit_events)
+
+    def get_evidence_bundle(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        audit_event_limit: int = 500,
+    ) -> AgentRunEvidenceBundle | None:
+        run = self.get_run(tenant_id=tenant_id, run_id=run_id)
+        if run is None:
+            return None
+
+        audit_events = self._list_run_audit_events(
+            tenant_id=tenant_id,
+            run=run,
+            audit_event_limit=audit_event_limit,
+        )
+        timeline = self._build_timeline(run=run, audit_events=audit_events)
+        feedback_events = [
+            event for event in audit_events if event.event_type == "agent.feedback.submitted"
+        ]
+        evidence_hash = self._evidence_hash(
+            run=run,
+            timeline=timeline,
+            audit_events=audit_events,
+            feedback_events=feedback_events,
+        )
+        return AgentRunEvidenceBundle(
+            tenant_id=tenant_id,
+            run_id=run.id,
+            run=run,
+            timeline=timeline,
+            audit_events=audit_events,
+            feedback_events=feedback_events,
+            evidence_hash=evidence_hash,
+        )
+
+    def _build_timeline(
+        self,
+        *,
+        run: AgentRun,
+        audit_events: list[AuditEvent],
+    ) -> list[AgentRunTimelineItem]:
         items: list[AgentRunTimelineItem] = []
         for index, step in enumerate(run.trace):
             items.append(
@@ -410,16 +472,7 @@ class RunAgentUseCase:
                 )
             )
 
-        audit_events = self.audit_log.list_events(
-            tenant_id=tenant_id,
-            limit=audit_event_limit,
-        )
-        relevant_events = [
-            event
-            for event in audit_events
-            if event.resource_id == run.id or event.payload.get("agent_run_id") == str(run.id)
-        ]
-        for index, event in enumerate(sorted(relevant_events, key=lambda item: item.created_at)):
+        for index, event in enumerate(sorted(audit_events, key=lambda item: item.created_at)):
             items.append(
                 AgentRunTimelineItem(
                     run_id=run.id,
@@ -440,6 +493,47 @@ class RunAgentUseCase:
             )
 
         return sorted(items, key=lambda item: item.sequence)
+
+    def _list_run_audit_events(
+        self,
+        *,
+        tenant_id: str,
+        run: AgentRun,
+        audit_event_limit: int,
+    ) -> list[AuditEvent]:
+        audit_events = self.audit_log.list_events(
+            tenant_id=tenant_id,
+            limit=audit_event_limit,
+        )
+        relevant_events = [
+            event
+            for event in audit_events
+            if event.resource_id == run.id or event.payload.get("agent_run_id") == str(run.id)
+        ]
+        return sorted(relevant_events, key=lambda item: item.created_at)
+
+    def _evidence_hash(
+        self,
+        *,
+        run: AgentRun,
+        timeline: list[AgentRunTimelineItem],
+        audit_events: list[AuditEvent],
+        feedback_events: list[AuditEvent],
+    ) -> str:
+        payload = {
+            "run": run,
+            "timeline": timeline,
+            "audit_events": audit_events,
+            "feedback_events": feedback_events,
+        }
+        encoded = json.dumps(
+            payload,
+            default=_json_default,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def _confidence(self, results: list[RetrievalResult]) -> float:
         if not results:

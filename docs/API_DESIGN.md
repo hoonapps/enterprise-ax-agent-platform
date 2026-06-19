@@ -27,7 +27,7 @@ tenant 목록을 생략하면 모든 tenant 접근을 허용한다.
 | `documents:read` | `GET /v1/documents` |
 | `documents:write` | `POST /v1/documents/ingest` |
 | `knowledge:read` | `POST /v1/knowledge/search` |
-| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline` |
+| `agents:read` | `GET /v1/agents/runs`, `GET /v1/agents/runs/{run_id}`, `GET /v1/agents/runs/{run_id}/timeline`, `GET /v1/agents/runs/{run_id}/evidence` |
 | `agents:run` | `POST /v1/agents/runs`, `POST /v1/agents/runs/preview`, `POST /v1/agents/runs/{run_id}/feedback` |
 | `approvals:read` | `GET /v1/approvals/pending` |
 | `approvals:write` | `POST /v1/approvals/{approval_id}/approve`, `POST /v1/approvals/{approval_id}/reject` |
@@ -61,6 +61,7 @@ POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
+GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
 
 GET  /v1/ontology/graph
@@ -275,6 +276,49 @@ GET /v1/agents/runs/{run_id}/timeline?tenant_id=default&audit_event_limit=500
 
 Timeline은 trace, tool execution, 관련 audit event를 하나의 sequence로 합친 read model이다.
 Audit event는 `resource_id`가 run id와 같거나 payload의 `agent_run_id`가 같은 항목만 포함한다.
+
+## Agent 실행 Evidence Bundle
+
+```text
+GET /v1/agents/runs/{run_id}/evidence?tenant_id=default&audit_event_limit=500
+```
+
+응답:
+
+```json
+{
+  "tenant_id": "default",
+  "run_id": "018f...",
+  "run": {
+    "run_id": "018f...",
+    "tenant_id": "default",
+    "scenario": "operations",
+    "status": "succeeded",
+    "query_type": "summary",
+    "answer": "요약 답변",
+    "confidence": 0.82,
+    "citations": [],
+    "trace": [],
+    "policy": {
+      "allowed": true,
+      "decision": "allowed",
+      "reason": "정책 통과",
+      "redactions": 0
+    },
+    "tool_executions": []
+  },
+  "timeline": [],
+  "audit_events": [],
+  "feedback_events": [],
+  "evidence_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "generated_at": "2026-06-19T00:00:00Z"
+}
+```
+
+Evidence bundle은 단일 실행의 답변, trace/tool/audit timeline, 관련 감사 이벤트, feedback 이벤트를
+같은 응답으로 묶는다. `evidence_hash`는 bundle의 핵심 데이터에서 계산한 SHA-256 값이며,
+동일한 실행 상태를 다시 조회하면 같은 값을 반환한다. 운영자는 이 값을 이용해 감사 export나 장애
+리포트에 첨부한 증거가 이후 변경되지 않았는지 비교할 수 있다.
 
 ## 오류 응답
 

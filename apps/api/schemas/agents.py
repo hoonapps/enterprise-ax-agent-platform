@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from apps.api.schemas.common import (
+    AuditEventResponse,
     CitationResponse,
     PolicyResponse,
     ToolExecutionResponse,
@@ -98,6 +99,17 @@ class AgentRunTimelineItemResponse(BaseModel):
     detail: dict[str, Any]
     sequence: int
     occurred_at: datetime | None
+
+
+class AgentRunEvidenceBundleResponse(BaseModel):
+    tenant_id: str
+    run_id: UUID
+    run: RunAgentResponse
+    timeline: list[AgentRunTimelineItemResponse]
+    audit_events: list[AuditEventResponse]
+    feedback_events: list[AuditEventResponse]
+    evidence_hash: str = Field(..., min_length=64, max_length=64)
+    generated_at: datetime
 
 
 class SearchKnowledgeRequest(BaseModel):

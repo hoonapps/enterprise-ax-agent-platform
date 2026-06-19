@@ -181,6 +181,13 @@ GET /v1/agents/runs/{run_id}/timeline
   -> 관련 audit event를 timeline item으로 변환
   -> sequence 기준으로 정렬해 반환
 
+GET /v1/agents/runs/{run_id}/evidence
+  -> AgentRun 단건 조회
+  -> 관련 audit event와 feedback event 수집
+  -> timeline read model 생성
+  -> 핵심 payload를 canonical JSON으로 직렬화
+  -> SHA-256 evidence_hash와 함께 반환
+
 POST /v1/agents/runs/{run_id}/feedback
   -> AgentRun 단건 조회
   -> rating/outcome/comment/tags 검증
@@ -192,6 +199,8 @@ POST /v1/agents/runs/{run_id}/feedback
 운영 화면에서는 원문 query와 전체 답변 대신 `redacted_query_preview`, 상태, query type, confidence,
 trace/tool/citation 개수를 조회한다.
 Timeline은 단일 실행의 내부 진행과 외부 감사 이벤트를 한 응답에서 확인하는 drill-down read model이다.
+Evidence bundle은 run 상세, timeline, audit event, feedback event를 한 응답으로 묶어 장애 분석이나
+감사 대응 시 실행 단위의 증거를 재조회할 수 있게 한다.
 
 HTTP scope와 Agent tool scope는 다르다.
 

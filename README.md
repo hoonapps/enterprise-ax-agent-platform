@@ -122,6 +122,7 @@ POST /v1/agents/runs/preview
 GET  /v1/agents/runs
 GET  /v1/agents/runs/{run_id}
 GET  /v1/agents/runs/{run_id}/timeline
+GET  /v1/agents/runs/{run_id}/evidence
 POST /v1/agents/runs/{run_id}/feedback
 
 GET  /v1/ontology/graph
@@ -429,6 +430,16 @@ curl "http://127.0.0.1:8000/v1/agents/runs/{run_id}/timeline?tenant_id=default"
 Timeline은 단일 Agent 실행의 trace step, tool execution, 관련 audit event를 같은 sequence로 묶어
 반환합니다. 운영자는 실행 상세 답변을 열기 전에 어떤 단계에서 승인, 차단, fallback, 감사 이벤트가
 발생했는지 확인할 수 있습니다.
+
+Agent 실행 증거 번들:
+
+```bash
+curl "http://127.0.0.1:8000/v1/agents/runs/{run_id}/evidence?tenant_id=default"
+```
+
+증거 번들은 단일 Agent 실행에 연결된 run 응답, trace/tool/audit timeline, 관련 감사 이벤트,
+feedback 이벤트, `evidence_hash`를 함께 반환합니다. 운영자는 특정 답변이 어떤 정책과 tool 판단을
+거쳤고 이후 어떤 평가가 붙었는지 한 응답에서 확인할 수 있습니다.
 
 Agent 실행 feedback:
 
