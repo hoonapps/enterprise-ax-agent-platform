@@ -69,6 +69,11 @@ FastAPI
     |       +--> 문서 메타데이터 저장
     |
     +--> 검색/평가/감사 조회 API
+    |       |
+    |       +--> EvaluationRun 생성
+    |       +--> Agent 실행 재사용
+    |       +--> expected facts 기반 scoring
+    |       +--> evaluation.completed 감사 이벤트 기록
     +--> 승인 요청 조회/승인/반려 API
     +--> MCP-compatible tool boundary
             |
@@ -133,6 +138,22 @@ POST /v1/documents/ingest
 - 청크는 검색/임베딩 단위다.
 - 벡터 DB는 파생 데이터이며, 원본 메타데이터의 source of truth는 RDB다.
 
+## Evaluation 실행 흐름
+
+```text
+POST /v1/evaluations/runs
+  -> 평가 케이스 검증
+  -> 각 케이스별 Agent 실행
+  -> 답변과 expected facts 비교
+  -> case score와 failure reason 계산
+  -> aggregate metrics 계산
+  -> evaluation_runs / evaluation_cases 저장
+  -> evaluation.completed 감사 이벤트 기록
+```
+
+로컬 답변 생성기는 검색된 근거 문장을 포함하도록 결정론적으로 동작한다.
+따라서 외부 LLM 키 없이도 evaluation run을 회귀 테스트로 사용할 수 있다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시
@@ -158,6 +179,7 @@ Agent는 사용자를 대신해 행동할 수 있다. 따라서 다음 정보가
 - 어떤 tool call이 승인 대기 상태로 전환되었는가
 - 어떤 승인 요청이 실행 또는 반려되었는가
 - 외부 tool 호출이 몇 번 시도되었고 fallback을 사용했는가
+- 평가 케이스별 점수와 누락된 기대 사실은 무엇인가
 - 실행 결과와 신뢰도는 무엇인가
 
 ### 보수적 기본값

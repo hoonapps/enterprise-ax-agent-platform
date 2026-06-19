@@ -8,6 +8,8 @@ from apps.api.domain.models import (
     AuditEvent,
     Document,
     DocumentChunk,
+    EvaluationCase,
+    EvaluationRun,
     RetrievalResult,
     ToolDefinition,
     ToolExecution,
@@ -64,3 +66,9 @@ class ApprovalRepositoryPort(Protocol):
     def list_pending(self, tenant_id: str) -> list[ApprovalRequest]: ...
 
     def get(self, tenant_id: str, approval_id: str) -> ApprovalRequest | None: ...
+
+
+class EvaluationRepositoryPort(Protocol):
+    def save(self, run: EvaluationRun, cases: list[EvaluationCase]) -> EvaluationRun: ...
+
+    def get(self, tenant_id: str, evaluation_run_id: str) -> EvaluationRun | None: ...

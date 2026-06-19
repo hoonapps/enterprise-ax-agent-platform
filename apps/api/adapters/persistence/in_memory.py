@@ -11,6 +11,8 @@ from apps.api.domain.models import (
     AuditEvent,
     Document,
     DocumentChunk,
+    EvaluationCase,
+    EvaluationRun,
 )
 
 
@@ -89,3 +91,49 @@ class InMemoryApprovalRepository:
                 return self._approvals[tenant_id].get(UUID(approval_id))
             except ValueError:
                 return None
+
+
+class InMemoryEvaluationRepository:
+    def __init__(self) -> None:
+        self._runs: dict[str, dict[UUID, EvaluationRun]] = defaultdict(dict)
+        self._cases: dict[str, dict[UUID, list[EvaluationCase]]] = defaultdict(dict)
+        self._lock = RLock()
+
+    def save(self, run: EvaluationRun, cases: list[EvaluationCase]) -> EvaluationRun:
+        saved = EvaluationRun(
+            id=run.id,
+            tenant_id=run.tenant_id,
+            name=run.name,
+            scenario=run.scenario,
+            status=run.status,
+            metrics=run.metrics,
+            cases=cases,
+            created_at=run.created_at,
+            completed_at=run.completed_at,
+        )
+        with self._lock:
+            self._runs[run.tenant_id][run.id] = saved
+            self._cases[run.tenant_id][run.id] = list(cases)
+        return saved
+
+    def get(self, tenant_id: str, evaluation_run_id: str) -> EvaluationRun | None:
+        with self._lock:
+            try:
+                run_id = UUID(evaluation_run_id)
+            except ValueError:
+                return None
+            run = self._runs[tenant_id].get(run_id)
+            if run is None:
+                return None
+            cases = list(self._cases[tenant_id].get(run_id, []))
+        return EvaluationRun(
+            id=run.id,
+            tenant_id=run.tenant_id,
+            name=run.name,
+            scenario=run.scenario,
+            status=run.status,
+            metrics=run.metrics,
+            cases=cases,
+            created_at=run.created_at,
+            completed_at=run.completed_at,
+        )

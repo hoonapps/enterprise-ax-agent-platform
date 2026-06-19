@@ -48,6 +48,12 @@ class ApprovalStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class EvaluationStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True)
 class Document:
     tenant_id: str
@@ -178,6 +184,32 @@ class ApprovalRequest:
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class EvaluationCase:
+    tenant_id: str
+    evaluation_run_id: UUID
+    input_query: str
+    expected_facts: list[str]
+    actual_answer: str = ""
+    score: float = 0.0
+    failure_reason: str | None = None
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True)
+class EvaluationRun:
+    tenant_id: str
+    name: str
+    scenario: str
+    status: EvaluationStatus
+    metrics: dict[str, Any] = field(default_factory=dict)
+    cases: list[EvaluationCase] = field(default_factory=list)
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
 
 
 @dataclass(frozen=True)

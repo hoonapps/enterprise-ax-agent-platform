@@ -13,6 +13,7 @@ from apps.api.application.ports import (
     ApprovalRepositoryPort,
     AuditLogPort,
     DocumentRepositoryPort,
+    EvaluationRepositoryPort,
     ToolRegistryPort,
     ToolRuntimePort,
     VectorSearchPort,
@@ -25,6 +26,9 @@ from apps.api.domain.models import (
     ApprovalStatus,
     AuditEvent,
     Document,
+    EvaluationCase,
+    EvaluationRun,
+    EvaluationStatus,
     PolicyDecision,
     QueryType,
     RetrievalResult,
@@ -588,6 +592,140 @@ class ToolCallUseCase:
         if not isinstance(required, list):
             return []
         return [field for field in required if isinstance(field, str) and field not in arguments]
+
+
+class EvaluateAgentUseCase:
+    def __init__(
+        self,
+        *,
+        evaluations: EvaluationRepositoryPort,
+        run_agent: RunAgentUseCase,
+        audit_log: AuditLogPort,
+        pass_threshold: float = 0.7,
+    ) -> None:
+        self.evaluations = evaluations
+        self.run_agent = run_agent
+        self.audit_log = audit_log
+        self.pass_threshold = pass_threshold
+
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        name: str,
+        scenario: str,
+        cases: list[EvaluationCase],
+        actor_id: str = "evaluation",
+    ) -> EvaluationRun:
+        started = datetime.now(UTC)
+        evaluated_cases: list[EvaluationCase] = []
+
+        run = EvaluationRun(
+            tenant_id=tenant_id,
+            name=name,
+            scenario=scenario,
+            status=EvaluationStatus.RUNNING,
+            created_at=started,
+        )
+
+        for case in cases:
+            agent_run = self.run_agent.execute(
+                tenant_id=tenant_id,
+                scenario=scenario,
+                message=case.input_query,
+                user_id=actor_id,
+                actor_scopes=[],
+            )
+            score, failure_reason = self._score(
+                answer=agent_run.answer,
+                expected_facts=case.expected_facts,
+            )
+            evaluated_cases.append(
+                EvaluationCase(
+                    id=case.id,
+                    tenant_id=tenant_id,
+                    evaluation_run_id=run.id,
+                    input_query=case.input_query,
+                    expected_facts=case.expected_facts,
+                    actual_answer=agent_run.answer,
+                    score=score,
+                    failure_reason=failure_reason,
+                    created_at=case.created_at,
+                )
+            )
+
+        metrics = self._metrics(evaluated_cases)
+        completed = EvaluationRun(
+            id=run.id,
+            tenant_id=tenant_id,
+            name=name,
+            scenario=scenario,
+            status=EvaluationStatus.COMPLETED,
+            metrics=metrics,
+            cases=evaluated_cases,
+            created_at=started,
+            completed_at=datetime.now(UTC),
+        )
+        saved = self.evaluations.save(completed, evaluated_cases)
+        self.audit_log.append(
+            AuditEvent(
+                tenant_id=tenant_id,
+                actor_type="system",
+                actor_id=actor_id,
+                event_type="evaluation.completed",
+                resource_type="evaluation_run",
+                resource_id=saved.id,
+                payload={
+                    "name": saved.name,
+                    "scenario": saved.scenario,
+                    "metrics": saved.metrics,
+                    "case_count": len(saved.cases),
+                },
+            )
+        )
+        return saved
+
+    def get(self, *, tenant_id: str, evaluation_run_id: UUID) -> EvaluationRun | None:
+        return self.evaluations.get(tenant_id=tenant_id, evaluation_run_id=str(evaluation_run_id))
+
+    def _score(self, *, answer: str, expected_facts: list[str]) -> tuple[float, str | None]:
+        if not expected_facts:
+            return (1.0, None) if answer.strip() else (0.0, "답변이 비어 있습니다.")
+
+        normalized_answer = self._normalize(answer)
+        matched = [
+            fact
+            for fact in expected_facts
+            if self._normalize(fact) and self._normalize(fact) in normalized_answer
+        ]
+        score = round(len(matched) / len(expected_facts), 3)
+        if score >= self.pass_threshold:
+            return score, None
+        missing = [fact for fact in expected_facts if fact not in matched]
+        return score, "누락된 기대 사실: " + ", ".join(missing)
+
+    def _metrics(self, cases: list[EvaluationCase]) -> dict[str, float | int]:
+        case_count = len(cases)
+        if case_count == 0:
+            return {
+                "case_count": 0,
+                "average_score": 0.0,
+                "pass_rate": 0.0,
+                "failed_count": 0,
+            }
+
+        passed = [case for case in cases if case.score >= self.pass_threshold]
+        average_score = round(sum(case.score for case in cases) / case_count, 3)
+        pass_rate = round(len(passed) / case_count, 3)
+        return {
+            "case_count": case_count,
+            "average_score": average_score,
+            "pass_rate": pass_rate,
+            "failed_count": case_count - len(passed),
+        }
+
+    def _normalize(self, value: str) -> str:
+        return " ".join(value.casefold().split())
 
 
 class ApprovalUseCase:

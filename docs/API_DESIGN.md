@@ -20,6 +20,9 @@ GET  /v1/agents/runs/{run_id}
 
 GET  /v1/audit/events
 
+POST /v1/evaluations/runs
+GET  /v1/evaluations/runs/{evaluation_run_id}
+
 GET  /v1/tools
 POST /mcp
 GET  /v1/approvals/pending
@@ -203,6 +206,47 @@ Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
     "rejected_by": "operator-02",
     "reason": "요청 근거가 부족하여 실행하지 않습니다."
   }
+}
+```
+
+## Evaluation Run
+
+요청:
+
+```json
+{
+  "tenant_id": "default",
+  "name": "운영 정책 회귀 평가",
+  "scenario": "operations",
+  "cases": [
+    {
+      "input_query": "Agent 운영 정책을 정리해줘",
+      "expected_facts": ["개인정보 마스킹", "감사로그"]
+    }
+  ]
+}
+```
+
+응답:
+
+```json
+{
+  "id": "018f...",
+  "status": "completed",
+  "metrics": {
+    "case_count": 1,
+    "average_score": 1.0,
+    "pass_rate": 1.0,
+    "failed_count": 0
+  },
+  "cases": [
+    {
+      "input_query": "Agent 운영 정책을 정리해줘",
+      "expected_facts": ["개인정보 마스킹", "감사로그"],
+      "score": 1.0,
+      "failure_reason": null
+    }
+  ]
 }
 ```
 

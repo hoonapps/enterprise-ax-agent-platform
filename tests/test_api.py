@@ -250,3 +250,52 @@ def test_mcp_write_tool_requires_scope_and_creates_approval():
     approvals = pending_after.json()
     assert len(approvals) == 1
     assert approvals[0]["tool_name"] == "workflow.request-change"
+
+
+def test_evaluation_run_scores_grounded_answers():
+    client = TestClient(create_app())
+
+    ingest = client.post(
+        "/v1/documents/ingest",
+        json={
+            "tenant_id": "default",
+            "title": "Agent 운영 평가 기준",
+            "content": (
+                "Agent 실행은 개인정보 마스킹, 권한 검사, 감사로그를 포함해야 한다. "
+                "쓰기성 tool은 승인 대기 상태로 전환한다."
+            ),
+            "source_uri": "test://evaluation-policy",
+        },
+    )
+    assert ingest.status_code == 200
+
+    evaluated = client.post(
+        "/v1/evaluations/runs",
+        json={
+            "tenant_id": "default",
+            "name": "운영 정책 회귀 평가",
+            "scenario": "operations",
+            "cases": [
+                {
+                    "input_query": "Agent 운영 정책을 정리해줘",
+                    "expected_facts": ["개인정보 마스킹", "감사로그"],
+                },
+                {
+                    "input_query": "쓰기성 tool 실행 기준은?",
+                    "expected_facts": ["승인 대기 상태"],
+                },
+            ],
+        },
+    )
+
+    assert evaluated.status_code == 200
+    body = evaluated.json()
+    assert body["status"] == "completed"
+    assert body["metrics"]["case_count"] == 2
+    assert body["metrics"]["average_score"] >= 0.7
+    assert body["metrics"]["failed_count"] == 0
+    assert all(case["score"] >= 0.7 for case in body["cases"])
+
+    fetched = client.get(f"/v1/evaluations/runs/{body['id']}?tenant_id=default")
+    assert fetched.status_code == 200
+    assert fetched.json()["metrics"] == body["metrics"]

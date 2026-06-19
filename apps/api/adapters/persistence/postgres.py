@@ -17,6 +17,9 @@ from apps.api.domain.models import (
     Classification,
     Document,
     DocumentChunk,
+    EvaluationCase,
+    EvaluationRun,
+    EvaluationStatus,
     PolicyDecision,
     QueryType,
     RunStatus,
@@ -472,4 +475,119 @@ class PostgresApprovalRepository(PostgresBase):
             replay_result=cast(dict[str, Any], row["replay_result"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+        )
+
+
+class PostgresEvaluationRepository(PostgresBase):
+    def save(self, run: EvaluationRun, cases: list[EvaluationCase]) -> EvaluationRun:
+        tenant_pk = self._tenant_pk(run.tenant_id)
+        with psycopg.connect(self.dsn) as conn:
+            conn.execute(
+                """
+                insert into evaluation_runs (
+                  id, tenant_id, name, scenario, status, metrics, created_at, completed_at
+                )
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do update set
+                  status = excluded.status,
+                  metrics = excluded.metrics,
+                  completed_at = excluded.completed_at
+                """,
+                (
+                    run.id,
+                    tenant_pk,
+                    run.name,
+                    run.scenario,
+                    run.status.value,
+                    Jsonb(run.metrics),
+                    run.created_at,
+                    run.completed_at,
+                ),
+            )
+            for case in cases:
+                conn.execute(
+                    """
+                    insert into evaluation_cases (
+                      id, tenant_id, evaluation_run_id, input_query, expected_facts,
+                      actual_answer, score, failure_reason, created_at
+                    )
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    on conflict (id) do update set
+                      actual_answer = excluded.actual_answer,
+                      score = excluded.score,
+                      failure_reason = excluded.failure_reason
+                    """,
+                    (
+                        case.id,
+                        tenant_pk,
+                        run.id,
+                        case.input_query,
+                        Jsonb(case.expected_facts),
+                        case.actual_answer,
+                        case.score,
+                        case.failure_reason,
+                        case.created_at,
+                    ),
+                )
+        return EvaluationRun(
+            id=run.id,
+            tenant_id=run.tenant_id,
+            name=run.name,
+            scenario=run.scenario,
+            status=run.status,
+            metrics=run.metrics,
+            cases=cases,
+            created_at=run.created_at,
+            completed_at=run.completed_at,
+        )
+
+    def get(self, tenant_id: str, evaluation_run_id: str) -> EvaluationRun | None:
+        with psycopg.connect(self.dsn, row_factory=dict_row) as conn:
+            run_row = conn.execute(
+                """
+                select r.*, t.slug as tenant_slug
+                from evaluation_runs r
+                join tenants t on t.id = r.tenant_id
+                where t.slug = %s and r.id = %s
+                """,
+                (tenant_id, UUID(evaluation_run_id)),
+            ).fetchone()
+            if run_row is None:
+                return None
+
+            case_rows = conn.execute(
+                """
+                select c.*, t.slug as tenant_slug
+                from evaluation_cases c
+                join tenants t on t.id = c.tenant_id
+                where t.slug = %s and c.evaluation_run_id = %s
+                order by c.created_at asc
+                """,
+                (tenant_id, UUID(evaluation_run_id)),
+            ).fetchall()
+
+        cases = [
+            EvaluationCase(
+                id=cast(UUID, row["id"]),
+                tenant_id=cast(str, row["tenant_slug"]),
+                evaluation_run_id=cast(UUID, row["evaluation_run_id"]),
+                input_query=cast(str, row["input_query"]),
+                expected_facts=[str(item) for item in cast(list[Any], row["expected_facts"])],
+                actual_answer=cast(str, row["actual_answer"] or ""),
+                score=float(row["score"] or 0.0),
+                failure_reason=cast(str | None, row["failure_reason"]),
+                created_at=row["created_at"],
+            )
+            for row in case_rows
+        ]
+        return EvaluationRun(
+            id=cast(UUID, run_row["id"]),
+            tenant_id=cast(str, run_row["tenant_slug"]),
+            name=cast(str, run_row["name"]),
+            scenario=cast(str, run_row["scenario"]),
+            status=EvaluationStatus(cast(str, run_row["status"])),
+            metrics=cast(dict[str, Any], run_row["metrics"]),
+            cases=cases,
+            created_at=run_row["created_at"],
+            completed_at=run_row["completed_at"],
         )
