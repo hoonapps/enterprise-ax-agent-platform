@@ -13,6 +13,7 @@
 - 외부 tool 장애는 timeout/retry/fallback 정책으로 격리한다.
 - 승인 대기 요청을 운영자가 재검토하고 실행 또는 반려할 수 있게 한다.
 - expected facts 기반 evaluation run으로 답변 품질을 회귀 평가한다.
+- CI regression gate로 품질 기준 미달 변경을 차단한다.
 - Agent 실행 과정을 감사 가능한 이벤트로 남긴다.
 - 운영자가 장애와 품질을 추적할 수 있게 만든다.
 
@@ -49,7 +50,8 @@
 8. Vector DB는 검색 인덱스이고, 업무 원장은 RDB가 담당한다.
 9. 외부 tool 장애는 구조화된 execution metadata로 남긴다.
 10. 답변 품질은 evaluation dataset으로 반복 측정한다.
-11. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
+11. 기준 점수보다 낮은 변경은 CI에서 실패시킨다.
+12. 운영자는 raw prompt가 아니라 구조화된 trace와 audit event를 본다.
 
 ## 확장 축
 
@@ -71,5 +73,6 @@
 - 반려된 action은 reason과 함께 rejected 상태로 남는다.
 - 외부 tool 실패는 attempts, elapsed time, fallback 여부와 함께 남는다.
 - 평가 결과는 average score, pass rate, failed count로 추적된다.
+- regression dataset은 CI에서 자동 실행된다.
 - 문서와 벡터 인덱스의 책임이 분리된다.
 - 외부 LLM이나 Vector DB 장애 시에도 실패 경계가 명확하다.

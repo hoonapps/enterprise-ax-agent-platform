@@ -164,3 +164,18 @@ ToolCallUseCase
 
 `ToolGatewayResult`에는 `attempts`, `elapsed_ms`, `fallback_used`, `error_message`가 포함된다.
 Runtime은 이 정보를 tool execution의 `_gateway` metadata로 남긴다.
+
+## 11. Regression Gate
+
+Evaluation API와 CI gate는 같은 유스케이스를 사용한다.
+
+```text
+JSON Dataset -> EvaluateAgentUseCase -> EvaluationRepository -> Metrics Gate
+```
+
+API와 CI가 다른 평가 로직을 갖지 않도록 분리했다.
+
+- API는 운영자가 ad-hoc 평가를 실행하는 경계다.
+- `scripts/run_regression_eval.py`는 CI에서 같은 use case를 실행하는 경계다.
+- dataset은 `minimum_average_score`, `minimum_pass_rate`를 가진다.
+- 기준 미달 시 CI를 실패시킨다.

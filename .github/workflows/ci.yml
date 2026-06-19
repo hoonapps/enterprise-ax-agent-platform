@@ -31,3 +31,6 @@ jobs:
 
       - name: Test
         run: pytest
+
+      - name: Regression evaluation
+        run: python scripts/run_regression_eval.py

@@ -154,6 +154,20 @@ POST /v1/evaluations/runs
 로컬 답변 생성기는 검색된 근거 문장을 포함하도록 결정론적으로 동작한다.
 따라서 외부 LLM 키 없이도 evaluation run을 회귀 테스트로 사용할 수 있다.
 
+## Regression Gate 흐름
+
+```text
+make regression
+  -> data/evaluation/regression_ko.json 로드
+  -> data/sample_docs 문서 적재
+  -> EvaluateAgentUseCase 실행
+  -> average_score / pass_rate 기준 확인
+  -> 기준 미달 시 non-zero exit
+```
+
+GitHub Actions는 lint, typecheck, pytest 이후 regression gate를 실행한다.
+이 흐름은 retrieval, answer synthesis, scoring 변경이 제품 품질을 낮추는지 확인한다.
+
 ## 엔터프라이즈 고려사항
 
 ### 멀티테넌시

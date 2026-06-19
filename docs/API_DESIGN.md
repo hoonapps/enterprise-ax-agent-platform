@@ -227,6 +227,29 @@ Tool 호출 응답은 `content`, `structuredContent`, `isError`를 포함한다.
 }
 ```
 
+## Regression Dataset
+
+CI regression gate는 API request와 유사한 JSON dataset을 사용한다.
+
+```json
+{
+  "tenant_id": "default",
+  "name": "core-agent-regression-ko",
+  "scenario": "operations",
+  "minimum_average_score": 0.8,
+  "minimum_pass_rate": 1.0,
+  "cases": [
+    {
+      "input_query": "AX Agent 거버넌스 기준을 설명해줘",
+      "expected_facts": ["개인정보", "감사 이벤트", "쓰기 작업"]
+    }
+  ]
+}
+```
+
+`scripts/run_regression_eval.py`는 sample documents를 적재한 뒤 같은 evaluation use case를 실행한다.
+점수가 기준보다 낮으면 프로세스를 실패시킨다.
+
 응답:
 
 ```json

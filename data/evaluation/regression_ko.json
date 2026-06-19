@@ -1,0 +1,25 @@
+{
+  "tenant_id": "default",
+  "name": "core-agent-regression-ko",
+  "scenario": "operations",
+  "minimum_average_score": 0.8,
+  "minimum_pass_rate": 1.0,
+  "cases": [
+    {
+      "input_query": "Agentic RAG 운영 모델의 질문 유형과 검색 전략을 정리해줘",
+      "expected_facts": ["질문 유형", "검색 전략", "Tool 실행 가능 여부"]
+    },
+    {
+      "input_query": "AX Agent 거버넌스 기준을 설명해줘",
+      "expected_facts": ["개인정보", "감사 이벤트", "쓰기 작업"]
+    },
+    {
+      "input_query": "LLMOps 백엔드 안정성에 필요한 요소를 정리해줘",
+      "expected_facts": ["retry", "timeout", "fallback", "idempotency"]
+    },
+    {
+      "input_query": "MCP 기반 사내 시스템 연동에서 중요한 기준은?",
+      "expected_facts": ["Tool schema", "권한 범위", "감사로그"]
+    }
+  ]
+}

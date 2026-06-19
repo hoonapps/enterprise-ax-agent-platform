@@ -69,4 +69,5 @@ class GroundedAnswerSynthesizer:
 
     def _compact(self, text: str) -> str:
         compacted = " ".join(text.split())
-        return compacted[:260] + ("..." if len(compacted) > 260 else "")
+        max_chars = 420
+        return compacted[:max_chars] + ("..." if len(compacted) > max_chars else "")

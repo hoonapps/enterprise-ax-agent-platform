@@ -1,4 +1,4 @@
-.PHONY: install dev test lint typecheck verify run
+.PHONY: install dev test lint typecheck regression verify run
 
 install:
 	python3 -m venv .venv
@@ -16,7 +16,10 @@ lint:
 typecheck:
 	. .venv/bin/activate && mypy apps --explicit-package-bases
 
-verify: lint typecheck test
+regression:
+	. .venv/bin/activate && python scripts/run_regression_eval.py
+
+verify: lint typecheck test regression
 
 run:
 	. .venv/bin/activate && uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
